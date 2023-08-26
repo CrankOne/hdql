@@ -1,0 +1,115 @@
+%option noyywrap reentrant 8bit yylineno
+%option bison-locations
+%option noinput nounput
+
+D           [0-9]
+L           [a-zA-Z_\\]
+UL          [A-Z_]
+DTNAME      {UL}
+identifier  {L}({L}|{D})*
+
+%{
+#include <stdio.h>
+#include "hdql.tab.h"
+
+#define YY_USER_ACTION                              \
+    yylloc->first_line = yylloc->last_line;         \
+    yylloc->first_column = yylloc->last_column;     \
+    for(int i = 0; yytext[i] != '\0'; i++) {        \
+        if(yytext[i] == '\n') {                     \
+            yylloc->last_line++;                    \
+            yylloc->last_column = 0;                \
+        } else {                                    \
+            yylloc->last_column++;                  \
+        }                                           \
+    }
+
+%}
+
+%%
+
+[ \t\n]         ; // ignore all whitespaces
+"+"             {return T_PLUS;}
+"-"             {return T_MINUS;}
+"*"             {return T_ASTERISK;}
+"/"             {return T_SLASH;}
+"%"             {return T_PERC;}
+"**"            {return T_DBL_ASTERISK;}
+">"             {return T_GT;}
+">>"            {return T_RBSHIFT;}
+"<<"            {return T_LBSHIFT;}
+"<"             {return T_LT;}
+">="            {return T_GTE;}
+"<="            {return T_LTE;}
+"=="            {return T_EQ;}
+":="            {return T_WALRUS;}
+"["             {return T_LSQBC;}
+"]"             {return T_RSQBC;}
+"("             {return T_LBC;}
+")"             {return T_RBC;}
+"{"             {return T_LCRLBC;}
+"}"             {return T_RCRLBC;}
+"!="            {return T_NE;}
+"&"             {return T_AMP;}
+"&&"            {return T_DBL_AMP;}
+"|"             {return T_PIPE;}
+"||"            {return T_DBL_PIPE;}
+"^"             {return T_CAP;}
+"^^"            {return T_DBL_CAP;}
+"~"             {return T_TILDE;}
+"!"             {return T_EXCLMM;}
+"?"             {return T_QUESTIONMM;}
+":"             {return T_COLON;}
+";"             {return T_SEMICOLON;}
+"++"            {return T_INCREMENT;}
+"--"            {return T_DECREMENT;}
+"+="            {return T_PLUSE;}
+"-="            {return T_MINUSE;}
+">>="           {return T_RBSHIFTE;}
+"<<="           {return T_LBSHIFTE;}
+","             {return T_COMMA;}
+"."             {return T_PERIOD;}
+{D}+            {   char * endptr;
+                    long val = strtol( yytext, &endptr, 0 );
+                    int ec = errno;
+                    if( *endptr != '\0' || (ec == ERANGE && (val == LONG_MIN || val == LONG_MAX)) ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid integer"
+                            " literal \"%s\": %s", yytext, strerror(ec) );
+                        return T_INVALID_LITERAL;
+                    }
+                    yylval->intStaticValue = val;
+                    return T_INT_STATIC_VALUE;
+                }
+[+-]?(({D}*"."{D}+)|({D}+"."{D}*))([eE][-+]?{D}+)? {
+                    char * endPtr = NULL;
+                    double val = strtod( yytext, &endPtr );
+                    int ec = errno;
+                    if( *endPtr != '\0'
+                     || (HUGE_VAL == val && ERANGE == ec)
+                     || (DBL_MIN  <= val && ERANGE == ec)
+                     ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid floating point"
+                            " literal \"%s\": %s", yytext, strerror(ec) );
+                        return T_INVALID_LITERAL;
+                    }
+                    yylval->fltStaticValue = val;
+                    return T_FLT_STATIC_VALUE;
+                }
+{identifier}    {   /* Lookup for name in "getters table" */
+                    /* TODO: look for math functions and possibly keywords */
+                    yylval->strID = strdup(yytext);
+                    return T_IDENTIFIER;
+                }
+"["([^\]]|"\\]")+"]" {
+                    /* Selector expression are forwarded to individual query
+                     * parsers */
+                    assert(*yytext == '[');
+                    assert(yytext[yyleng-1] == ']');
+                    yytext[yyleng-1] = '\0';
+                    yylval->selexpr = strdup(yytext+1);
+                    return T_SELECTION_EXPRESSION;
+                }
+
+
+%%
+

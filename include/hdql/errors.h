@@ -1,0 +1,37 @@
+#ifndef H_HDQL_ERROR_CODES_H
+#define H_HDQL_ERROR_CODES_H
+
+#include "hdql/types.h"
+#define HDQL_M_for_each_err_code(m, ...) \
+    m( OK,               0,    "ok" ) \
+    m( GENERIC,         -1,    "generic error" ) \
+    /* ... */
+
+/* General codes */
+#define HDQL_ERR_CODE_OK                    0   /* not an error, ok return code */
+#define HDQL_ERR_GENERIC                   -1   /* unspecified common error */
+#define HDQL_ERR_MEMORY                    -2   /* memory allocation error */
+/* Parser/lexer errors */
+#define HDQL_ERR_TRANSLATION_FAILURE      -11   /* general parser/lexer error */
+#define HDQL_ERR_UNKNOWN_ATTRIBUTE        -12   /* identifier is not known */
+#define HDQL_ERR_ATTRIBUTE                -13   /* querying atomic value */
+#define HDQL_BAD_QUERY_EXPRESSION         -14   /* failed to create or append query object */
+#define HDQL_ERR_COMPOUNDS_STACK_DEPTH    -15   /* compounds stack depth exceed */
+#define HDQL_ERR_ATTR_FILTER              -16   /* filter can not be applied to result query of type */
+#define HDQL_ERR_FILTER_RET_TYPE          -17   /* filter query result type can not be evaluated to bool */
+/* Arithmetic operations (definition or evaluation) errors */
+#define HDQL_ERR_OPERATION_NOT_SUPPORTED  -21   /* operation is not supported */
+#define HDQL_ERR_ARITH_OPERATION          -22   /* arithmetic operation error */
+#define HDQL_ARITH_ERR_ZERO_DIVISION      -23   /* division by zero */
+#define HDQL_ARITH_ERR_NEGATIVE_SHIFT     -24   /* negative bit shift */
+#define HDQL_ERR_FUNC_MAX_NARG            -25   /* maximum number of function arguments exceed */
+#define HDQL_ERR_FUNC_ARG_COLLISION       -26   /* argument #N already has been set */
+#define HDQL_ERR_FUNC_REDEFINITION        -27   /* function has been already defined */
+
+#ifdef __cplusplus
+extern "C"
+#endif
+const char * hdql_err_str(hdql_Err_t);
+
+#endif
+

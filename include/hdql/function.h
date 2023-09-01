@@ -18,9 +18,7 @@ struct hdql_Func;
 /**\brief Dictionary of functions */
 struct hdql_Functions;
 
-
-
-#if 0
+#if 1
 struct hdql_FuncDef {
     bool returnsCollection;
     bool returnsCompoundType;

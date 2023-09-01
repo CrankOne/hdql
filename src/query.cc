@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "hdql/compound.h"
+#include "hdql/errors.h"
 #include "hdql/function.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
@@ -23,18 +24,27 @@ namespace hdql {
 
 // Elementary query tier object
 struct Selection {
-    // subject attribute definition
+    // Subject attribute definition
+    //
+    // This is immutable pointer to attribute's interface implementing all
+    // access interfaces
     const hdql_AttributeDefinition * subject;
 
+    // This is actual selection state with all data mutable during query
+    // lifecycle
     union {
-        unsigned int scalarVisited:1;
+        struct {
+            bool isVisited;
+            hdql_Datum_t dynamicSuppData;
+        } scalar;
         struct {
             // selection iterator at current tier
             hdql_It_t iterator;
             // internal copy of selector expression, used to create new iterators
             hdql_SelectionArgs_t selectionArgs;
-        } iterable;
+        } collection;
     } state;
+    hdql_Datum_t owner;
 
     Selection( const hdql_AttributeDefinition * subject_
              , hdql_SelectionArgs_t selexpr
@@ -45,18 +55,16 @@ struct Selection {
     ~Selection();
     // if state is not initialized, creates iterator and set it to first
     // available item, if possible, otherwise, sets it to end
-    bool get_value( hdql_Datum_t owner
-                  , hdql_Datum_t & value
+    bool get_value( hdql_Datum_t & value
                   , hdql_CollectionKey * keyPtr
                   , hdql_Context_t ctx
                   );
     // sets iterator to next available item, if possible, or sets it to end
-    void advance( hdql_Datum_t owner
-                , hdql_Context_t ctx );
+    void advance( hdql_Context_t ctx );
     // sets iterator to first available item
-    void reset_iterator( hdql_Datum_t owner
-                       , hdql_Context_t ctx
-                       );
+    void reset( hdql_Datum_t newOwner
+              , hdql_Context_t ctx
+              );
 };
 
 /**\brief Tree-item wrapper around single selection item
@@ -82,22 +90,20 @@ struct Query : public SelectionItemT {
             , hdql_Context_t ctx
             ) {
         // try to get value using current selection
-        if(!SelectionItemT::get_value( ownerDatum  // owner
-                                     , currentAttr  // destination
+        if(!SelectionItemT::get_value( currentAttr  // destination
                                      , keys
                                      , ctx
                                      ) ) {
             return false;  // not available
         }
         if(!next) {
-            SelectionItemT::advance(ownerDatum, ctx);
+            SelectionItemT::advance(ctx);
             return true;  // got current and this is terminal
         }
         // this is not a terminal query in the chain 
         while(!next->get(currentAttr, keys ? keys + 1 : NULL, ctx)) {  // try to get next and if failed, keep:
-            SelectionItemT::advance(ownerDatum, ctx);  // advance next one
-            if(!SelectionItemT::get_value( ownerDatum  // owner
-                                         , currentAttr  // destination
+            SelectionItemT::advance(ctx);  // advance next one
+            if(!SelectionItemT::get_value( currentAttr  // destination
                                          , keys
                                          , ctx
                                          ) ) {
@@ -115,8 +121,8 @@ struct Query : public SelectionItemT {
     }
 
     void reset( hdql_Datum_t owner, hdql_Context_t ctx ) {
-        SelectionItemT::reset_iterator(owner, ctx);
-        if(!SelectionItemT::get_value(owner, currentAttr, NULL, ctx))
+        SelectionItemT::reset(owner, ctx);
+        if(!SelectionItemT::get_value(currentAttr, NULL, ctx))
             return;
         if(!next) return;
         next->reset(currentAttr, ctx);
@@ -147,8 +153,7 @@ struct TestingItem {
         : c(0), max_(0)
     {}
 
-    bool get_value( hdql_Datum_t owner
-                  , hdql_Datum_t & value
+    bool get_value( hdql_Datum_t & value
                   , hdql_CollectionKey * keyPtr
                   , hdql_Context_t ctx
                   ) {
@@ -159,15 +164,14 @@ struct TestingItem {
         return true;
     }
 
-    void advance( hdql_Datum_t owner
-                , hdql_Context_t ctx ) {
+    void advance( hdql_Context_t ctx ) {
         assert(c < max_);
         ++c;
     }
 
-    void reset_iterator( hdql_Datum_t owner
-                       , hdql_Context_t ctx
-                       ) {
+    void reset( hdql_Datum_t newOwner
+              , hdql_Context_t ctx
+              ) {
         c = 0;
     }
 };
@@ -224,6 +228,7 @@ struct hdql_Query : public hdql::Query<hdql::Selection> {
               ) : hdql::Query<hdql::Selection>( subject_
                                               , selexpr_
                                               ) {}
+    #if 0
     bool is_functionlike() const {
         // operation or function node:
         return subject->isCollection  // ... is collection
@@ -233,49 +238,57 @@ struct hdql_Query : public hdql::Query<hdql::Selection> {
             && NULL == subject->interface.collection.compile_selection  //...and has no way to create selection args 
             ;
     }
+    #endif
 };
 
 namespace hdql {
 
 Selection::Selection( const hdql_AttributeDefinition * subject_
-         , hdql_SelectionArgs_t selexpr
-         ) : subject(subject_)
-           {
+                    , hdql_SelectionArgs_t selexpr
+                    ) : subject(subject_)
+                      {
     //if(subject->isSubQuery) {
     //    bzero(&state, sizeof(state));
     //} else
-    if(subject->isCollection) {
-        state.iterable.iterator = NULL;
+    if(hdql_kAttrIsCollection & subject->attrFlags) {
+        state.collection.iterator = NULL;
         if(selexpr)
-            state.iterable.selectionArgs = selexpr;
+            state.collection.selectionArgs = selexpr;
         else
-            state.iterable.selectionArgs = NULL;
+            state.collection.selectionArgs = NULL;
     } else {
-        state.scalarVisited = 0x0;
+        state.scalar.isVisited = false;
+        state.scalar.dynamicSuppData = NULL;
         assert(!selexpr);
     }
-    if(subject->isSubQuery) {
-        assert(NULL == state.iterable.selectionArgs);
+
+    if(hdql_kAttrIsSubquery & subject->attrFlags) {
+        assert(NULL == state.collection.selectionArgs);
         assert(subject->typeInfo.subQuery);
-        state.iterable.selectionArgs = reinterpret_cast<hdql_SelectionArgs_t>(subject->typeInfo.subQuery);
+        state.collection.selectionArgs = reinterpret_cast<hdql_SelectionArgs_t>(subject->typeInfo.subQuery);
     }
 }
 
 void
 Selection::finalize_tier(hdql_Context_t ctx) {
-    if(subject->isCollection) {
-        if(state.iterable.iterator)
-            subject->interface.collection.destroy(state.iterable.iterator, ctx);
-        if(state.iterable.selectionArgs) {
-            if(!subject->isSubQuery) {
-                subject->interface.collection.free_selection(ctx, state.iterable.selectionArgs);
+    if(hdql_kAttrIsCollection & subject->attrFlags) {
+        if(state.collection.iterator)
+            subject->interface.collection.destroy( state.collection.iterator
+                                                 , subject->interface.collection.definitionData
+                                                 , ctx
+                                                 );
+        if(state.collection.selectionArgs) {
+            if(!(hdql_kAttrIsSubquery & subject->attrFlags)) {
+                subject->interface.collection.free_selection(ctx, state.collection.selectionArgs);
             }
         }
     } else {
-        if(subject->interface.scalar.free_supp_data)
-            subject->interface.scalar.free_supp_data(subject->interface.scalar.suppData, ctx);
+        if(subject->interface.scalar.destroy)
+            subject->interface.scalar.destroy(state.scalar.dynamicSuppData
+                    , subject->interface.scalar.definitionData, ctx);
     }
-    if(subject->staticValueFlags) {
+
+    if(hdql_kAttrIsStaticValue & subject->attrFlags) {
         //hdql_context_local_attribute_destroy(ctx, );
         //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
         if(subject->typeInfo.staticValue.datum) {
@@ -290,15 +303,14 @@ Selection::~Selection() {
 // if state is not initialized, creates iterator and set it to first
 // available item, if possible, otherwise, sets it to end
 bool
-Selection::get_value( hdql_Datum_t owner
-              , hdql_Datum_t & value
+Selection::get_value( hdql_Datum_t & value
               , hdql_CollectionKey * keyPtr
               , hdql_Context_t ctx
               ) {
-    if(subject->staticValueFlags) {
+    if(hdql_kAttrIsStaticValue & subject->attrFlags) {
         owner = subject->typeInfo.staticValue.datum;
     }
-    assert(owner);
+    assert(owner);  // otherwise missing `reset()`
     //if(subject->isSubQuery) {
     //    value = hdql_query_get(subject->typeInfo.subQuery, owner
     //            , keyPtr ? reinterpret_cast<hdql_CollectionKey *>(keyPtr->datum) : NULL
@@ -306,75 +318,110 @@ Selection::get_value( hdql_Datum_t owner
     //            );
     //    return NULL != value;
     //}
-    if(subject->isCollection) {
-        if(!state.iterable.iterator) {
+    if(hdql_kAttrIsCollection & subject->attrFlags) {
+        #if 0
+        if(!state.collection.iterator) {
             // not initialized/empty -- init, reset
-            state.iterable.iterator =
-                subject->interface.collection.create(owner, state.iterable.selectionArgs, ctx);
-            if(!state.iterable.iterator) return false;
-            subject->interface.collection.reset(owner, state.iterable.selectionArgs
-                    , state.iterable.iterator, ctx);
+            state.collection.iterator =
+                subject->interface.collection.create( owner
+                        , subject->interface.collection.definitionData
+                        , state.collection.selectionArgs
+                        , ctx
+                        );
+            if(!state.collection.iterator)
+                return false;
+            subject->interface.collection.reset( owner
+                        , state.collection.selectionArgs
+                        , state.collection.iterator
+                        , subject->interface.collection.definitionData
+                        , ctx
+                        );
         }
-        assert(state.iterable.iterator);
-        value = subject->interface.collection.dereference(owner, state.iterable.iterator, ctx);
-        if(value && keyPtr) {
-            //if(0x0 != subject->interface.collection.keyTypeCode) {
-                if(subject->interface.collection.get_key) {
-                    subject->interface.collection.get_key(owner, state.iterable.iterator, keyPtr, ctx);
-                }// else {
-                    // This must be considered as an error: generator yielded a
-                    // value, key requested by caller, key type code is set,
-                    // but collection interface does not provide key copy
-                    // implementation.
-                //    throw std::runtime_error("collection key requested, but subject"
-                //            " interface does not provide key getter");  // TODO: dedicated exception
-                //}
-            //} else {
-            //    // collection interface does not provide key type, this may be
-            //    // intended for syntetic collections created by functions and
-            //    // operations. In that case, returned value has to be iterated
-            //    // ...
-            //    assert(0);  // TODO
-            //}
-        }
+        #endif
+        assert(state.collection.iterator);
+        value = subject->interface.collection.dereference(
+                          state.collection.iterator
+                        , keyPtr
+                        , subject->interface.collection.definitionData
+                        , ctx
+                        );
     } else {
-        if(state.scalarVisited) return false;
+        if(state.scalar.isVisited)
+            return false;
         assert(subject->interface.scalar.dereference);
-        value = subject->interface.scalar.dereference(owner, ctx, subject->interface.scalar.suppData);
+        value = subject->interface.scalar.dereference( owner
+                , state.scalar.dynamicSuppData
+                , keyPtr
+                , subject->interface.scalar.definitionData
+                , ctx
+                );
     }
     return NULL != value;
 }
 
 // sets iterator to next available item, if possible, or sets it to end
 void
-Selection::advance( hdql_Datum_t owner
-                  , hdql_Context_t ctx ) {
+Selection::advance( hdql_Context_t ctx ) {
     assert(subject);
+    assert(owner);  // otherwise missing reset()
     //if(subject->isSubQuery) {
     //    // NOTE: advance for sub-queries has no sense as it was already 
     //} else
-    if(subject->isCollection) {
-        if(!state.iterable.iterator) return;
-        state.iterable.iterator = subject->interface.collection.advance(
-                owner, state.iterable.selectionArgs, state.iterable.iterator, ctx);
+    if(hdql_kAttrIsCollection & subject->attrFlags) {
+        if(!state.collection.iterator)
+            return;  // permitted state for empty collections
+        state.collection.iterator = subject->interface.collection.advance(
+                  state.collection.iterator
+                , subject->interface.collection.definitionData
+                , ctx
+                );
     } else {
-        state.scalarVisited = 0x1;
+        state.scalar.isVisited = true;
     }
 }
 
 void
-Selection::reset_iterator( hdql_Datum_t owner
-                   , hdql_Context_t ctx
-                   ) {
-    if(subject->isSubQuery) {
-        hdql_query_reset(subject->typeInfo.subQuery, owner, ctx);
+Selection::reset( hdql_Datum_t newOwner
+                , hdql_Context_t ctx
+                ) {
+    if(hdql_kAttrIsSubquery & subject->attrFlags) {
+        hdql_query_reset(subject->typeInfo.subQuery, newOwner, ctx);
     }
-    if(subject->isCollection) {
-        if(NULL == state.iterable.iterator) return;
-        subject->interface.collection.reset(owner, state.iterable.selectionArgs
-                , state.iterable.iterator, ctx);
+    if(hdql_kAttrIsCollection & subject->attrFlags) {
+        if(NULL != state.collection.iterator) {
+            state.collection.iterator =
+                subject->interface.collection.reset(newOwner
+                    , state.collection.selectionArgs
+                    , state.collection.iterator
+                    , subject->interface.collection.definitionData
+                    , ctx
+                    );
+        } else {
+            state.collection.iterator =
+                subject->interface.collection.create(newOwner
+                    , subject->interface.collection.definitionData
+                    , state.collection.selectionArgs
+                    , ctx
+                    );
+        }
     } else {
-        state.scalarVisited = 0x0;
+        if(subject->interface.scalar.instantiate) {
+            if(NULL != state.scalar.dynamicSuppData ) {
+                assert(subject->interface.scalar.reset);  // provided `instantiate()`, but no `reset()`?
+                state.scalar.dynamicSuppData = subject->interface.scalar.reset(newOwner
+                        , state.scalar.dynamicSuppData
+                        , subject->interface.scalar.definitionData
+                        , ctx
+                        );
+            } else {
+                state.scalar.dynamicSuppData
+                    = subject->interface.scalar.instantiate( newOwner
+                        , subject->interface.scalar.definitionData
+                        , ctx
+                        );
+            }
+        }
+        state.scalar.isVisited = false;
     }
 }
 
@@ -388,6 +435,80 @@ hdql_query_create(
         , hdql_Context_t ctx
         ) {
     return new hdql_Query( attrDef, selArgs );
+}
+
+extern "C" const struct hdql_AttributeDefinition *
+hdql_query_get_subject( struct hdql_Query * q ) {
+    return q->subject;
+}
+
+extern "C" int
+hdql_query_str( const struct hdql_Query * q
+              , char * strbuf, size_t buflen
+              , hdql_ValueTypes * vts
+              ) {
+    if(NULL == q || 0 == buflen || NULL == strbuf)
+        return HDQL_ERR_BAD_ARGUMENT;
+    size_t nUsed = 0;
+    #define _M_pr(fmt, ...) \
+        nUsed += snprintf(strbuf + nUsed, buflen - nUsed, fmt, __VA_ARGS__); \
+        if(nUsed >= buflen - 1) return 1;
+    // query 0x23fff34 is "[static ](collection|scalar) [of [atomic|compound]type] "
+    _M_pr("%s%s%s "
+            , q->subject->attrFlags & hdql_kAttrIsStaticValue ? "static " : ""
+            , q->subject->attrFlags & hdql_kAttrIsCollection ? "collection" : "scalar"
+            , q->subject->attrFlags & hdql_kAttrIsSubquery
+              ? " forwarding to "
+              : ( q->subject->attrFlags & hdql_kAttrIsAtomic
+                ? "of atomic type"
+                : ( hdql_compound_is_virtual(q->subject->typeInfo.compound)
+                  ? "of virtual compound type"
+                  : "of compound type"
+                  )
+                )
+            );
+    if(hdql_kAttrIsSubquery) {
+        // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
+        _M_pr("%p which is ", q->subject->typeInfo.subQuery );
+        return hdql_query_str( q->subject->typeInfo.subQuery
+                , strbuf + nUsed, buflen - nUsed, vts );
+    }
+    if(hdql_kAttrIsAtomic & q->subject->attrFlags) {
+        // "[static ](collection|scalar) of atomic type <%s>"
+        assert(vts);
+        const hdql_ValueInterface * vi
+            = hdql_types_get_type( vts
+                                 , (hdql_kAttrIsStaticValue & q->subject->attrFlags)
+                                 ? q->subject->typeInfo.atomic.arithTypeCode
+                                 : q->subject->typeInfo.staticValue.typeCode
+                                 );
+        assert(NULL != vi);
+        _M_pr("<%s>", vi->name);
+        if(hdql_kAttrIsStaticValue & q->subject->attrFlags) {
+            // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
+            if(q->subject->typeInfo.staticValue.datum && vi->get_as_string) {
+                char vBf[64];
+                int rc = vi->get_as_string(q->subject->typeInfo.staticValue.datum
+                            , vBf, sizeof(vBf));
+                if(0 == rc) {
+                    _M_pr(" =%s", vBf);
+                } else {
+                    _M_pr(" =? at %p", q->subject->typeInfo.staticValue.datum);
+                }
+            } else {
+                _M_pr(" at %p", q->subject->typeInfo.staticValue.datum);
+            }
+        }
+    } else {
+        // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"
+        _M_pr("%s<%s>"
+                , hdql_compound_is_virtual(q->subject->typeInfo.compound)
+                ? "based on "
+                : ""
+                , hdql_compound_get_name(q->subject->typeInfo.compound));
+    }
+    #undef _M_pr
+    return 0;
 }
 
 extern "C" void
@@ -425,8 +546,8 @@ hdql_query_depth(struct hdql_Query * q) {
 extern "C" bool
 hdql_query_is_fully_scalar(struct hdql_Query * q) {
     do {
-        if(q->subject->isCollection) return false;
-        if(q->subject->isSubQuery) {
+        if(hdql_kAttrIsCollection & q->subject->attrFlags) return false;
+        if(hdql_kAttrIsSubquery & q->subject->attrFlags) {
             if(!hdql_query_is_fully_scalar(q->subject->typeInfo.subQuery)) return false;
         }
     } while(q->next && (q = static_cast<hdql_Query *>(q->next)));
@@ -439,462 +560,30 @@ hdql_query_attr(const struct hdql_Query * q) {
     return q->subject;
 }
 
+extern "C" void
+hdql_query_dump( FILE * outf
+               , struct hdql_Query * q
+               , hdql_ValueTypes * vts
+               ) {
+    int rc;
+    char buf[1024];
+    for(; q; q = static_cast<hdql_Query *>(q->next)) {
+        rc = hdql_query_str(q, buf, sizeof(buf), vts);
+        if(0 != rc) return;
+        fputs(buf, outf);
+    }
+}
+
 extern "C" const hdql_AttributeDefinition *
 hdql_query_top_attr(const struct hdql_Query * q_) {
     const hdql::Query<hdql::Selection> * q = q_;
     while(q->next) { q = q->next; }
-    if(q->subject->isSubQuery) {
+    if(hdql_kAttrIsSubquery & q->subject->attrFlags) {
         return hdql_query_top_attr(q->subject->typeInfo.subQuery);
     }
     return q->subject;
 }
 
-extern "C" int
-hdql_query_reserve_keys_for( struct hdql_Query * query
-                           , struct hdql_CollectionKey ** keys_
-                           , hdql_Context_t ctx
-                           ) {
-    if(NULL == query || NULL == keys_ || NULL == query) return -1;  // bad arguments
-    size_t nKeys = query->depth();
-    assert(nKeys > 0);
-    *keys_ = reinterpret_cast<struct hdql_CollectionKey *>(
-            hdql_context_alloc(ctx, sizeof(struct hdql_CollectionKey)*nKeys));
-    assert(*keys_);
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    if(NULL == types) return -2;  // types table not available in the context
-    hdql_CollectionKey * cKey = *keys_;
-    int rc = 0;
-    do {
-        assert(cKey - *keys_ < (ssize_t) nKeys);
-        assert(query);
-        if(query->subject->isSubQuery) {
-            // subquery
-            cKey->code = 0x0;
-            rc = hdql_query_reserve_keys_for(
-                      query->subject->typeInfo.subQuery
-                    , reinterpret_cast<hdql_CollectionKey **>(&(cKey->datum))
-                    , ctx
-                    );
-            assert(0 == rc);  // TODO: handle errors
-        } else if( (!query->subject->isCollection)
-                || (!query->subject->interface.collection.get_key)
-                 ) {
-            // a scalar attribute or collection which does not provide key
-            // copying procedure in its interface
-            cKey->code = 0x0;
-            cKey->datum = NULL;
-        } else {
-            // collection which provides key copy
-            assert(query->subject->isCollection);
-            assert(query->subject->interface.collection.get_key);
-            // if is of typed key
-            if(0x0 != query->subject->interface.collection.keyTypeCode) {
-                // ordinary (defined in HDQL context) key type
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                cKey->code  = query->subject->interface.collection.keyTypeCode;
-                cKey->datum = hdql_create_value( query->subject->interface.collection.keyTypeCode
-                                               , ctx);
-                assert(cKey->datum);
-                if(vi->init)
-                    vi->init(cKey->datum, vi->size, ctx);
-                assert(!query->subject->isSubQuery);
-            } else {
-                // NOTE: we anticipate the only case when key code is not set,
-                // but `get_key()` is defined as functional query -- a
-                // function query
-                assert(query->is_functionlike());
-                hdql_Func * fDef = reinterpret_cast<hdql_Func *>(query->state.iterable.selectionArgs);
-                hdql_CollectionKey * cKeyPtr;
-                rc = hdql_func_reserve_keys( fDef
-                    , &cKeyPtr
-                    , ctx );
-                if(0 != rc) {
-                    hdql_context_err_push(ctx, rc, "reserving keys for query %p"
-                            , query );
-                }
-                assert(NULL != cKeyPtr);
-                //assert(NULL == cKey->datum);  // delibirately not initialized
-                cKey->datum = reinterpret_cast<hdql_Datum_t>(cKeyPtr);
-                assert(rc == 0);  // TODO: handle errors
-            }
-        }
-        assert(!(query->subject->isSubQuery && !cKey->datum) );
-        query = static_cast<hdql_Query*>(query->next);
-        ++cKey;
-    } while(query);
-    return rc;
-}
-
-int
-hdql_query_copy_keys( struct hdql_Query * query
-                    , struct hdql_CollectionKey * dest
-                    , const struct hdql_CollectionKey * src
-                    , hdql_Context_t ctx
-                    ) {
-    if(NULL == query || NULL == dest || NULL == src || NULL == ctx ) return -1;  // bad arguments
-    size_t nKeys = query->depth();
-    assert(nKeys > 0);
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    hdql_CollectionKey       * destKey = dest;
-    const hdql_CollectionKey * srcKey  = src;
-    int rc = 0;
-    do {
-        assert(srcKey  - src  < (ssize_t) nKeys);
-        assert(destKey - dest < (ssize_t) nKeys);
-        assert(query);
-        if(query->subject->isSubQuery) {
-            // subquery
-            assert(srcKey->code  == 0x0);
-            assert(destKey->code == 0x0);
-            rc = hdql_query_copy_keys(
-                      query->subject->typeInfo.subQuery
-                    , reinterpret_cast<hdql_CollectionKey *>(destKey->datum)
-                    , reinterpret_cast<const hdql_CollectionKey *>(srcKey->datum)
-                    , ctx
-                    );
-            assert(0 == rc);  // TODO: treat errors
-        } else if( (!query->subject->isCollection)
-                || (!query->subject->interface.collection.get_key)
-                 ) {
-            // a scalar attribute or collection which does not provide key
-            // copying procedure in its interface
-            assert(srcKey->code   == 0x0);
-            assert(srcKey->datum  == NULL);
-            assert(destKey->code  == 0x0);
-            assert(destKey->datum == NULL);
-        } else {
-            // collection which provides key copy
-            assert(query->subject->isCollection);
-            assert(query->subject->interface.collection.get_key);
-            // if of typed key
-            if(0x0 != query->subject->interface.collection.keyTypeCode) {
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                assert(srcKey->code  == query->subject->interface.collection.keyTypeCode);
-                assert(destKey->code == query->subject->interface.collection.keyTypeCode);
-                assert(srcKey->datum);
-                assert(destKey->datum);
-                assert(vi->size);
-                rc = vi->copy(destKey->datum, srcKey->datum, vi->size, ctx);
-                assert(0 == rc);
-            } else {
-                assert(query->is_functionlike());
-                hdql_Func * fDef = reinterpret_cast<hdql_Func *>(query->state.iterable.selectionArgs);
-                rc = hdql_func_copy_keys( fDef
-                    , reinterpret_cast<hdql_CollectionKey *>(destKey->datum)
-                    , reinterpret_cast<const hdql_CollectionKey *>(srcKey->datum)
-                    , ctx
-                    );
-                assert(rc == 0);  // TODO: handle errors
-            }
-        }
-        query = static_cast<hdql_Query*>(query->next);
-        ++destKey;
-        ++srcKey;
-    } while(query);
-    return rc;
-}
-
-static int
-_hdql_query_for_every_key( const struct hdql_Query * query
-                         , const struct hdql_CollectionKey * keys
-                         , hdql_Context_t ctx
-                         , hdql_KeyIterationCallback_t callback
-                         , void * userdata
-                         , size_t cLevel
-                         ) {
-    if(NULL == query || NULL == keys || NULL == ctx || NULL == callback ) return -1;  // bad arguments
-    size_t nKeys = query->depth();
-    assert(nKeys > 0);
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    const hdql_CollectionKey * keyPtr = keys;
-    int rc = 0;
-    do {
-        assert(keyPtr - keys < (ssize_t) nKeys);
-        assert(query);
-        if(query->subject->isSubQuery) {
-            // subquery
-            assert(keyPtr->code  == 0x0);
-            rc = _hdql_query_for_every_key(
-                      query->subject->typeInfo.subQuery
-                    , reinterpret_cast<hdql_CollectionKey *>(keyPtr->datum)
-                    , ctx
-                    , callback
-                    , userdata
-                    , cLevel + 1
-                    );
-            assert(0 == rc);  // TODO: treat errors
-        } else if( (!query->subject->isCollection)
-                || (!query->subject->interface.collection.get_key)
-                 ) {
-            // a scalar attribute or collection which does not provide key
-            // copying procedure in its interface
-            assert(keyPtr->code   == 0x0);
-            assert(keyPtr->datum  == NULL);
-            callback(query, keyPtr, ctx, userdata, cLevel, keyPtr - keys);
-        } else {
-            // collection which provides key copy
-            assert(query->subject->isCollection);
-            assert(query->subject->interface.collection.get_key);
-            if(0x0 != query->subject->interface.collection.keyTypeCode) { // if of typed key
-                assert(0x0 != query->subject->interface.collection.keyTypeCode);  // controlled at insertion
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                assert(keyPtr->code == query->subject->interface.collection.keyTypeCode);
-                assert(keyPtr->datum);
-                assert(vi->size);
-                callback(query, keyPtr, ctx, userdata, cLevel, keyPtr - keys);
-                assert(0 == rc);
-            } else {
-                assert(query->is_functionlike());
-                hdql_Func * fDef = reinterpret_cast<hdql_Func *>(query->state.iterable.selectionArgs);
-                rc = hdql_func_call_on_keys( fDef
-                    , reinterpret_cast<hdql_CollectionKey *>(keyPtr->datum)
-                    , callback, userdata
-                    , cLevel + 1, keyPtr - keys
-                    , ctx
-                    );
-                assert(rc == 0);  // TODO: handle errors
-            }
-        }
-        query = static_cast<hdql_Query*>(query->next);
-        ++keyPtr;
-    } while(query);
-    return rc;
-}
-
-extern "C" int
-hdql_query_for_every_key( const struct hdql_Query * query
-                        , const struct hdql_CollectionKey * keys
-                        , hdql_Context_t ctx
-                        , hdql_KeyIterationCallback_t callback
-                        , void * userdata
-                        ) {
-    return _hdql_query_for_every_key(query, keys, ctx, callback, userdata, 0);
-}
-
-extern "C" int
-hdql_query_destroy_keys_for( struct hdql_Query * query
-                           , struct hdql_CollectionKey * keys
-                           , hdql_Context_t ctx
-                           ) {
-    if(NULL == query || NULL == keys || NULL == query) return -1;  // bad arguments
-    size_t nKeys = query->depth();
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    if(NULL == types) return -2;  // types table not available in the context
-    hdql_CollectionKey * cKey = keys;
-    int rc = 0;
-    do {
-        assert(cKey - keys < (ssize_t) nKeys);
-        assert(query);
-        if(query->subject->isSubQuery) {
-            // subquery
-            assert(cKey->code == 0x0);
-            assert(cKey->datum);
-            rc = hdql_query_destroy_keys_for(query->subject->typeInfo.subQuery
-                    , reinterpret_cast<hdql_CollectionKey *>(cKey->datum), ctx);
-            assert(0 == rc);  // TODO: treat errors
-        } else if( (!query->subject->isCollection)
-                || (!query->subject->interface.collection.get_key)
-                 ) {
-            // a scalar attribute or collection which does not provide key
-            // copying procedure in its interface
-            assert(cKey->code == 0x0);
-            assert(cKey->datum == NULL);
-        } else {
-            // collection which provides key copy
-            assert(query->subject->isCollection);
-            assert(query->subject->interface.collection.get_key);
-            // if of typed key
-            if(0x0 != query->subject->interface.collection.keyTypeCode) {
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                assert(cKey->code == query->subject->interface.collection.keyTypeCode);
-                assert(cKey->datum);
-                if(vi->destroy) {
-                    rc = vi->destroy(cKey->datum, vi->size, ctx);
-                    assert(rc);
-                }
-                rc = hdql_destroy_value(cKey->code, cKey->datum, ctx);
-                assert(0 == rc);
-            } else {
-                assert(query->is_functionlike());
-                hdql_Func * fDef = reinterpret_cast<hdql_Func *>(query->state.iterable.selectionArgs);
-                rc = hdql_func_destroy_keys( fDef
-                    , reinterpret_cast<hdql_CollectionKey *>(cKey->datum)
-                    , ctx );
-                assert(rc == 0);  // TODO: handle errors
-            }
-        }
-        query = static_cast<hdql_Query*>(query->next);
-        ++cKey;
-    } while(query);
-    hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(keys));
-    return rc;
-}
-
-extern "C" hdql_Datum_t
-hdql_query_get( hdql_Query * query
-              , hdql_Datum_t root
-              , struct hdql_CollectionKey * keys
-              , hdql_Context_t ctx
-              ) {
-    query->currentAttr = root;
-    // evaluate query on data, return NULL if evaluation failed
-    // Query::get() changes states of query chain and returns `false' if
-    // full chain can not be evaluated
-    if(!query->get(root, keys, ctx)) return NULL;
-    // for successfully evaluated chain, dereference results to topmost query
-    // and return its "current" value as a query result
-    struct hdql_Query * current = query;
-    while(NULL != current->next) current = static_cast<hdql_Query*>(current->next);
-    return current->currentAttr;
-}
-
-static void
-_hdql_query_dump( int count
-                , FILE * outf
-                , struct hdql_Query * q
-                , hdql_Context_t ctx
-                , int indent
-                ) {
-    const struct hdql_ValueTypes * types
-        = hdql_context_get_types(ctx);
-    fprintf(outf, "%*s", indent, "");
-    fprintf(outf, "#%d query %p, current attr is %p, subject %p:\n"
-            , count
-            , q
-            , q ? q->currentAttr : NULL
-            , q ? q->subject : NULL
-            );
-    if(!q) return;
-
-    if(q->subject) {
-        fprintf(outf, "%*s", indent, "");
-        fprintf( outf, "   %s, %s, "
-               , q->subject->isAtomic ? "atomic" : "compound"
-               , q->subject->isCollection ? "collection" : "scalar"
-               );
-        //fprintf(outf, "%*s", indent, "");
-        if( q->subject->isSubQuery ) {
-            fprintf( outf, "sub-query %p\n", q->subject->typeInfo.subQuery );
-        } else if(q->subject->isAtomic) {  // it is an atomic attribute
-            fprintf( outf, "type code is %#x, "
-                   , (unsigned int) q->subject->typeInfo.atomic.arithTypeCode );
-            if(types) {
-                const struct hdql_ValueInterface * vi
-                        = hdql_types_get_type(types, q->subject->typeInfo.atomic.arithTypeCode);
-                if(vi) {
-                    fprintf(outf, "`%s' of size %zub\n", vi->name, vi->size);
-                } else {
-                    fputs(" (no info of null type)\n", outf);
-                }
-            } else {
-                fputs(" (no types in context)\n", outf);
-            }
-        } else {  // it is a compound
-            if(!hdql_compound_is_virtual(q->subject->typeInfo.compound)) {
-                fprintf( outf, "`%s' (%p)\n"
-                       , hdql_compound_get_name(q->subject->typeInfo.compound)
-                       , q->subject->typeInfo.compound
-                       );
-            } else {
-                const hdql_Compound * parent
-                    = hdql_virtual_compound_get_parent(q->subject->typeInfo.compound);
-                if(!parent) {
-                    fputs("virtual compound type\n", outf);
-                } else {
-                    fprintf(outf, "virtual compound type (from `%s')\n"
-                            , hdql_compound_get_name(parent));
-                }
-            }
-        }
-        if(q->subject->isCollection) {
-            fprintf(outf, "%*s", indent, "");
-            fprintf(outf, "   key type code is %#x", q->subject->interface.collection.keyTypeCode );
-            if(types) {
-                const struct hdql_ValueInterface * vi
-                        = hdql_types_get_type(types, q->subject->interface.collection.keyTypeCode);
-                if(vi) {
-                    fprintf(outf, ", `%s' of size %zub\n", vi->name, vi->size);
-                } else {
-                    fputs(" (no info of null type)\n", outf);
-                }
-            } else {
-                fputs(" (no types in context)\n", outf);
-            }
-        }  // else it is scalar, not much to print for it
-        if(q->subject->isSubQuery) {
-            fprintf(outf, "%*s", indent, "");
-            fprintf(outf, "   refers to sub-query %p:\n", q->subject->typeInfo.subQuery );
-            if(q->subject->typeInfo.subQuery)
-                _hdql_query_dump( 1, outf, reinterpret_cast<hdql_Query *>(q->subject->typeInfo.subQuery)
-                        , ctx, indent + 3);
-        }
-    }
-
-    // xxx, extra recursion?
-    //if(q->next) {
-    //    _hdql_query_dump( count + 1, outf, static_cast<hdql_Query *>(q->next), ctx, indent);
-    //}
-}
-
-extern "C" void
-hdql_query_dump( FILE * outf
-               , struct hdql_Query * q
-               , hdql_Context_t ctx
-               ) {
-    _hdql_query_dump(1, outf, q, ctx, 0);
-}
-
-
-
-extern "C" void
-hdql_query_print_key_to_buf(
-          const struct hdql_Query * query
-        , const struct hdql_CollectionKey * key
-        , hdql_Context_t ctx
-        , void * userdata
-        , size_t queryLevel
-        , size_t queryNoInLevel
-        ) {
-    assert(userdata);
-    hdql_KeyPrintParams * pp = reinterpret_cast<hdql_KeyPrintParams *>(userdata);
-    size_t cn = strlen(pp->strBuf);
-    if(cn >= pp->strBufLen) return;  // buffer depleted
-
-    if(0x0 == key->code) {
-        if(NULL == key->datum) {
-            snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-                    , " (%zu:%zu:null)", queryLevel, queryNoInLevel );
-            return;
-        }
-        snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-                , " (%zu:%zu:%p)", queryLevel, queryNoInLevel, key->datum );
-        return;
-    }
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    const hdql_ValueInterface * vi =
-                hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-    if(!vi->get_as_string) {
-        snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-                , " (%zu:%zu:%s:%p)", queryLevel, queryNoInLevel, vi->name, key->datum );
-        return;
-    }
-    char bf[64];
-    vi->get_as_string(key->datum, bf, sizeof(bf));
-    snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-            , " (%zu:%zu:%s:\"%s\")", queryLevel, queryNoInLevel, vi->name, bf );
-}
 
 //                                                           __________________
 // ________________________________________________________/ Cartesian Product
@@ -907,17 +596,25 @@ struct hdql_QueryProduct {
 };
 
 extern "C" struct hdql_QueryProduct *
-hdql_query_product_create( hdql_Query ** qs, hdql_Context_t ctx) {
+hdql_query_product_create( hdql_Query ** qs
+                         , hdql_Datum_t ** values_
+                         , hdql_Context_t ctx
+                         ) {
     struct hdql_QueryProduct * qp = hdql_alloc(ctx, struct hdql_QueryProduct);
     size_t nQueries = 0;
     for(struct hdql_Query ** cq = qs; NULL != *cq; ++cq, ++nQueries) {}
+    if(0 == nQueries) {
+        hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(qp));
+        return NULL;
+    }
     qp->qs      = reinterpret_cast<hdql_Query **>(hdql_context_alloc(ctx, (nQueries+1)*sizeof(struct hdql_Query*)));
     qp->keys    = reinterpret_cast<hdql_CollectionKey **>(hdql_context_alloc(ctx, (nQueries)*sizeof(struct hdql_CollectionKey*)));
     qp->values  = reinterpret_cast<hdql_Datum_t *>(hdql_context_alloc(ctx, (nQueries)*sizeof(hdql_Datum_t)));
+    *values_ = qp->values;
     nQueries = 0;
     for(struct hdql_Query ** cq = qs; NULL != *cq; ++cq, ++nQueries) {
         qp->qs[nQueries] = qs[nQueries];
-        hdql_query_reserve_keys_for(qp->qs[nQueries], qp->keys + nQueries, ctx);
+        hdql_query_keys_reserve(qp->qs[nQueries], qp->keys + nQueries, ctx);
         qp->values[nQueries] = NULL;
     }
     qp->qs[nQueries++] = NULL;
@@ -925,21 +622,25 @@ hdql_query_product_create( hdql_Query ** qs, hdql_Context_t ctx) {
 }
 
 extern "C" bool
-hdql_query_cartesian_product_advance( hdql_Datum_t root, struct hdql_QueryProduct * qp, hdql_Context_t context ) {
+hdql_query_product_advance(
+          hdql_Datum_t root
+        , struct hdql_QueryProduct * qp
+        , hdql_Context_t context
+        ) {
     // keys iterator (can be null)
     hdql_CollectionKey ** keys = qp->keys;
     // datum instance pointer currently set
-    hdql_Datum_t * argValue = qp->values;
+    hdql_Datum_t * value = qp->values;
     // Retrieve values from argument queries as cartesian product,
     // incrementing iterators one by one till the last one is depleted
-    for(hdql_Query ** q = qp->qs; NULL != *q; ++q, ++argValue ) {
+    for(hdql_Query ** q = qp->qs; NULL != *q; ++q, ++value ) {
         assert(*q);
         // retrieve next item from i-th list and consider it as an argument
-        *argValue = hdql_query_get(*q, root, *keys, context);
+        *value = hdql_query_get(*q, root, *keys, context);
         if(keys) ++keys;  // increment keys ptr
         // if i-th value is retrieved, nothing else should be done with the
         // argument list
-        if(NULL != *argValue) {
+        if(NULL != *value) {
             return true;
         }
         // i-th generator depleted
@@ -970,25 +671,90 @@ hdql_query_cartesian_product_advance( hdql_Datum_t root, struct hdql_QueryProduc
     assert(false);  // unforeseen loop exit, algorithm error
 }
 
+extern "C" void
+hdql_query_product_reset( hdql_Datum_t root
+        , struct hdql_QueryProduct * qp
+        , hdql_Context_t context ) {
+    hdql_CollectionKey ** keys = qp->keys;
+    hdql_Datum_t * value = qp->values;
+    // Retrieve values from argument queries as cartesian product,
+    // incrementing iterators one by one till the last one is depleted
+    for(hdql_Query ** q = qp->qs; NULL != *q; ++q, ++value ) {
+        assert(*q);
+        hdql_query_reset(*q, root, context);
+        *value = hdql_query_get(*q, root, *keys, context);
+        if(keys) ++keys;  // increment keys ptr
+        if(NULL != *value) {
+            continue;
+        }
+        {   // i-th value is not retrieved, product results in an empty set,
+            // we should drop the result
+            hdql_Datum_t * argValue2 = qp->values;
+            // iterate till i-th inclusive
+            for(hdql_Query ** q2 = qp->qs; q2 <= q; ++q2, ++argValue2 ) {
+                hdql_query_reset(*q2, root, context);
+                *argValue2 = NULL;
+            }
+            return;
+        }
+    }
+    assert(false);  // unforeseen loop exit, algorithm error
+}
+
+extern "C" hdql_CollectionKey **
+hdql_query_product_reserve_keys( struct hdql_Query ** qs
+        , hdql_Context_t context ) {
+    size_t nQueries = 0;
+    for(struct hdql_Query ** q = qs; NULL != *q; ++q) { ++nQueries; }
+    hdql_CollectionKey ** keys = reinterpret_cast<hdql_CollectionKey**>(
+        hdql_context_alloc(context, sizeof(struct hdql_CollectionKey *)*nQueries));
+    hdql_CollectionKey ** cKey = keys;
+    for(struct hdql_Query ** q = qs; NULL != *q; ++q, ++cKey) {
+        hdql_query_keys_reserve(*q, cKey, context);
+    }
+    return keys;
+}
+
+extern "C" struct hdql_Query **
+hdql_query_product_get_query(struct hdql_QueryProduct * qp) {
+    return qp->qs;
+}
+
+extern "C" void
+hdql_query_product_destroy(
+            struct hdql_QueryProduct *qp
+          , hdql_Context_t context
+          ) {
+    hdql_CollectionKey ** cKey = qp->keys;
+    for(struct hdql_Query ** cq = qp->qs; NULL != *cq; ++cq, ++cKey) {
+        hdql_query_keys_destroy(*cKey, context);
+        *cKey = NULL;
+    }
+
+    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(qp->values));
+    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(qp->keys));
+    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(qp->qs));
+
+    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(qp));
+}
+
 //                                                     ________________________
 // __________________________________________________/ "Flat" keys (key views)
 
-static void _count_flat_keys(
-          const struct hdql_Query * query
-        , const struct hdql_CollectionKey * keys
+static int _count_flat_keys(
+          const struct hdql_CollectionKey * keys
         , hdql_Context_t ctx
         , void * count_
         , size_t queryLevel
         , size_t queryNoInLevel 
         ) {
     assert(count_);
-    assert(query);
     assert(keys);
     size_t * szPtr = reinterpret_cast<size_t *>(count_);
     if(keys->code) {
         ++(*szPtr);
     }
-    query = static_cast<const hdql_Query*>(query->next);
+    return 0;
 }
 
 extern "C" size_t
@@ -997,7 +763,7 @@ hdql_keys_flat_view_size( const struct hdql_Query * q
                         , hdql_Context_t ctx
                         ) {
     size_t count = 0;
-    hdql_query_for_every_key(q, keys, ctx, _count_flat_keys, &count);
+    hdql_query_keys_for_each( keys, ctx, _count_flat_keys, &count);
     return count;
 }
 
@@ -1006,16 +772,14 @@ struct KeysFlatViewParams {
     struct hdql_KeyView * c;
 };
 
-static void _copy_flat_view_ptrs(
-          const struct hdql_Query * query
-        , const struct hdql_CollectionKey * keys
+static int _copy_flat_view_ptrs(
+          const struct hdql_CollectionKey * keys
         , hdql_Context_t ctx
         , void * count_
         , size_t queryLevel
         , size_t queryNoInLevel 
         ) {
     assert(count_);
-    assert(query);
     assert(keys);
     struct KeysFlatViewParams * kcpPtr = reinterpret_cast<struct KeysFlatViewParams *>(count_);
     if(keys->code) {
@@ -1025,6 +789,7 @@ static void _copy_flat_view_ptrs(
         kcpPtr->c->interface = hdql_types_get_type(vts, keys->code);
         ++(kcpPtr->c);
     }
+    return 0;
 }
 
 extern "C" int
@@ -1033,7 +798,7 @@ hdql_keys_flat_view_update( const struct hdql_Query * q
                           , struct hdql_KeyView * dest
                           , hdql_Context_t ctx ) {
     KeysFlatViewParams kfvp = {dest};
-    hdql_query_for_every_key(q, keys, ctx, _copy_flat_view_ptrs, &kfvp);
+    hdql_query_keys_for_each(keys, ctx, _copy_flat_view_ptrs, &kfvp);
     return 0;
 }
 

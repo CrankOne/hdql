@@ -12,6 +12,11 @@
 
 #include <iostream>  // XXX
 
+const hdql_AttrFlags_t hdql_kAttrIsAtomic       = 0x1;
+const hdql_AttrFlags_t hdql_kAttrIsCollection   = 0x2;
+const hdql_AttrFlags_t hdql_kAttrIsSubquery     = 0x4;
+const hdql_AttrFlags_t hdql_kAttrIsStaticValue  = 0x8;
+
 namespace hdql {
 
 extern "C" void
@@ -58,7 +63,7 @@ hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ct
 extern "C" void
 hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * ctx) {
     for(auto & attrDef : vCompound->attrsByIndex ) {
-        if(attrDef.second->isSubQuery) {
+        if(attrDef.second->attrFlags & hdql_kAttrIsSubquery) {
             if(!attrDef.second->typeInfo.subQuery) continue;
             hdql_query_destroy(attrDef.second->typeInfo.subQuery, ctx);
         }
@@ -132,12 +137,12 @@ hdql_compound_add_attr( hdql_Compound * instance
                       ) {
     // basic integrity checks for the added item
     if( (!attrName) || '0' == *attrName ) return -11;  // empty name
-    if( attrDef->isSubQuery ) {
+    if( attrDef->attrFlags & hdql_kAttrIsSubquery ) {
         if(NULL == attrDef->typeInfo.subQuery)
             return -31;
-        if(!attrDef->isCollection)
+        if(!(attrDef->attrFlags & hdql_kAttrIsCollection))
             return -32;  // sub-query not marked as "collection" -- questionable
-    } else if( attrDef->isCollection ) {
+    } else if( attrDef->attrFlags & hdql_kAttrIsCollection ) {
         const hdql_CollectionAttrInterface & cIFace = attrDef->interface.collection;
         if( NULL == cIFace.create
          || NULL == cIFace.dereference
@@ -145,11 +150,11 @@ hdql_compound_add_attr( hdql_Compound * instance
          || NULL == cIFace.reset
          || NULL == cIFace.destroy
          ) return -21;  // bad collection interface definition
-        if( NULL != cIFace.get_key ) {
-            if( 0x0 == cIFace.keyTypeCode ) {
-                return -22;  // coll.attrs with key retrieval must provide valid key type
-            }
-        }
+        //if( NULL != cIFace.get_key ) {
+        //    if( 0x0 == cIFace.keyTypeCode ) {
+        //        return -22;  // coll.attrs with key retrieval must provide valid key type
+        //    }
+        //}
         if( (NULL == cIFace.compile_selection) != (NULL == cIFace.free_selection) ) {
             return -23;  // coll.attrs with(out) selectors must provide both ctr and dtr (or neither)
         }
@@ -189,6 +194,7 @@ hdql_compound_destroy(hdql_Compound * dest) {
  */
 
 struct SubQueryIterator {
+    hdql_Datum_t owner;
     hdql_Query * subQuery;
     hdql_Datum_t result;
     hdql_CollectionKey * keys;
@@ -197,16 +203,17 @@ struct SubQueryIterator {
 static hdql_It_t
 _subquery_collection_interface_create(
           hdql_Datum_t ownerDatum
+        , const hdql_Datum_t definitionData
         , hdql_SelectionArgs_t selection
         , hdql_Context_t ctx
         ) {
-    //SubQueryIterator * it = new SubQueryIterator;  // TODO: ctx-based allocator
-    SubQueryIterator * it = hdql_alloc(ctx, SubQueryIterator);  // TODO: ctx-based allocator
+    SubQueryIterator * it = hdql_alloc(ctx, SubQueryIterator);
+    it->owner = ownerDatum;
     it->subQuery = reinterpret_cast<hdql_Query *>(selection);
     assert(it->subQuery);
     it->result = NULL;
     it->keys = NULL;
-    int rc = hdql_query_reserve_keys_for(it->subQuery, &(it->keys), ctx);
+    int rc = hdql_query_keys_destroy(it->keys, ctx);
     assert(rc == 0);
     assert(it->keys);
     return reinterpret_cast<hdql_It_t>(it);
@@ -214,8 +221,9 @@ _subquery_collection_interface_create(
 
 static hdql_Datum_t
 _subquery_collection_interface_dereference(
-          hdql_Datum_t unused
-        , hdql_It_t it_
+          hdql_It_t it_
+        , hdql_CollectionKey * key  // can be null
+        , const hdql_Datum_t defData
         , hdql_Context_t ctx
         ) {
     #if 1
@@ -224,7 +232,7 @@ _subquery_collection_interface_dereference(
     const struct hdql_AttributeDefinition * topAttrDef
         = hdql_query_top_attr(it->subQuery);
     hdql_Datum_t d = it->result;
-    if(!topAttrDef->isSubQuery)
+    if(!(topAttrDef->attrFlags & hdql_kAttrIsSubquery))
         return d;
     assert(0);
     #else
@@ -234,46 +242,49 @@ _subquery_collection_interface_dereference(
 
 static hdql_It_t
 _subquery_collection_interface_advance(
-          hdql_Datum_t owner
-        , hdql_SelectionArgs_t selection
-        , hdql_It_t it_
+          hdql_It_t it_
+        , const hdql_Datum_t defData
         , hdql_Context_t ctx
         ) {
     //auto it = reinterpret_cast<SubQueryIterator *>(it_);
     SubQueryIterator * it = hdql_cast(ctx, SubQueryIterator, it_);
-    it->result = hdql_query_get(it->subQuery, owner, it->keys, ctx);
+    it->result = hdql_query_get(it->subQuery, it->owner, it->keys, ctx);
     return it_;
 }
 
-static void
+static hdql_It_t
 _subquery_collection_interface_reset( 
-          hdql_Datum_t owner
+          hdql_Datum_t newOwner
         , hdql_SelectionArgs_t
         , hdql_It_t it_
+        , const hdql_Datum_t defData
         , hdql_Context_t ctx
         ) {
     assert(it_);
     //auto it = reinterpret_cast<SubQueryIterator *>(it_);
     SubQueryIterator * it = hdql_cast(ctx, SubQueryIterator, it_);
-    hdql_query_reset(it->subQuery, owner, ctx);
-    it->result = hdql_query_get(it->subQuery, owner, it->keys, ctx);
+    hdql_query_reset(it->subQuery, newOwner, ctx);
+    it->result = hdql_query_get(it->subQuery, newOwner, it->keys, ctx);
+    return it_;
 }
 
 static void
 _subquery_collection_interface_destroy(
           hdql_It_t it_
+        , const hdql_Datum_t defData
         , hdql_Context_t ctx
         ) {
     //auto it = reinterpret_cast<SubQueryIterator *>(it_);
     SubQueryIterator * it = hdql_cast(ctx, SubQueryIterator, it_);
     if(it->keys) {
-        hdql_query_destroy_keys_for(it->subQuery, it->keys, ctx);
+        hdql_query_keys_destroy(it->keys, ctx);
     }
     // NOTE: sub-queries get destroyed within virtual compound dtrs
     // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);`
     hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(it_));
 }
 
+#if 0
 static void
 _subquery_collection_interface_get_key(
           hdql_Datum_t unused
@@ -287,20 +298,18 @@ _subquery_collection_interface_get_key(
     SubQueryIterator * it = hdql_cast(ctx, SubQueryIterator, it_);
     assert(it->keys);
     assert(keyPtr->code == 0x0);  // key type code for subquery
-    assert(keyPtr->datum);
-    int rc = hdql_query_copy_keys( it->subQuery
-                , reinterpret_cast<hdql_CollectionKey *>(keyPtr->datum), it->keys, ctx);
+    assert(keyPtr->pl.datum);
+    int rc = hdql_copy_keys( it->subQuery, keyPtr->pl.keysList, it->keys, ctx);
     assert(0 == rc);
 }
+#endif
 
 const struct hdql_CollectionAttrInterface gSubQueryInterface = {
-    .keyTypeCode = 0x0,
     .create = _subquery_collection_interface_create,
     .dereference = _subquery_collection_interface_dereference,
     .advance = _subquery_collection_interface_advance,
     .reset = _subquery_collection_interface_reset,
     .destroy = _subquery_collection_interface_destroy,
-    .get_key = _subquery_collection_interface_get_key,
     .compile_selection = NULL,
     .free_selection = NULL,  // TODO: free subquery here?
 };

@@ -14,18 +14,7 @@
 extern "C" {
 #endif
 
-struct hdql_CollectionKey {
-    /**\brief Collection key type
-     *
-     * HDQL manages key instance lifecycle, so key must be one of the
-     * registered types.
-     *
-     * Zero code is reserved for empty key placeholders and keys defined
-     * by argument queries. */
-    hdql_ValueTypeCode_t code:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
-    /**\brief Ptr to actual key value */
-    hdql_Datum_t datum;
-};
+struct hdql_CollectionKey;  /* fwd, query-key.h */
 
 /**\brief Represents a query instance of HDQL
  *
@@ -35,13 +24,15 @@ struct hdql_CollectionKey {
  * */
 struct hdql_Query;
 
-/**\brief Compiles query object from string expression */
+/**\brief Compiles query object from string expression
+ *
+ * \todo Rename to hdql_query_compile()
+ * */
 struct hdql_Query *
 hdql_compile_query( const char * strexpr
                   , struct hdql_Compound * rootCompound
                   , struct hdql_Context * ctx
-                  , char * errBuf
-                  , unsigned int errBufLength
+                  , char * errBuf, unsigned int errBufLength
                   , int * errDetails
                   );
 
@@ -52,6 +43,18 @@ hdql_query_create(
         , hdql_SelectionArgs_t selArgs
         , hdql_Context_t ctx
         );
+
+const struct hdql_AttributeDefinition *
+hdql_query_get_subject( struct hdql_Query * );
+
+/**\brief Prints short one-line string describing query
+ *
+ * \note Does not follows query chain, prints only the given query details */
+int
+hdql_query_str( const struct hdql_Query *
+              , char * strbuf, size_t buflen
+              , struct hdql_ValueTypes *
+              );
 
 /**\brief Queries within a query result
  *
@@ -78,45 +81,6 @@ const struct hdql_AttributeDefinition * hdql_query_top_attr( const struct hdql_Q
 /**\brief Retruens query's current attribute */
 const struct hdql_AttributeDefinition * hdql_query_attr(const struct hdql_Query *);
 
-/**\brief Reserves keys for the query
- *
- * \note if `keys` refer to a non-NULL value, its content will be used to deply
- *       keys, otherwise it will be allocated
- * */
-int
-hdql_query_reserve_keys_for( struct hdql_Query * query
-                           , struct hdql_CollectionKey ** keys
-                           , hdql_Context_t ctx );
-
-int
-hdql_query_copy_keys( struct hdql_Query * query
-                    , struct hdql_CollectionKey * dest
-                    , const struct hdql_CollectionKey * src
-                    , hdql_Context_t ctx
-                    );
-
-typedef void (*hdql_KeyIterationCallback_t)(
-          const struct hdql_Query * query
-        , const struct hdql_CollectionKey *
-        , hdql_Context_t
-        , void *
-        , size_t queryLevel
-        , size_t queryNoInLevel
-        );
-
-int
-hdql_query_for_every_key( const struct hdql_Query * query
-                        , const struct hdql_CollectionKey *
-                        , hdql_Context_t ctx
-                        , hdql_KeyIterationCallback_t callback
-                        , void * userdata
-                        );
-
-int
-hdql_query_destroy_keys_for( struct hdql_Query * query
-                           , struct hdql_CollectionKey * keys
-                           , hdql_Context_t ctx );
-
 /**\brief Retrieves the result using current query, by provided pointer
  *
  * Returns pointer to a queried data (which type can be retrieved by
@@ -136,7 +100,7 @@ void hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ct
 void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */
-void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t ctx);
+void hdql_query_dump(FILE *, struct hdql_Query *, struct hdql_ValueTypes *);
 
 /*
  * Cartesian product of queries
@@ -146,57 +110,50 @@ void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t ctx);
 struct hdql_QueryProduct;
 
 /**\bried Creates new cartesian product instance using null-terminated
- *        set of queries */
-struct hdql_QueryProduct * hdql_query_product_create(struct hdql_Query **, hdql_Context_t);
+ *        set of queries
+ *
+ * Provided `values` pointer will be allocated to contain array of query
+ * results. Created object does not own provided queries, but stores pointers
+ * to them, so user code must keep query instances at least till the product
+ * lifecycle is done, or retrieve copied pointers useing
+ * `hdql_query_product_get_query()`.
+ * */
+struct hdql_QueryProduct *
+hdql_query_product_create(struct hdql_Query **
+        , hdql_Datum_t ** values
+        , hdql_Context_t ctx
+        );
 
-/**\brief Advances cartesian product of the queries */
-bool hdql_query_cartesian_product_advance( hdql_Datum_t root
+/**\brief Advances cartesian product of the queries returning whether or not
+ *        a valid product set was yielded by advance */
+bool
+hdql_query_product_advance( hdql_Datum_t root
         , struct hdql_QueryProduct * qp
         , hdql_Context_t context );
 
-/**\brief Returns list of query results for current cartesian product query */
-int hdql_query_cartesian_product_get(struct hdql_QueryProduct *qp, hdql_Datum_t * result);
-
-/**\brief Destroys cartesian query product */
-void hdql_query_cartesian_product_destroy(struct hdql_QueryProduct *qp, hdql_Context_t context);
-
-/*
- * Flat key view
- */
-
-struct hdql_KeyPrintParams {
-    char * strBuf;
-    size_t strBufLen;
-};
-
+/**\brief Re-sets cartesian product */
 void
-hdql_query_print_key_to_buf(
-          const struct hdql_Query * query
-        , const struct hdql_CollectionKey * key
-        , hdql_Context_t ctx
-        , void * userdata
-        , size_t queryLevel
-        , size_t queryNoInLevel
-        );
+hdql_query_product_reset( hdql_Datum_t root
+        , struct hdql_QueryProduct * qp
+        , hdql_Context_t context );
 
+/**\brief Reserves keys for cartesian product */
+struct hdql_CollectionKey **
+hdql_query_product_reserve_keys( struct hdql_Query ** qs
+        , hdql_Context_t context );
 
-size_t
-hdql_keys_flat_view_size( const struct hdql_Query * q
-                        , const struct hdql_CollectionKey * keys
-                        , hdql_Context_t ctx
-                        );
+/**\brief Returns pointer to collection of queries used in product 
+ *
+ * Usually used for cleanup operations */
+struct hdql_Query **
+hdql_query_product_get_query(struct hdql_QueryProduct * qp);
 
-struct hdql_KeyView {
-    hdql_ValueTypeCode_t               code;
-    const struct hdql_CollectionKey  * keyPtr;
-    const struct hdql_ValueInterface * interface;
-};
-
-int
-hdql_keys_flat_view_update( const struct hdql_Query * q
-                          , const struct hdql_CollectionKey * keys
-                          , struct hdql_KeyView * dest
-                          , hdql_Context_t ctx );
+/**\brief Destroys cartesian query product
+ *
+ * \note `values` provided to `hdql_query_product_create()` will be freed as well */
+void
+hdql_query_product_destroy(struct hdql_QueryProduct *qp
+        , hdql_Context_t context );
 
 #ifdef __cplusplus
 }  // extern "C"

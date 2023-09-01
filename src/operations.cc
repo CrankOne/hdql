@@ -762,8 +762,7 @@ hdql_scalar_arith_op_create( hdql_Query * a
             continue;
         }
         hdql_CollectionKey * k = NULL;
-        int rc = hdql_query_reserve_keys_for(scalarOp->argQueries[i]
-                , &k, ctx);
+        int rc = hdql_query_keys_destroy(k, ctx);
         assert(0 == rc);  // TODO: handle key allocation error
         scalarOp->keys[i] = k;
     }
@@ -804,8 +803,7 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
     for(int i = 0; i < 2; ++i) {
         if(scalarOp->argQueries[i]) {
             assert(scalarOp->keys[i]);
-            hdql_query_destroy_keys_for(scalarOp->argQueries[i]
-                    , scalarOp->keys[i], ctx);
+            hdql_query_keys_destroy(scalarOp->keys[i], ctx);
             hdql_query_destroy(scalarOp->argQueries[i], ctx);
         }
     }
@@ -819,36 +817,38 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
 // __________________________________________________/ Collection arithmetics
 
 struct ArithCollection {
-    struct hdql_ArithCollectionArgs * args;
-    bool isResultValid;
-    hdql_Datum_t valueA, valueB;
-    // hdql_CollectionKey * keys;  // TODO
+    bool isResultValid, isExhausted;
+    hdql_QueryProduct * qp;
+    hdql_Datum_t * cValues;
     hdql_Datum_t result;
+    struct hdql_OperationEvaluator evaluator;
 };
 
-hdql_It_t
+static hdql_It_t
 _arith_collection_op_create( hdql_Datum_t root
                            , hdql_SelectionArgs_t selArgs_
                            , hdql_Context_t ctx
                            ) {
+    struct ArithCollection * r = hdql_alloc(ctx, struct ArithCollection);
     struct hdql_ArithCollectionArgs * aca
         = hdql_cast(ctx, struct hdql_ArithCollectionArgs, selArgs_);
-    struct ArithCollection * r = hdql_alloc(ctx, struct ArithCollection);
-    r->args = aca;
-    r->result = hdql_create_value(r->args->evaluator->returnType, ctx);
-    r->valueA = r->valueB = NULL;
     r->isResultValid = false;
+    r->isExhausted = false;
+    struct hdql_Query * argQs[3] = {aca->a, aca->b, NULL};
+    r->qp = hdql_query_product_create(argQs, &(r->cValues), ctx);
+    r->result = hdql_create_value(aca->evaluator->returnType, ctx);
+    r->evaluator = *(aca->evaluator);
     return reinterpret_cast<hdql_It_t>(r);
 }
 
-hdql_Datum_t
+static hdql_Datum_t
 _arith_collection_op_dereference( hdql_Datum_t root
                                 , hdql_It_t it_
                                 , hdql_Context_t ctx
                                 ) {
     struct ArithCollection * it = hdql_cast(ctx, struct ArithCollection, it_);
     if(it->isResultValid) return it->result;
-    int rc = it->args->evaluator->op(it->valueA, it->valueB, it->result);
+    int rc = it->evaluator.op(it->cValues[0], it->cValues[1], it->result);
     if(0 != rc) {
         hdql_context_err_push(ctx, rc, "Arithmetic operation on"
                 " collection returned %d", rc);  // TODO: elaborate
@@ -857,62 +857,87 @@ _arith_collection_op_dereference( hdql_Datum_t root
     return it->result;
 }
 
-hdql_It_t
+static hdql_It_t
 _arith_collection_op_advance( hdql_Datum_t root
                             , hdql_SelectionArgs_t selArgs
                             , hdql_It_t it_
                             , hdql_Context_t ctx
                             ) {
     struct ArithCollection * it = hdql_cast(ctx, struct ArithCollection, it_);
-    assert(reinterpret_cast<hdql_ArithCollectionArgs *>(selArgs) == it->args );
-    assert(0);  // TODO
-    // ...
     it->isResultValid = false;
+    if(!it->isExhausted)
+        it->isExhausted = !hdql_query_product_advance(root, it->qp, ctx);
     return it_;
 }
 
-void
+static void
 _arith_collection_op_reset( hdql_Datum_t root
                           , hdql_SelectionArgs_t selArgs
                           , hdql_It_t it_
                           , hdql_Context_t ctx
                           ) {
     struct ArithCollection * it = hdql_cast(ctx, struct ArithCollection, it_);
-    assert(reinterpret_cast<hdql_ArithCollectionArgs *>(selArgs) == it->args );
-    hdql_query_reset(it->args->a, root, ctx);
-    if(it->args->b)
-        hdql_query_reset(it->args->a, root, ctx);
+    hdql_query_product_reset(root, it->qp, ctx);
+    if(NULL == *(it->cValues)) {
+        // product results in an empty set
+        it->isExhausted = true;
+        it->isResultValid = false;
+    }
+    _arith_collection_op_dereference(root, it_, ctx);
 }
 
-void
-_arith_collection_op_destroy( hdql_It_t
+static void
+_arith_collection_op_destroy( hdql_It_t it_
                             , hdql_Context_t ctx
                             ) {
+    struct ArithCollection * it = hdql_cast(ctx, struct ArithCollection, it_);
+    hdql_query_product_destroy(it->qp, ctx);
+    for( struct hdql_Query ** q = hdql_query_product_get_query(it->qp)
+       ; NULL != *q; ++q ) {
+        hdql_query_destroy(*q, ctx);
+    }
+    hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(it_));
 }
 
-void
+static void
 _arith_collection_op_get_key( hdql_Datum_t root
                             , hdql_It_t
                             , struct hdql_CollectionKey *
                             , hdql_Context_t ctx
                             ) {
+    assert(0);
 }
 
-void
-_arith_collection_op_free_selection(hdql_Context_t ctx, hdql_SelectionArgs_t) {
+static int
+_arith_collection_op_reserve_key( struct hdql_CollectionKey ** dest
+        , hdql_SelectionArgs_t selArgs_
+        , hdql_Context_t ctx
+        ) {
+    assert(dest);
+    struct hdql_ArithCollectionArgs * aca
+        = hdql_cast(ctx, struct hdql_ArithCollectionArgs, selArgs_);
+    struct hdql_Query * argQs[3] = {aca->a, aca->b, NULL};
+    struct hdql_CollectionKey ** keys = hdql_query_product_reserve_keys(argQs, ctx);
+    (*dest) = hdql_alloc(ctx, struct hdql_CollectionKey);
+    (*dest)->code = 0x0;
+    (*dest)->pl.datum = reinterpret_cast<hdql_Datum_t>(keys);
+    return 0;
+}
 
+static void
+_arith_collection_op_free_selection(hdql_Context_t ctx, hdql_SelectionArgs_t) {
+    assert(0);
+    // ... TODO?
 }
 
 const struct hdql_CollectionAttrInterface hdql_gArithOpIFace = {
-    .keyTypeCode = 0x0,
-    .create = _arith_collection_op_create,
-    .dereference = _arith_collection_op_dereference,
-    .advance = _arith_collection_op_advance,
-    .reset = _arith_collection_op_reset,
-    .destroy = _arith_collection_op_destroy,
-    .get_key = _arith_collection_op_get_key,
-    .compile_selection = NULL,
-    .free_selection = _arith_collection_op_free_selection
+      .create = NULL  //_arith_collection_op_create,
+    , .dereference = NULL  //_arith_collection_op_dereference,
+    , .advance = NULL  //_arith_collection_op_advance,
+    , .reset = NULL  //_arith_collection_op_reset,
+    , .destroy = NULL  //_arith_collection_op_destroy,
+    , .compile_selection = NULL
+    , .free_selection = _arith_collection_op_free_selection
 };
 
 //                                 ____________________________________________

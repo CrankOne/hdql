@@ -13,8 +13,9 @@ all: hdql
 grammar: hdql.tab.c lex.yy.c
 
 hdql: obj/query.o obj/hdql.tab.o obj/lex.yy.o obj/main.o obj/compound.o \
- obj/context.o obj/types.o obj/value.o obj/events-struct.o obj/iteration-tests.o \
+ obj/context.o obj/types.o obj/value.o \
  obj/operations.o obj/function.o obj/errors.o
+	#obj/events-struct.o obj/iteration-tests.o
 	g++ $^ -o $@ -lgtest
 
 obj/hdql.tab.o: hdql.tab.c grammar

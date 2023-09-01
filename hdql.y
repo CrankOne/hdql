@@ -41,7 +41,12 @@ typedef void *yyscan_t;  /* circumvent circular dep: YACC/BISON does not know th
 %parse-param {yyscan_t yyscanner}
 
 %code {
-static hdql_Datum_t trivial_dereference(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t) { return d; }
+static hdql_Datum_t trivial_dereference( hdql_Datum_t d
+    , hdql_Datum_t
+    , struct hdql_CollectionKey *
+    , const hdql_Datum_t
+    , hdql_Context_t
+    ) { return d; }
 struct TypedFilterQueryCache {
     struct hdql_Query * q;
     const struct hdql_ValueInterface * vi;
@@ -82,6 +87,17 @@ _operation( struct hdql_Query * a
 #define M_OP(op1, opName, op2, opDescr, R) \
     int rc = _operation(op1, hdql_k ## opName, op2, &yyloc, ws, NULL, opDescr, &(R)); \
     if(0 != rc) return rc;
+
+#define is_atomic(attr)     (attr->attrFlags & hdql_kAttrIsAtomic)
+#define is_collection(attr) (attr->attrFlags & hdql_kAttrIsCollection)
+#define is_static(attr)     (attr->attrFlags & hdql_kAttrIsStaticValue)
+#define is_subquery(attr)   (attr->attrFlags & hdql_kAttrIsSubquery)
+
+#define is_compound(attr)   (!is_atomic(attr))
+#define is_scalar(attr)     (!is_collection(attr))
+#define is_dynamic(attr)    (!is_static(attr))
+#define is_direct_query(attr) (!is_subquery(attr))
+
 }
 
 %code provides {
@@ -256,8 +272,8 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             {
                 struct hdql_AttributeDefinition * attrDef
                         = hdql_context_local_attribute_create(ws->context);
-                attrDef->isAtomic = 0x1;
-                attrDef->staticValueFlags = 0x1;
+                assert(attrDef->attrFlags == 0x0);
+                attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
                 attrDef->interface.scalar.dereference = trivial_dereference;
                 attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
                         hdql_context_get_types(ws->context), "hdql_Flt_t");
@@ -271,13 +287,14 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 *((hdql_Flt_t *) attrDef->typeInfo.staticValue.datum) = $1;
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 // todo: ^^^ check query creation result
+                assert($$);
             }
             | T_INT_STATIC_VALUE
             {
                 struct hdql_AttributeDefinition * attrDef
                         = hdql_context_local_attribute_create(ws->context);
-                attrDef->isAtomic = 0x1;
-                attrDef->staticValueFlags = 0x1;
+                assert(attrDef->attrFlags == 0x0);
+                attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
                 attrDef->interface.scalar.dereference = trivial_dereference;
                 attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
                         hdql_context_get_types(ws->context), "hdql_Int_t");
@@ -290,6 +307,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 *((hdql_Int_t *) attrDef->typeInfo.staticValue.datum) = $1;
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 // todo: ^^^ check query creation result
+                assert($$);
             }
             | queryExpr { $$ = $1; }
             ;
@@ -335,7 +353,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     free($3);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
-                if(!attrDef->isCollection) {
+                if(is_scalar(attrDef)) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute \"%s\" of `%s' is not a collection (can't"
                           " apply selection \"%s\")"
@@ -386,7 +404,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 int rc = _resolve_query_top_as_compound($1, $3, &yyloc, ws, &attrDef);
                 if(0 != rc) { free($3); free($4); return rc; }
 
-                if(!attrDef->isCollection) {
+                if(is_scalar(attrDef)) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute `%s::%s' is not a collection (can't"
                           " apply selection expression \"%s\")"
@@ -428,7 +446,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             | queryExpr T_LCRLBC {
                     const struct hdql_AttributeDefinition * topAttrDef 
                             = hdql_query_top_attr($1);
-                    if(topAttrDef->isAtomic) {
+                    if(is_atomic(topAttrDef)) {
                         // todo: is it so?
                         hdql_error(&yyloc, ws, yyscanner
                                   , "Compound scope operator `{}' can not be"
@@ -496,9 +514,11 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 hdql_attribute_definition_init(&newAttrDef);
                 newAttrDef.interface.collection = gSubQueryInterface;
                 newAttrDef.typeInfo.subQuery = $3;
-                newAttrDef.isSubQuery = 0x1;
-                newAttrDef.isCollection = 0x1; /* sub-query results always considered as collection */
-                newAttrDef.isAtomic = hdql_query_top_attr($3)->isAtomic;
+                /* (!) sub-query results always considered as collection */
+                newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
+                if(hdql_query_top_attr($3)->attrFlags & hdql_kAttrIsAtomic) {
+                    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
+                }
                 /* Add new attribute to virtual compound */
                 int rc = hdql_compound_add_attr(vCompound, $1, 0, &newAttrDef);
                 if(0 != rc) {
@@ -528,9 +548,11 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 hdql_attribute_definition_init(&newAttrDef);
                 newAttrDef.interface.collection = gSubQueryInterface;
                 newAttrDef.typeInfo.subQuery = $6;
-                newAttrDef.isSubQuery = 0x1;
-                newAttrDef.isCollection = 0x1; /* sub-query results always considered as collection */
-                newAttrDef.isAtomic = hdql_query_top_attr($6)->isAtomic;
+                /* (!) sub-query results always considered as collection */
+                newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
+                if(is_atomic(hdql_query_top_attr($6))) {
+                    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
+                }
                 /* Add new attribute to virtual compound */
                 int rc = hdql_compound_add_attr($1.compoundPtr, $4, $$.lastIdx, &newAttrDef);
                 if(0 != rc) {
@@ -639,11 +661,11 @@ _resolve_query_top_as_compound( struct hdql_Query * q
     const struct hdql_AttributeDefinition * topAttrDef;
     do {
         topAttrDef = hdql_query_top_attr(q);
-        if(!topAttrDef->isSubQuery) break;
+        if(is_direct_query(topAttrDef)) break;
         q = topAttrDef->typeInfo.subQuery;
         assert(q);
-    } while(topAttrDef->isSubQuery);
-    if(topAttrDef->isAtomic) {
+    } while(is_subquery(topAttrDef));
+    if(is_atomic(topAttrDef)) {
         const struct hdql_ValueInterface * vi
             = hdql_types_get_type(hdql_context_get_types(ws->context)
                         , topAttrDef->typeInfo.atomic.arithTypeCode);
@@ -655,7 +677,7 @@ _resolve_query_top_as_compound( struct hdql_Query * q
         *r = NULL;
         return HDQL_ERR_ATTRIBUTE;
     }
-    assert(0x0 == topAttrDef->staticValueFlags);  // TODO
+    assert(is_dynamic(topAttrDef));  // TODO
     *r = hdql_compound_get_attr(topAttrDef->typeInfo.compound, identifier);
     if(NULL == *r) {
         hdql_error(yyloc, ws, NULL
@@ -677,15 +699,12 @@ _new_virtual_compound_query( YYLTYPE * yylloc
      * instance based on the sub-query */
     struct hdql_AttributeDefinition * vCompoundAttrDef
         = hdql_context_local_attribute_create(ws->context);
-    /* - it is of compound type */
-    vCompoundAttrDef->isAtomic = 0x0;
-    vCompoundAttrDef->typeInfo.compound = compoundPtr;
-    /* - it is scalar (single virtual compound instance is
+    /* - it is of compound type, is scalar (single virtual compound instance is
      *   created based on single parent compound) */
-    vCompoundAttrDef->isCollection = 0x0;
+    assert(vCompoundAttrDef->attrFlags == 0x0);  // xxx
+    vCompoundAttrDef->typeInfo.compound = compoundPtr;
     if(!filterQuery) {
         /* virtual compound is not filtered, use trivial dereference */
-        vCompoundAttrDef->interface.scalar.suppData = NULL;
         vCompoundAttrDef->interface.scalar.dereference = trivial_dereference;
     } else {
         /* virtual compound is filtered, allocate supplementary data keeping
@@ -696,54 +715,63 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         const struct hdql_AttributeDefinition * fQResultTypeAttrDef
             = hdql_query_top_attr(filterQuery);
         
-        /* assure filter expression results in propert types */
-        if(fQResultTypeAttrDef->staticValueFlags) {
-            hdql_error(yylloc, ws, yyscanner, "Filter query result is of"
-                " static value, this (trivial) case is not yet implemented");
-            // TODO: support it, ppl might want it for readability or external
-            //  parametrisation
-            return NULL;
-        }
-        if(!fQResultTypeAttrDef->isAtomic) {
-            if(!hdql_compound_is_virtual(fQResultTypeAttrDef->typeInfo.compound)) {
-                hdql_error(yylloc, ws, yyscanner
-                            , "Filter query result is of compound type `%s'"
-                              " (logic or arithmetic type expected)"
-                            , hdql_compound_get_name(fQResultTypeAttrDef->typeInfo.compound));
-            } else {
-                hdql_error(yylloc, ws, yyscanner
-                            , "Filter query result is of virtual compound type"
-                              " based on type `%s'"
-                              " (logic or arithmetic type expected)"
-                            , hdql_compound_get_name(hdql_virtual_compound_get_parent(fQResultTypeAttrDef->typeInfo.compound)));
+        /* assure filter expression results in proper types */ {
+            /* - Filter can not be applied to static value (trivial
+             * filtering condition seem to have no sense in the language) */
+            if(is_static(fQResultTypeAttrDef)) {
+                hdql_error(yylloc, ws, yyscanner, "Filter query result is of"
+                    " static value, this (trivial) case is not yet implemented");
+                // TODO: support it, ppl might want it for readability or external
+                //  parametrisation
+                return NULL;
             }
-            return NULL;
-        }
-        if(fQResultTypeAttrDef->isSubQuery) {
-            hdql_error(yylloc, ws, yyscanner, "Filter query result provides"
-                " forwarding query (sub-query), which is unforseen by current"
-                " language specification. Please, provide a feedback to"
-                " developer(s) if you see this message.");
-            // TODO: either support it, or generate more explainatory error
-            // currently, I can not imagine a construction where it might be
-            // possible
-            return NULL;
-        }
+            /* - Filter can not be applied to atomic attribute (no properties) */
+            if(is_compound(fQResultTypeAttrDef)) {
+                if(!hdql_compound_is_virtual(fQResultTypeAttrDef->typeInfo.compound)) {
+                    hdql_error(yylloc, ws, yyscanner
+                                , "Filter query result is of compound type `%s'"
+                                  " (logic or arithmetic type expected)"
+                                , hdql_compound_get_name(fQResultTypeAttrDef->typeInfo.compound));
+                } else {
+                    hdql_error(yylloc, ws, yyscanner
+                                , "Filter query result is of virtual compound type"
+                                  " based on type `%s'"
+                                  " (logic or arithmetic type expected)"
+                                , hdql_compound_get_name(hdql_virtual_compound_get_parent(fQResultTypeAttrDef->typeInfo.compound)));
+                }
+                return NULL;
+            }
+            /* - forwardign query
+             * TODO: either support it, or generate more explainatory error
+             *       currently, I can not imagine a construction where it might be
+             *       possible */
+            if(is_subquery(fQResultTypeAttrDef)) {
+                hdql_error(yylloc, ws, yyscanner, "Filter query result provides"
+                    " forwarding query (sub-query), which is unforseen by current"
+                    " language specification. Please, provide a feedback to"
+                    " developer(s) if you see this message.");
+                return NULL;
+            }
+        }  /* otherise, virtual compound is scalar compound or collection of compounds */
 
+        /* check filtering query return type */
         tfqp->vi = hdql_types_get_type( hdql_context_get_types(ws->context)
                 , fQResultTypeAttrDef->typeInfo.atomic.arithTypeCode
                 );
         assert(tfqp->vi);
 
-        vCompoundAttrDef->interface.scalar.suppData = ((hdql_Datum_t) tfqp);
-        if(fQResultTypeAttrDef->isCollection) {
+        assert(0);  // TODO
+
+        if(is_collection(fQResultTypeAttrDef)) {
+            vCompoundAttrDef->interface.collection.definitionData = ((hdql_Datum_t) tfqp);
             // force to-bool evaluating function here that can
             // accept collections of a single element here
             vCompoundAttrDef->interface.scalar.dereference = filtered_dereference_collection;
-            vCompoundAttrDef->interface.scalar.free_supp_data = free_filter_collection_dereference_supp_data;
+            //vCompoundAttrDef->interface.scalar.free_supp_data = free_filter_collection_dereference_supp_data;
         } else {
+            //vCompoundAttrDef->interface.scalar.definitionData = ((hdql_Datum_t) tfqp);
             vCompoundAttrDef->interface.scalar.dereference = filtered_dereference_scalar;
-            vCompoundAttrDef->interface.scalar.free_supp_data = free_filter_scalar_dereference_supp_data;
+            //vCompoundAttrDef->interface.scalar.free_supp_data = free_filter_scalar_dereference_supp_data;
         }
     }
     return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
@@ -886,10 +914,10 @@ _operation( struct hdql_Query * a
         = hdql_context_get_types(ws->context);
     assert(types);
     /* these assertions must be fullfilled by `hdql_query_top_attr()` */
-    assert(!attrA->isSubQuery);
-    assert(attrB == NULL || !attrB->isSubQuery);
+    assert(is_direct_query(attrA));
+    assert(attrB == NULL || is_direct_query(attrB));
     /* in current version arithmetic operations on compounds are prohibited */
-    if(!(attrA->isAtomic)) {
+    if(is_compound(attrA)) {
         hdql_error(yyloc, ws, NULL
                 , "%soperand of %s operator is of compound type `%s')"
                   " (can't use compound instance in arithmetics)"
@@ -898,7 +926,7 @@ _operation( struct hdql_Query * a
                 , hdql_compound_get_name(attrB->typeInfo.compound));
         return HDQL_ERR_OPERATION_NOT_SUPPORTED;
     }
-    if(attrB && !(attrB->isAtomic)) {
+    if(attrB && is_compound(attrB)) {
         hdql_error(yyloc, ws, NULL
                 , "second operand of %s operator is of compound type `%s'"
                   " (can't use compound instance in arithmetics)"
@@ -922,18 +950,18 @@ _operation( struct hdql_Query * a
     /* obtain the arithmetic operator implementation based on type code(s) for
      * operand(s) */
     hdql_ValueTypeCode_t codeA, codeB;
-    if(attrA->staticValueFlags) {
+    if(is_static(attrA)) {
         codeA = attrA->typeInfo.staticValue.typeCode;
     } else {
-        assert(attrA->isAtomic);
+        assert(attrA);
         codeA = attrA->typeInfo.atomic.arithTypeCode;
     }
     
     if(attrB) {
-        if(attrB->staticValueFlags) {
+        if(is_static(attrB)) {
             codeB = attrB->typeInfo.staticValue.typeCode;
         } else {
-            assert(attrB->isAtomic);
+            assert(attrB);
             codeB = attrB->typeInfo.atomic.arithTypeCode;
         }
     } else {
@@ -966,8 +994,8 @@ _operation( struct hdql_Query * a
      * execution to save CPU.
      * In such a case, we create new trivial query calculated from static
      * values, free operands and return the new one */
-    if( 0x1 == attrA->staticValueFlags
-     && ((!attrB) || 0x1 == attrB->staticValueFlags)) {
+    if( is_static(attrA)
+     && ((!attrB) || is_static(attrB))) {
         const hdql_Datum_t valueA = hdql_query_get(a, NULL, NULL, ws->context)
                          , valueB = b ? hdql_query_get(b, NULL, NULL, ws->context) : NULL
                          ;
@@ -987,12 +1015,12 @@ _operation( struct hdql_Query * a
         /* new value calculated, create the result */
         struct hdql_AttributeDefinition * attrDef
                         = hdql_context_local_attribute_create(ws->context);
-        attrDef->isAtomic = 0x1;
-        attrDef->staticValueFlags = 0x1;
+        attrDef->attrFlags = hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
         attrDef->interface.scalar.dereference = trivial_dereference;
         attrDef->typeInfo.staticValue.typeCode = evaluator->returnType;
         attrDef->typeInfo.staticValue.datum = result;
         *r = hdql_query_create(attrDef, NULL, ws->context);
+        assert(*r);
         /* destroy sub-queries */
         hdql_query_destroy(a, ws->context);
         if(b) {
@@ -1003,28 +1031,29 @@ _operation( struct hdql_Query * a
     }
 
     /* otherwise, create operation node */
-    assert(attrA->isAtomic && ((!attrB) || attrB->isAtomic));
+    assert(is_atomic(attrA) && ((!attrB) || is_atomic(attrB)));
     struct hdql_AttributeDefinition * opAttrDef
             = hdql_context_local_attribute_create(ws->context);
 
-    opAttrDef->isAtomic = 0x1;  /* arithmetic operations are defined for atomics only */
+    /* arithmetic operations are defined for atomics only */
+    opAttrDef->attrFlags = hdql_kAttrIsAtomic;
+
     opAttrDef->typeInfo.atomic.isReadOnly = 0x1;  /* result is RO */
     opAttrDef->typeInfo.atomic.arithTypeCode = evaluator->returnType;  /* result type defined by arith op */
-    opAttrDef->isSubQuery = 0x0;
-    opAttrDef->staticValueFlags = 0x0;
 
+    #if 0
     if(attrAIsFullScalar && attrBIsFullScalar) {
-        /* scalar value */
+        /* arithmetic operation on scalar values */
         hdql_Datum_t scalarOp = hdql_scalar_arith_op_create(a, b, evaluator, ws->context);
 
-        opAttrDef->isCollection = 0x0;
+        assert(0);  // TODO
         opAttrDef->interface.scalar.suppData = (hdql_Datum_t) scalarOp;
         opAttrDef->interface.scalar.free_supp_data = hdql_scalar_arith_op_free;
         opAttrDef->interface.scalar.dereference = hdql_scalar_arith_op_dereference;
 
         *r = hdql_query_create(opAttrDef, NULL, ws->context);
     } else {
-        /* new node can be of a collection type if one of the operands
+        /* new node must be of a collection type as one of the operands
          * is a collection */
         opAttrDef->isCollection = 0x1;
         opAttrDef->interface.collection = hdql_gArithOpIFace;
@@ -1036,9 +1065,15 @@ _operation( struct hdql_Query * a
         arithCollectionArgs->a = a;
         arithCollectionArgs->b = b;
         arithCollectionArgs->evaluator = evaluator;
+
         *r = hdql_query_create(opAttrDef, ((hdql_SelectionArgs_t) arithCollectionArgs), ws->context);
     }
+    assert(*r);
     return 0;
+    #else
+    assert(0);
+    return -1;
+    #endif
 }
 
 static struct hdql_Query *

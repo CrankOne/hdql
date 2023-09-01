@@ -1,6 +1,7 @@
 #include "events-struct.hh"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/function.h"
 #include "hdql/operations.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
@@ -62,19 +63,16 @@ test_query_on_data( int nSample, const char * expression ) {
         }
     }
     assert(q);
-    hdql_query_dump(stdout, q, ctx);
+    hdql_query_dump(stdout, q, hdql_context_get_types(ctx));
     const hdql_AttributeDefinition * topAttrDef = hdql_query_top_attr(q);
     // iterate over query results
     size_t nResult = 0;
     hdql_Datum_t r;
     hdql_CollectionKey * keys = NULL;
-    rc = hdql_query_reserve_keys_for(q, &keys, ctx);
+    rc = hdql_query_keys_reserve(q, &keys, ctx);
     assert(rc == 0);
 
     char keyStrBf[512] = "";  // 1st is null -- important!
-    hdql_KeyPrintParams kpp;
-    kpp.strBuf = keyStrBf;
-    kpp.strBufLen = sizeof(keyStrBf);
 
     size_t flatKeyViewLength = hdql_keys_flat_view_size(q, keys, ctx);
     hdql_KeyView * kv = flatKeyViewLength
@@ -97,7 +95,7 @@ test_query_on_data( int nSample, const char * expression ) {
             if(nFKV) strcat(flKStr, ", ");
             if(kv[nFKV].interface && kv[nFKV].interface->get_as_string) {
                 char fkvBf[64];
-                kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->datum, fkvBf, sizeof(fkvBf));
+                kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->pl.datum, fkvBf, sizeof(fkvBf));
                 strcat(flKStr, fkvBf);
             } else {
                 strcat(flKStr, "(no str.method)");
@@ -107,8 +105,11 @@ test_query_on_data( int nSample, const char * expression ) {
             strcat(flKStr, "), ");
         }
 
-        hdql_query_for_every_key(q, keys, ctx, hdql_query_print_key_to_buf, &kpp);
-        printf("#%zu: %s[%s] => ", nResult++, flKStr, kpp.strBuf);
+        //hdql_key(q, keys, ctx, hdql_query_print_key_to_buf);
+        hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
+
+        #if 0
+        printf("#%zu: %s[%s] => ", nResult++, flKStr, keyStrBf);
         if(!topAttrDef) {
             fputs("??? (query did not provide attribute definition)", stdout);
         } else {
@@ -185,10 +186,11 @@ test_query_on_data( int nSample, const char * expression ) {
         printf("\n");
         //printf("  type: %s\n", hdql_qeury_result_type(qr) ? ... );
         keyStrBf[0] = '\0';
+        #endif
     }
     if(kv) free(kv);
 
-    hdql_query_destroy_keys_for(q, keys, ctx);
+    hdql_query_keys_destroy(keys, ctx);
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
 

@@ -11,6 +11,8 @@
 #define HDQL_ERR_CODE_OK                    0   /* not an error, ok return code */
 #define HDQL_ERR_GENERIC                   -1   /* unspecified common error */
 #define HDQL_ERR_MEMORY                    -2   /* memory allocation error */
+#define HDQL_ERR_BAD_ARGUMENT              -3   /* bad argument or argument combination */
+#define HDQL_ERR_CONTEXT_INCOMPLETE        -4   /* context not initialized properly */
 /* Parser/lexer errors */
 #define HDQL_ERR_TRANSLATION_FAILURE      -11   /* general parser/lexer error */
 #define HDQL_ERR_UNKNOWN_ATTRIBUTE        -12   /* identifier is not known */
@@ -27,6 +29,8 @@
 #define HDQL_ERR_FUNC_MAX_NARG            -25   /* maximum number of function arguments exceed */
 #define HDQL_ERR_FUNC_ARG_COLLISION       -26   /* argument #N already has been set */
 #define HDQL_ERR_FUNC_REDEFINITION        -27   /* function has been already defined */
+/* Interface-specific errors */
+#define HDQL_ERR_INTERFACE_ERROR         -101  /* failed to reserve key */
 
 #ifdef __cplusplus
 extern "C"

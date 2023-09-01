@@ -1,0 +1,5 @@
+-Iinclude
+-std=c++17
+-Wall
+-DBUILD_GT_UTEST=1
+-DHDQL_TYPES_DEBUG=1

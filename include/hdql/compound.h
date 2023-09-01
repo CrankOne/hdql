@@ -33,55 +33,79 @@ struct hdql_Compound;
 /**\brief Interface to scalar attribute definition (may be of compound type) */
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
-    hdql_Datum_t suppData;
+    hdql_Datum_t definitionData;
+    /**\brief Should instantiate selection supplementary data for scalar
+     *        attribute, can be NULL */
+    hdql_Datum_t (*instantiate)( hdql_Datum_t newOwner
+                               , const hdql_Datum_t defData
+                               , hdql_Context_t context
+                               );
     /** Scalar item dereference callback, required */
-    hdql_Datum_t (*dereference)(hdql_Datum_t, hdql_Context_t, hdql_Datum_t);
-    /** Free supplementary data callback, can be NULL */
-    void (*free_supp_data)(hdql_Datum_t, hdql_Context_t);
-    // ... TODO: key management
-    // ... TODO: seter method?
+    hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
+                               , hdql_Datum_t dynData  // allocated with `instantiate()`
+                               , struct hdql_CollectionKey * // may be NULL
+                               , const hdql_Datum_t defData  // may be NULL
+                               , hdql_Context_t
+                               );
+    /**\brief Called in case of owner change, shall return new/re-initialized
+     *        dynamic data */
+    hdql_Datum_t (*reset)( hdql_Datum_t newOwner
+                 , hdql_Datum_t prevDynData
+                 , const hdql_Datum_t defData
+                 , hdql_Context_t
+                 );
+    /**\brief Should destroy selection supplementary data for scalar
+     *        attribute, can be NULL */
+    void (*destroy)( hdql_Datum_t dynData
+                   , const hdql_Datum_t defData
+                   , hdql_Context_t
+                   );
 };
 
-#if 0
-/**\brief Custom key interface, used when key type code is not set
- *
- * This functions get called for collection entities when key
- * type can not be defined as atomic HDQL type and needs to be
- * composed from multiple items. */
-struct hdql_CustomCollectionKeyInterface {
-    /** Custom key allocation function */
-    int (*reserve_key)(hdql_SelectionArgs_t, hdql_Datum_t * dest, hdql_Context_t);
-    /** Custom key copy function */
-    int (*copy_key)(hdql_SelectionArgs_t, hdql_Datum_t * dest, hdql_Context_t);
-    /** Custom key delete function */
-    int (*destroy_key)(hdql_SelectionArgs_t, hdql_Datum_t   dest, hdql_Context_t);
+/**\brief Custom key interface, used when key is not of defined type */
+struct hdql_ScalarKeyInterface {
+    struct hdql_CollectionKey * (*reserve_keys_list)(const hdql_Datum_t defData, hdql_Context_t);
+    void (*destroy_keys_list)(struct hdql_CollectionKey *, const hdql_Datum_t defData, hdql_Context_t);
 };
-#endif
 
 /**\brief Interface to collection attribute (foreign column or array) */
 struct hdql_CollectionAttrInterface {
-    /**Collection key type code*/
-    hdql_ValueTypeCode_t keyTypeCode;
+    /**\brief Static definition data for collection interface */
+    hdql_Datum_t definitionData;
     /** Should allocate new iterator object. Initialization not needed
      * (instance immediately gets forwarded to `reset()`) */
-    hdql_It_t      (*create)        (hdql_Datum_t, hdql_SelectionArgs_t, hdql_Context_t);
+    hdql_It_t      (*create)        ( hdql_Datum_t owner
+                                    , const hdql_Datum_t defData
+                                    , hdql_SelectionArgs_t
+                                    , hdql_Context_t
+                                    );
     /** Should dereference iterator object AND return NULL if it is not
      * possible (no items available) */
-    hdql_Datum_t   (*dereference)   (hdql_Datum_t, hdql_It_t, hdql_Context_t);
+    hdql_Datum_t   (*dereference)   ( hdql_It_t
+                                    , struct hdql_CollectionKey *
+                                    , const hdql_Datum_t defData
+                                    , hdql_Context_t
+                                    );
     /** Should advance iterator object */
-    hdql_It_t      (*advance)       (hdql_Datum_t, hdql_SelectionArgs_t, hdql_It_t, hdql_Context_t);
+    hdql_It_t      (*advance)       ( hdql_It_t
+                                    , const hdql_Datum_t defData
+                                    , hdql_Context_t
+                                    );
     /** Should reset iterator object */
-    void           (*reset)         (hdql_Datum_t, hdql_SelectionArgs_t, hdql_It_t, hdql_Context_t);
+    hdql_It_t       (*reset)        ( hdql_Datum_t newOwner
+                                    , hdql_SelectionArgs_t
+                                    , hdql_It_t
+                                    , const hdql_Datum_t defData
+                                    , hdql_Context_t
+                                    );
     /** Should delete iterator object */
-    void           (*destroy)       (hdql_It_t, hdql_Context_t);
-    /** Should extract key value from iterator and copy value. Destination
-     * data allocated with respect to `keyTypeCode` */
-    void           (*get_key)       (hdql_Datum_t, hdql_It_t, struct hdql_CollectionKey *, hdql_Context_t);
+    void           (*destroy)       ( hdql_It_t
+                                    , const hdql_Datum_t defData
+                                    , hdql_Context_t
+                                    );
 
-    /** Selection compiler
-     *
-     * Used to produce selection object based on user's selection
-     * expression (usually involves various externally-defined parsers) */
+    /**\brief If not NULL, shall produce key selection using externally-defined
+     *        parser */
     hdql_SelectionArgs_t (*compile_selection)( const char * expr
         , const struct hdql_AttributeDefinition *
         , hdql_Context_t ctx
@@ -90,7 +114,31 @@ struct hdql_CollectionAttrInterface {
     void (*free_selection)(hdql_Context_t ctx, hdql_SelectionArgs_t);
 };
 
+/**\brief Custom key interface, used when key type code is not set
+ *
+ * This functions get called for collection entities when key
+ * type can not be defined as atomic HDQL type and needs to be
+ * composed from multiple items. */
+struct hdql_CollectionKeyInterface {
+    /** Custom key allocation function */
+    struct hdql_CollectionKey * (*reserve_keys_list)(
+              hdql_SelectionArgs_t
+            , const hdql_Datum_t defData
+            , hdql_Context_t
+            );
+    /** Custom key delete function */
+    int (*destroy_keys_list)( hdql_SelectionArgs_t, hdql_Datum_t   dest, hdql_Context_t);
+};
+
 extern const struct hdql_CollectionAttrInterface gSubQueryInterface;
+
+
+typedef unsigned int hdql_AttrFlags_t;
+
+extern const hdql_AttrFlags_t hdql_kAttrIsAtomic;
+extern const hdql_AttrFlags_t hdql_kAttrIsCollection;
+extern const hdql_AttrFlags_t hdql_kAttrIsSubquery;
+extern const hdql_AttrFlags_t hdql_kAttrIsStaticValue;
 
 /**\brief Compound's attribute definition descriptor
  *
@@ -118,6 +166,7 @@ extern const struct hdql_CollectionAttrInterface gSubQueryInterface;
  *    instance
  * */
 struct hdql_AttributeDefinition {
+    #if 0
     /** If set, it attribute is of atomic type (int, float, etc), otherwise 
      * it is a compound */
     unsigned int isAtomic:1;
@@ -130,11 +179,24 @@ struct hdql_AttributeDefinition {
      *  0x1 -- constant value (parser should calculate simple arithmetics)
      *  0x2 -- externally set variable (no arithmetics on parsing) */
     unsigned int staticValueFlags:2;
-    /** Defines access interface for a value */
+    #endif
+
+    hdql_AttrFlags_t attrFlags;
+    /**\brief Key type code, can be zero (unset) */
+    hdql_ValueTypeCode_t keyTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
+
+    /** Data access interface for a value */
     union {
         struct hdql_ScalarAttrInterface     scalar;
         struct hdql_CollectionAttrInterface collection;
     } interface;
+
+    /**\brief Key management interface */
+    union {
+        struct hdql_ScalarKeyInterface * scalar;
+        struct hdql_CollectionKeyInterface * collection;
+    } keyInterface;
+
     /** Defines value type features */
     union {
         struct hdql_AtomicTypeFeatures   atomic;

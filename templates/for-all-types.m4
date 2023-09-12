@@ -1,0 +1,27 @@
+beginStruct(RawData)
+    scalarAtomic(time, float)
+    arrayAtomic(samples, short, 8)
+endStruct(RawData)
+
+beginStruct(Hit)
+    scalarAtomic(energyDeposition, float)
+    scalarAtomic(time, float)
+    scalarAtomic(x, float)
+    scalarAtomic(y, float)
+    scalarAtomic(z, float)
+    scalarCompound(rawData, RawData)
+endStruct(Hit)
+
+beginStruct(Track)
+    scalarAtomic(chi2, float)
+    scalarAtomic(ndf, int)
+    scalarAtomic(pValue, float)
+    mapCompound(hits, Hit, DetID_t)
+endStruct(Track)
+
+beginStruct(Event)
+    scalarAtomic(eventID, int)
+    mapCompound(hits, Hit, DetID_t)
+    arrayCompound(tracks, Track)
+endStruct(Event)
+

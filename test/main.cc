@@ -1,4 +1,6 @@
 #include "events-struct.hh"
+#include "samples.hh"
+
 #include "hdql/compound.h"
 #include "hdql/context.h"
 #include "hdql/function.h"
@@ -32,11 +34,11 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql_op_define_std_arith(operations, valTypes);
     // this is the compound types definitions (TODO: should be wrapped in C++
     // template-based helpers)
-    struct hdql_Compound * eventCompound = hdql_compound_new("Event")
-                       , * trackCompound = hdql_compound_new("Track")
-                       , * hitCompound   = hdql_compound_new("Hit")
+    struct hdql_Compound * eventCompound = hdql_compound_new("Event", ctx)
+                       , * trackCompound = hdql_compound_new("Track", ctx)
+                       , * hitCompound   = hdql_compound_new("Hit", ctx)
                        ;
-    int rc = hdql::test::fill_tables(valTypes, eventCompound, trackCompound, hitCompound);
+    int rc = hdql::test::fill_tables(eventCompound, ctx/*, trackCompound, hitCompound*/);
     if(rc) return -1;
 
     // Fill object
@@ -64,7 +66,7 @@ test_query_on_data( int nSample, const char * expression ) {
     }
     assert(q);
     hdql_query_dump(stdout, q, hdql_context_get_types(ctx));
-    const hdql_AttributeDefinition * topAttrDef = hdql_query_top_attr(q);
+    const hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
     // iterate over query results
     size_t nResult = 0;
     hdql_Datum_t r;
@@ -194,9 +196,9 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
 
-    hdql_compound_destroy(eventCompound);
-    hdql_compound_destroy(hitCompound);
-    hdql_compound_destroy(trackCompound);
+    hdql_compound_destroy(eventCompound, ctx);
+    hdql_compound_destroy(hitCompound, ctx);
+    hdql_compound_destroy(trackCompound, ctx);
 
     if(!hadResult) {
         fputs("Query resulted in empty set.\n", stdout);

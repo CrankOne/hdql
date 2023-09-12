@@ -165,9 +165,28 @@ struct StrTraits<T, typename std::enable_if<std::is_integral<T>::value>::type > 
         char * endptr = NULL;
         long int v = strtol(strexpr, &endptr, 0);
         if(NULL == endptr || *endptr != '\0') return -1;
-        if(v < std::numeric_limits<T>::min()) return -2;  // todo: properly account for [un]signed long ([u]int64_t)
+        if(v < std::numeric_limits<T>::min()) return -2;
         if(v > std::numeric_limits<T>::max()) return -3;
         value = static_cast<T>(v);
+        return 0;
+    }
+};
+
+template<>
+struct StrTraits<long unsigned int, void> {
+    static int to_string(const long unsigned int & value, char * buf, size_t bufSize) {
+        assert(buf);
+        assert(bufSize > 1);
+        size_t nUsed = snprintf(buf, bufSize, "%lu", value);
+        if(nUsed >= bufSize) return -1;
+        return 0;
+    }
+    static int from_string(long unsigned int & value, const char * strexpr) {
+        char * endptr = NULL;
+        long int v = strtol(strexpr, &endptr, 0);
+        if(NULL == endptr || *endptr != '\0') return -1;
+        if(v < 0) return -2;  // todo: properly account for [un]signed long ([u]int64_t)
+        value = static_cast<long int>(v);
         return 0;
     }
 };
@@ -310,10 +329,24 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     assert(0 == hadErrors);
 
     // TODO: derive it somehow, it can be wrong...
+    hdql_ValueTypeCode_t stdShortTypeCode = hdql_types_get_type_code(vt, "int16_t");
+    assert(0 != stdShortTypeCode);
+    assert(sizeof(short) == sizeof(int16_t));
+    hadErrors = hdql_types_alias(vt, "short", stdShortTypeCode) > 0 ? 0 : 1;
+    assert(0 == hadErrors);
+
+    // TODO: derive it somehow, it can be wrong...
     hdql_ValueTypeCode_t stdUIntTypeCode = hdql_types_get_type_code(vt, "uint32_t");
     assert(0 != stdUIntTypeCode);
     assert(sizeof(unsigned int) == sizeof(uint32_t));
     hadErrors = hdql_types_alias(vt, "unsigned int", stdUIntTypeCode) > 0 ? 0 : 1;
+    assert(0 == hadErrors);
+
+    // TODO: derive it somehow, it can be wrong...
+    hdql_ValueTypeCode_t stdULongIntTypeCode = hdql_types_get_type_code(vt, "uint64_t");
+    assert(0 != stdULongIntTypeCode);
+    assert(sizeof(size_t) == sizeof(uint64_t));
+    hadErrors = hdql_types_alias(vt, "size_t", stdULongIntTypeCode) > 0 ? 0 : 1;
     assert(0 == hadErrors);
 
     // TODO: depends on macro definition

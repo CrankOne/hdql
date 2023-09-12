@@ -4,6 +4,7 @@
 #include "hdql/query.h"
 #include "hdql/function.h"
 #include "hdql/errors.h"
+#include "hdql/attr-def.h"
 
 struct hdql_FuncArgList {
     struct hdql_Query * thisArgument;
@@ -12,7 +13,7 @@ struct hdql_FuncArgList {
 
 typedef struct Workspace {
     struct {
-        struct hdql_Compound * compoundPtr;
+        const struct hdql_Compound * compoundPtr;
         char * newAttributeName;
         hdql_AttrIdx_t vLastIdx;
     } compoundStack[HDQL_COMPOUNDS_STACK_MAX_DEPTH];
@@ -60,7 +61,7 @@ _resolve_query_top_as_compound( struct hdql_Query * q
                               , char * identifier
                               , YYLTYPE * yyloc
                               , struct Workspace * ws
-                              , const struct hdql_AttributeDefinition ** r
+                              , const struct hdql_AttrDef ** r
                               );
 static struct hdql_Query *
 _new_virtual_compound_query( YYLTYPE * yylloc
@@ -88,15 +89,15 @@ _operation( struct hdql_Query * a
     int rc = _operation(op1, hdql_k ## opName, op2, &yyloc, ws, NULL, opDescr, &(R)); \
     if(0 != rc) return rc;
 
-#define is_atomic(attr)     (attr->attrFlags & hdql_kAttrIsAtomic)
-#define is_collection(attr) (attr->attrFlags & hdql_kAttrIsCollection)
-#define is_static(attr)     (attr->attrFlags & hdql_kAttrIsStaticValue)
-#define is_subquery(attr)   (attr->attrFlags & hdql_kAttrIsSubquery)
+#define is_atomic(attr)     hdql_attr_def_is_atomic(attr)
+#define is_collection(attr) hdql_attr_def_is_collection(attr)
+#define is_static(attr)     hdql_attr_def_is_static_value(attr)
+#define is_subquery(attr)   hdql_attr_def_is_fwd_query(attr)
 
-#define is_compound(attr)   (!is_atomic(attr))
-#define is_scalar(attr)     (!is_collection(attr))
-#define is_dynamic(attr)    (!is_static(attr))
-#define is_direct_query(attr) (!is_subquery(attr))
+#define is_compound(attr)       hdql_attr_def_is_compound(attr)
+#define is_scalar(attr)         hdql_attr_def_is_scalar(attr)
+#define is_dynamic(attr)        (!hdql_attr_def_is_static_value(attr))
+#define is_direct_query(attr)   hdql_attr_def_is_direct_query(attr)
 
 }
 
@@ -126,9 +127,9 @@ hdql_error( YYLTYPE * yylloc
           , ...
           );
 
-int _push_cmpd(struct Workspace *, struct hdql_Compound * cmpd);
+int _push_cmpd(struct Workspace *, const struct hdql_Compound * cmpd);
 int _pop_cmpd(struct Workspace *);
-struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
+const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 
 }
 
@@ -137,7 +138,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
     char * selexpr;
     hdql_Int_t intStaticValue;
     hdql_Flt_t fltStaticValue;
-    struct { struct hdql_Compound * compoundPtr; size_t lastIdx; struct hdql_Query * filter; } vCompound;
+    struct { struct hdql_Compound * compoundPtr; struct hdql_Query * filter; } vCompound;
     struct hdql_Query * queryPtr;
     struct hdql_FuncArgList * funcArgsList;
     // ... function
@@ -270,41 +271,67 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 
         aOp : T_FLT_STATIC_VALUE
             {
-                struct hdql_AttributeDefinition * attrDef
-                        = hdql_context_local_attribute_create(ws->context);
-                assert(attrDef->attrFlags == 0x0);
-                attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
-                attrDef->interface.scalar.dereference = trivial_dereference;
-                attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
+                hdql_ValueTypeCode_t vtCode = hdql_types_get_type_code(
                         hdql_context_get_types(ws->context), "hdql_Flt_t");
-                assert(attrDef->typeInfo.staticValue.typeCode);
-                attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Flt_t));
-                if( NULL == attrDef->typeInfo.staticValue.datum ) {
+                assert(0x0 != vtCode);
+
+                hdql_Datum_t valueCopy = hdql_context_alloc(ws->context, sizeof(hdql_Flt_t));
+                if( NULL == valueCopy ) {
                     hdql_error(&yyloc, ws, yyscanner
                             , "Failed to allocate memory for floating point constant value");
                     return HDQL_ERR_MEMORY;
                 }
-                *((hdql_Flt_t *) attrDef->typeInfo.staticValue.datum) = $1;
+                *((hdql_Flt_t *) valueCopy) = $1;
+                struct hdql_AttrDef * attrDef
+                        = hdql_attr_def_create_static_value(vtCode, valueCopy, ws->context);
+                //struct hdql_AttrDef * attrDef
+                //        = hdql_context_local_attribute_create(ws->context);
+                //assert(attrDef->attrFlags == 0x0);
+                //attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
+                //attrDef->interface.scalar.dereference = trivial_dereference;
+                //attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
+                //        hdql_context_get_types(ws->context), "hdql_Flt_t");
+                //assert(attrDef->typeInfo.staticValue.typeCode);
+                //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Flt_t));
+                //if( NULL == attrDef->typeInfo.staticValue.datum ) {
+                //    hdql_error(&yyloc, ws, yyscanner
+                //            , "Failed to allocate memory for floating point constant value");
+                //    return HDQL_ERR_MEMORY;
+                //}
+                //*((hdql_Flt_t *) attrDef->typeInfo.staticValue.datum) = $1;
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 // todo: ^^^ check query creation result
                 assert($$);
             }
             | T_INT_STATIC_VALUE
             {
-                struct hdql_AttributeDefinition * attrDef
-                        = hdql_context_local_attribute_create(ws->context);
-                assert(attrDef->attrFlags == 0x0);
-                attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
-                attrDef->interface.scalar.dereference = trivial_dereference;
-                attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
+                hdql_ValueTypeCode_t vtCode = hdql_types_get_type_code(
                         hdql_context_get_types(ws->context), "hdql_Int_t");
-                assert(attrDef->typeInfo.staticValue.typeCode);
-                attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
-                if( NULL == attrDef->typeInfo.staticValue.datum ) {
+                assert(0x0 != vtCode);
+
+                hdql_Datum_t valueCopy = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
+                if( NULL == valueCopy ) {
                     hdql_error(&yyloc, ws, yyscanner
                             , "Failed to allocate memory for integer constant value");
+                    return HDQL_ERR_MEMORY;
                 }
-                *((hdql_Int_t *) attrDef->typeInfo.staticValue.datum) = $1;
+                *((hdql_Int_t *) valueCopy) = $1;
+                struct hdql_AttrDef * attrDef
+                        = hdql_attr_def_create_static_value(vtCode, valueCopy, ws->context);
+                //struct hdql_AttrDef * attrDef
+                //        = hdql_context_local_attribute_create(ws->context);
+                //assert(attrDef->attrFlags == 0x0);
+                //attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
+                //attrDef->interface.scalar.dereference = trivial_dereference;
+                //attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
+                //        hdql_context_get_types(ws->context), "hdql_Int_t");
+                //assert(attrDef->typeInfo.staticValue.typeCode);
+                //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
+                //if( NULL == attrDef->typeInfo.staticValue.datum ) {
+                //    hdql_error(&yyloc, ws, yyscanner
+                //            , "Failed to allocate memory for integer constant value");
+                //}
+                //*((hdql_Int_t *) attrDef->typeInfo.staticValue.datum) = $1;
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 // todo: ^^^ check query creation result
                 assert($$);
@@ -314,7 +341,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 
   queryExpr : T_PERIOD T_IDENTIFIER
             {
-                const struct hdql_AttributeDefinition * attrDef = hdql_compound_get_attr(
+                const struct hdql_AttrDef * attrDef = hdql_compound_get_attr(
                     hdql_parser_top_compound(ws), $2 );
                 if(NULL == attrDef) {
                     const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
@@ -336,7 +363,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             }
             | T_PERIOD T_IDENTIFIER T_SELECTION_EXPRESSION
             {   
-                const struct hdql_AttributeDefinition * attrDef = hdql_compound_get_attr(
+                const struct hdql_AttrDef * attrDef = hdql_compound_get_attr(
                     hdql_parser_top_compound(ws), $2 );
                 if(NULL == attrDef) {
                     const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
@@ -362,8 +389,9 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     free($3);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
-                char qcErrBuf[HDQL_SELEXPR_ERROR_BUFFER_SIZE];
-                if(!attrDef->interface.collection.compile_selection) {
+                const struct hdql_CollectionAttrInterface * iface
+                        = hdql_attr_def_collection_iface(attrDef);
+                if(!iface->compile_selection) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute \"%s\" of `%s' does not support selection"
                           " (can't compile selection expression \"%s\")"
@@ -372,13 +400,13 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     free($3);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
-                hdql_SelectionArgs_t selection = attrDef->interface.collection.compile_selection($3
-                            , attrDef, ws->context, qcErrBuf, sizeof(qcErrBuf) );
+                hdql_SelectionArgs_t selection = iface->compile_selection($3
+                            , iface->definitionData, ws->context );
                 if(NULL == selection) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to translate selection expression \"%s\" of"
-                        " collection attribute %s::%s: %s"
-                        , $3, hdql_compound_get_name(hdql_parser_top_compound(ws)), $2, qcErrBuf);
+                        " collection attribute %s::%s."
+                        , $3, hdql_compound_get_name(hdql_parser_top_compound(ws)), $2);
                     free($2);
                     free($3);
                     return HDQL_BAD_QUERY_EXPRESSION;
@@ -390,7 +418,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             }
             | queryExpr T_PERIOD T_IDENTIFIER
             {
-                const struct hdql_AttributeDefinition * attrDef;
+                const struct hdql_AttrDef * attrDef;
                 int rc = _resolve_query_top_as_compound($1, $3, &yyloc, ws, &attrDef);
                 if(0 != rc) { free($3); return rc; }
                 struct hdql_Query * cq = hdql_query_create(attrDef, NULL, ws->context);
@@ -400,7 +428,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             }
             | queryExpr T_PERIOD T_IDENTIFIER T_SELECTION_EXPRESSION
             {
-                const struct hdql_AttributeDefinition * attrDef;
+                const struct hdql_AttrDef * attrDef;
                 int rc = _resolve_query_top_as_compound($1, $3, &yyloc, ws, &attrDef);
                 if(0 != rc) { free($3); free($4); return rc; }
 
@@ -408,30 +436,31 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute `%s::%s' is not a collection (can't"
                           " apply selection expression \"%s\")"
-                        , hdql_compound_get_name(attrDef->typeInfo.compound)
+                        , hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef))
                         , $3, $4 );
                     free($3);
                     free($4);
                     return HDQL_ERR_ATTRIBUTE;
                 }
 
-                char qcErrBuf[HDQL_SELEXPR_ERROR_BUFFER_SIZE];
-                if(!attrDef->interface.collection.compile_selection) {
+                const struct hdql_CollectionAttrInterface * iface
+                        = hdql_attr_def_collection_iface(attrDef);
+                if(!iface->compile_selection) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute \"%s\" of `%s' does not support selection"
                           " (can't compile selection expression \"%s\")"
-                        , $3, hdql_compound_get_name(attrDef->typeInfo.compound), $4);
+                        , $3, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $4);
                     free($3);
                     free($4);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
-                hdql_SelectionArgs_t selection = attrDef->interface.collection.compile_selection($4
-                            , attrDef, ws->context, qcErrBuf, sizeof(qcErrBuf) );
+                hdql_SelectionArgs_t selection = iface->compile_selection($4
+                            , iface->definitionData, ws->context);
                 if(NULL == selection) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to translate selection expression \"%s\" of"
-                        " collection attribute %s::%s: %s"
-                        , $4, hdql_compound_get_name(attrDef->typeInfo.compound), $3, qcErrBuf);
+                        " collection attribute %s::%s."
+                        , $4, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $3);
                     free($3);
                     free($4);
                     return HDQL_BAD_QUERY_EXPRESSION;
@@ -444,7 +473,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 $$ = hdql_query_append($1, cq);
             }
             | queryExpr T_LCRLBC {
-                    const struct hdql_AttributeDefinition * topAttrDef 
+                    const struct hdql_AttrDef * topAttrDef 
                             = hdql_query_top_attr($1);
                     if(is_atomic(topAttrDef)) {
                         // todo: is it so?
@@ -453,7 +482,7 @@ struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                                     " applied to atomic value." );
                         return HDQL_BAD_QUERY_EXPRESSION;
                     }
-                    int rc = _push_cmpd(ws, topAttrDef->typeInfo.compound);
+                    int rc = _push_cmpd(ws, hdql_attr_def_compound_type_info(topAttrDef));
                     //int rc = hdql_parser_push(&yyloc, ws, $1);
                     if(0 != rc) return rc;
                 } scopedDefs T_RCRLBC {
@@ -510,17 +539,19 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                  * named as T_IDENTIFIER with query as a result.
                  * New (virtual) attribute definition inherits what is
                  * provided by query's top attribute */
-                struct hdql_AttributeDefinition newAttrDef;
-                hdql_attribute_definition_init(&newAttrDef);
-                newAttrDef.interface.collection = gSubQueryInterface;
-                newAttrDef.typeInfo.subQuery = $3;
-                /* (!) sub-query results always considered as collection */
-                newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
-                if(hdql_query_top_attr($3)->attrFlags & hdql_kAttrIsAtomic) {
-                    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
-                }
+                struct hdql_AttrDef * newAttrDef
+                    = hdql_attr_def_create_fwd_query($3, ws->context);
+
+                //hdql_attribute_definition_init(&newAttrDef);
+                //newAttrDef.interface.collection = gSubQueryInterface;
+                //newAttrDef.typeInfo.subQuery = $3;
+                ///* (!) sub-query results always considered as collection */
+                //newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
+                //if(hdql_query_top_attr($3)->attrFlags & hdql_kAttrIsAtomic) {
+                //    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
+                //}
                 /* Add new attribute to virtual compound */
-                int rc = hdql_compound_add_attr(vCompound, $1, 0, &newAttrDef);
+                int rc = hdql_compound_add_attr(vCompound, $1, newAttrDef);
                 if(0 != rc) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to define attribute \"%s\" for virtual"
@@ -533,28 +564,29 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 }
                 free($1);
                 $$.compoundPtr = vCompound;
-                $$.lastIdx = 1;
             }
             | vCompoundDef T_COMMA {
                 ws->compoundStack[ws->compoundStackTop].compoundPtr = $1.compoundPtr;
             } T_IDENTIFIER T_WALRUS aQExpr {
                 assert(hdql_compound_is_virtual($1.compoundPtr));
-                assert($1.lastIdx > 0);
                 /* define new attribute of a virtual compound,
                  * named as T_IDENTIFIER with query as a result.
                  * New (virtual) attribute definition inherits what is
                  * provided by query's top attribute */
-                struct hdql_AttributeDefinition newAttrDef;
-                hdql_attribute_definition_init(&newAttrDef);
-                newAttrDef.interface.collection = gSubQueryInterface;
-                newAttrDef.typeInfo.subQuery = $6;
-                /* (!) sub-query results always considered as collection */
-                newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
-                if(is_atomic(hdql_query_top_attr($6))) {
-                    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
-                }
+                struct hdql_AttrDef * newAttrDef
+                    = hdql_attr_def_create_fwd_query($6, ws->context);
+
+                //struct hdql_AttrDef newAttrDef;
+                //hdql_attribute_definition_init(&newAttrDef);
+                //newAttrDef.interface.collection = gSubQueryInterface;
+                //newAttrDef.typeInfo.subQuery = $6;
+                ///* (!) sub-query results always considered as collection */
+                //newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
+                //if(is_atomic(hdql_query_top_attr($6))) {
+                //    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
+                //}
                 /* Add new attribute to virtual compound */
-                int rc = hdql_compound_add_attr($1.compoundPtr, $4, $$.lastIdx, &newAttrDef);
+                int rc = hdql_compound_add_attr($1.compoundPtr, $4, newAttrDef);
                 if(0 != rc) {
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to define attribute \"%s\" for virtual"
@@ -567,7 +599,6 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 }
                 free($4);
                 $$.compoundPtr = $1.compoundPtr;
-                $$.lastIdx = $1.lastIdx + 1;
             }
             ;
 
@@ -623,7 +654,7 @@ hdql_error( YYLTYPE * yylloc
 }
 
 int
-_push_cmpd(struct Workspace * ws, struct hdql_Compound * cmpd) {
+_push_cmpd(struct Workspace * ws, const struct hdql_Compound * cmpd) {
     if(ws->compoundStackTop + 1 == HDQL_COMPOUNDS_STACK_MAX_DEPTH) {
         return HDQL_ERR_COMPOUNDS_STACK_DEPTH;
     }
@@ -643,7 +674,7 @@ _pop_cmpd(struct Workspace * ws) {
     return 0;
 }
 
-struct hdql_Compound *
+const struct hdql_Compound *
 hdql_parser_top_compound(struct Workspace * ws) {
     assert(ws->compoundStack[ws->compoundStackTop].compoundPtr);
     return ws->compoundStack[ws->compoundStackTop].compoundPtr;
@@ -656,19 +687,20 @@ _resolve_query_top_as_compound( struct hdql_Query * q
                               , char * identifier
                               , YYLTYPE * yyloc
                               , struct Workspace * ws
-                              , const struct hdql_AttributeDefinition ** r
+                              , const struct hdql_AttrDef ** r
                               ) {
-    const struct hdql_AttributeDefinition * topAttrDef;
+    const struct hdql_AttrDef * topAttrDef;
     do {
         topAttrDef = hdql_query_top_attr(q);
         if(is_direct_query(topAttrDef)) break;
-        q = topAttrDef->typeInfo.subQuery;
+        q = hdql_attr_def_fwd_query(topAttrDef);  //topAttrDef->typeInfo.subQuery;
         assert(q);
     } while(is_subquery(topAttrDef));
     if(is_atomic(topAttrDef)) {
         const struct hdql_ValueInterface * vi
             = hdql_types_get_type(hdql_context_get_types(ws->context)
-                        , topAttrDef->typeInfo.atomic.arithTypeCode);
+                        , hdql_attr_def_get_atomic_value_type_code(topAttrDef)
+                        );
         hdql_error( yyloc, ws, NULL
                   , "query result does not provide"
                     " attributes (can't retrieve attribute \"%s\""
@@ -678,11 +710,12 @@ _resolve_query_top_as_compound( struct hdql_Query * q
         return HDQL_ERR_ATTRIBUTE;
     }
     assert(is_dynamic(topAttrDef));  // TODO
-    *r = hdql_compound_get_attr(topAttrDef->typeInfo.compound, identifier);
+    const struct hdql_Compound * compound = hdql_attr_def_compound_type_info(topAttrDef);
+    *r = hdql_compound_get_attr(compound, identifier);
     if(NULL == *r) {
         hdql_error(yyloc, ws, NULL
             , "type `%s' has no attribute \"%s\""
-            , hdql_compound_get_name(topAttrDef->typeInfo.compound), identifier);
+            , hdql_compound_get_name(compound), identifier);
         return HDQL_ERR_ATTRIBUTE;
     }
     return 0;  // ok
@@ -695,9 +728,12 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Compound * compoundPtr
                            , struct hdql_Query * filterQuery
                            ) {
+    #if 1
+    assert(0);
+    #else
     /* create "attribute definition" yielding virtual compound
      * instance based on the sub-query */
-    struct hdql_AttributeDefinition * vCompoundAttrDef
+    struct hdql_AttrDef * vCompoundAttrDef
         = hdql_context_local_attribute_create(ws->context);
     /* - it is of compound type, is scalar (single virtual compound instance is
      *   created based on single parent compound) */
@@ -712,7 +748,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *)
                 hdql_context_alloc(ws->context, sizeof(struct TypedFilterQueryCache)));
         tfqp->q = filterQuery;
-        const struct hdql_AttributeDefinition * fQResultTypeAttrDef
+        const struct hdql_AttrDef * fQResultTypeAttrDef
             = hdql_query_top_attr(filterQuery);
         
         /* assure filter expression results in proper types */ {
@@ -775,6 +811,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         }
     }
     return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
+    #endif
 }
 
 #if 1
@@ -855,7 +892,7 @@ _bind_filter( struct hdql_Query * target
     struct hdql_ValueTypes * vt = hdql_context_get_types(ws->context);
     assert(vt);
 
-    const struct hdql_AttributeDefinition
+    const struct hdql_AttrDef
               * tTopAttrDef = hdql_query_top_attr(target)
             , * fTopAttrDef = hdql_query_top_attr(filter)
             ;
@@ -905,9 +942,12 @@ _operation( struct hdql_Query * a
           , const char * opDescription
           , struct hdql_Query ** r
           ) {
+    #if 1
+    assert(0);
+    #else
     assert(ws);
     assert(ws->context);
-    const struct hdql_AttributeDefinition
+    const struct hdql_AttrDef
         * attrA = hdql_query_top_attr(a),
         * attrB = b ? hdql_query_top_attr(b) : NULL;
     const struct hdql_ValueTypes * types
@@ -1013,7 +1053,7 @@ _operation( struct hdql_Query * a
             return HDQL_ERR_ARITH_OPERATION;
         }
         /* new value calculated, create the result */
-        struct hdql_AttributeDefinition * attrDef
+        struct hdql_AttrDef * attrDef
                         = hdql_context_local_attribute_create(ws->context);
         attrDef->attrFlags = hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
         attrDef->interface.scalar.dereference = trivial_dereference;
@@ -1032,7 +1072,7 @@ _operation( struct hdql_Query * a
 
     /* otherwise, create operation node */
     assert(is_atomic(attrA) && ((!attrB) || is_atomic(attrB)));
-    struct hdql_AttributeDefinition * opAttrDef
+    struct hdql_AttrDef * opAttrDef
             = hdql_context_local_attribute_create(ws->context);
 
     /* arithmetic operations are defined for atomics only */
@@ -1073,6 +1113,7 @@ _operation( struct hdql_Query * a
     #else
     assert(0);
     return -1;
+    #endif
     #endif
 }
 

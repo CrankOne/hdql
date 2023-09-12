@@ -29,7 +29,7 @@ struct hdql_FuncDef {
 
     /**\brief Initializes userdata for function using given argument queries*/
     hdql_Datum_t (*instantiate)( struct hdql_Query **
-                               , struct hdql_AttributeDefinition *
+                               , struct hdql_AttrDef *
                                , hdql_Datum_t definitionData
                                , hdql_Context_t
                                );

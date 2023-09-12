@@ -2,14 +2,18 @@
 #include "hdql/compound.h"
 #include "hdql/errors.h"
 #include "hdql/query.h"
+#include "hdql/query-key.h"
+#include "hdql/value.h"
+#include "hdql/attr-def.h"
 
-#include <cassert>
+#include <assert.h>
+#include <string.h>
 
 //
 // Keys
 //////
 
-extern "C" int
+int
 hdql_query_keys_reserve( struct hdql_Query * query
                        , struct hdql_CollectionKey ** keys_
                        , hdql_Context_t ctx
@@ -19,76 +23,36 @@ hdql_query_keys_reserve( struct hdql_Query * query
     size_t nKeys = hdql_query_depth(query);
     if(nKeys <= 0)
         return HDQL_ERR_BAD_ARGUMENT;
-    *keys_ = reinterpret_cast<struct hdql_CollectionKey *>(
+    *keys_ = (struct hdql_CollectionKey *) (
             hdql_context_alloc(ctx, sizeof(struct hdql_CollectionKey)*nKeys));
     if(NULL == *keys_)
         return HDQL_ERR_MEMORY;
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
+    struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
     if(NULL == types)
         return HDQL_ERR_CONTEXT_INCOMPLETE;
-    hdql_CollectionKey * cKey = *keys_;
+    struct hdql_CollectionKey * cKey = *keys_;
     int rc = 0;
     do {
         assert(cKey - *keys_ < (ssize_t) nKeys);
         assert(query);
         cKey->isTerminal = 0x0;
-        const struct hdql_AttributeDefinition * subj = hdql_query_get_subject(query);
+        const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
-        if(0x0 == subj->keyTypeCode) {
-            if(hdql_kAttrIsCollection & subj->attrFlags) {
-                // TODO: check interface for completeness
-                if(subj->keyInterface.collection->reserve_keys_list) {
-                    cKey->code = 0x0;
-                    cKey->pl.keysList = subj->keyInterface.collection->reserve_keys_list(
-                              query->state.collection.selectionArgs
-                            , query->subject->interface.collection.definitionData
-                            , ctx
-                            );
-                    if(NULL == cKey->pl.keysList) {
-                        hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
-                                , "List-key reserve collection method failed"
-                                  " to reserve key for query %p"
-                                , query
-                                );
-                        cKey->isList = 0x0;
-                        bzero(&cKey->pl, sizeof(cKey->pl));
-                        cKey->isTerminal = 0x1;
-                        return HDQL_ERR_INTERFACE_ERROR;
-                    } else {
-                        cKey->isList = 0x0;
-                    }
-                } else {
-                    cKey->code = 0x0;
-                    cKey->isList = 0x0;
-                    bzero(&cKey->pl, sizeof(cKey->pl));
-                }
-            } else {
-                cKey->code = 0x0;
-                if(query->subject->keyInterface.scalar->reserve_keys_list) {
-                    // TODO: check interface for completeness
-                    cKey->pl.keysList = query->subject->keyInterface.scalar->reserve_keys_list(
-                              query->subject->interface.scalar.definitionData
-                            , ctx
-                            );
-                    cKey->isList = 0x1;
-                    if(NULL == cKey->pl.keysList) {
-                        hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
-                                , "List-key reserve scalar method failed"
-                                  " to reserve key for query %p"
-                                , query
-                                );
-                        cKey->isList = 0x0;
-                        bzero(&cKey->pl, sizeof(cKey->pl));
-                        cKey->isTerminal = 0x1;
-                        return HDQL_ERR_INTERFACE_ERROR;
-                    } else {
-                        cKey->isList = 0x0;
-                    }
-                } else {
-                    cKey->isList = 0x0;
-                    bzero(&cKey->pl, sizeof(cKey->pl));
-                }
+        hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(subj);
+        if(0x0 == keyTypeCode) {
+            rc = hdql_attr_def_reserve_keys(subj, cKey, ctx);
+            if(0 != rc) {
+                hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
+                        , "List-key reserve method failed"
+                          " to reserve key for query %p with code %d"
+                        , query, rc
+                        );
+                cKey->isList = 0x0;
+                bzero(&cKey->pl, sizeof(cKey->pl));
+                cKey->isTerminal = 0x1;
+                return HDQL_ERR_INTERFACE_ERROR;
             }
+            assert(cKey->isList);
         }
         #if 0
         if(query->subject->isSubQuery) {
@@ -196,7 +160,7 @@ hdql_query_keys_reserve( struct hdql_Query * query
             }
         }
         #endif
-        query = static_cast<hdql_Query*>(query->next);
+        query = hdql_query_next_query(query);
         ++cKey;
     } while(query);
     --cKey;
@@ -213,14 +177,14 @@ hdql_query_keys_copy( struct hdql_CollectionKey * dest
          && NULL != src
          && NULL != ctx
          );
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    hdql_CollectionKey       * destKey = dest;
-    const hdql_CollectionKey * srcKey  = src;
+    struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
+    struct hdql_CollectionKey       * destKey = dest;
+    const struct hdql_CollectionKey * srcKey  = src;
     int rc = 0;
     while(true) {  // exit condition by srcKey->isTerminal flag
         if(0x0 != srcKey->code) {
             // if of typed key
-            const hdql_ValueInterface * vi =
+            const struct hdql_ValueInterface * vi =
                 hdql_types_get_type(types, srcKey->code);
             assert(vi);
             assert(0 != vi->size);  // controlled at insertion
@@ -268,13 +232,13 @@ _hdql_for_each_key( const struct hdql_CollectionKey * keys
                   ) {
     if(NULL == keys || NULL == ctx || NULL == callback )
         return HDQL_ERR_BAD_ARGUMENT;
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
+    struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
     if(NULL == types)
         return HDQL_ERR_CONTEXT_INCOMPLETE;
     int rc = 0;
     for(const struct hdql_CollectionKey * cKey = keys; ; ++cKey) {
         if( cKey->code != 0x0 ) {
-            const hdql_ValueInterface * vi =
+            const struct hdql_ValueInterface * vi =
                 hdql_types_get_type(types, cKey->code);
             assert(vi);
             assert(0 != vi->size);  // controlled at insertion
@@ -305,7 +269,7 @@ _hdql_for_each_key( const struct hdql_CollectionKey * keys
     return rc;
 }
 
-extern "C" int
+int
 hdql_query_keys_for_each( const struct hdql_CollectionKey * keys
                         , hdql_Context_t ctx
                         , hdql_KeyIterationCallback_t callback
@@ -314,19 +278,19 @@ hdql_query_keys_for_each( const struct hdql_CollectionKey * keys
     return _hdql_for_each_key(keys, ctx, callback, userdata, 0);
 }
 
-extern "C" int
+int
 hdql_query_keys_destroy( struct hdql_CollectionKey * keys
                        , hdql_Context_t ctx
                        ) {
     if(NULL == keys || NULL == ctx)
         return HDQL_ERR_BAD_ARGUMENT;
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
+    struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
     if(NULL == types)
         return HDQL_ERR_CONTEXT_INCOMPLETE;
     int rc = 0;
-    for(hdql_CollectionKey * cKey = keys; ; ++cKey) {
+    for(struct hdql_CollectionKey * cKey = keys; ; ++cKey) {
         if(0x0 != cKey->code) {
-            const hdql_ValueInterface * vi =
+            const struct hdql_ValueInterface * vi =
                 hdql_types_get_type(types, cKey->code);
             assert(vi);
             assert(cKey->pl.datum);
@@ -349,26 +313,8 @@ hdql_query_keys_destroy( struct hdql_CollectionKey * keys
         #endif
         if(cKey->isTerminal) break;
     }
-    hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(keys));
+    hdql_context_free(ctx, (hdql_Datum_t) keys);
     return rc;
-}
-
-extern "C" hdql_Datum_t
-hdql_query_get( hdql_Query * query
-              , hdql_Datum_t root
-              , struct hdql_CollectionKey * keys
-              , hdql_Context_t ctx
-              ) {
-    query->currentAttr = root;
-    // evaluate query on data, return NULL if evaluation failed
-    // Query::get() changes states of query chain and returns `false' if
-    // full chain can not be evaluated
-    if(!query->get(root, keys, ctx)) return NULL;
-    // for successfully evaluated chain, dereference results to topmost query
-    // and return its "current" value as a query result
-    struct hdql_Query * current = query;
-    while(NULL != current->next) current = static_cast<hdql_Query*>(current->next);
-    return current->currentAttr;
 }
 
 struct _hdql_KeyPrintParams {
@@ -386,7 +332,7 @@ _hdql_key_str(
         ) {
     assert(userdata);
     assert(!key->isList);
-    _hdql_KeyPrintParams * pp = reinterpret_cast<_hdql_KeyPrintParams *>(userdata);
+    struct _hdql_KeyPrintParams * pp = (struct _hdql_KeyPrintParams *) userdata;
     size_t cn = strlen(pp->strBuf);
     if(cn >= pp->strBufLen) return -1;  // buffer depleted
 
@@ -400,9 +346,8 @@ _hdql_key_str(
                 , " (%zu:%zu:%p)", queryLevel, queryNoInLevel, key->pl.datum );
         return 0;
     }
-    hdql_ValueTypes * types = hdql_context_get_types(ctx);
-    const hdql_ValueInterface * vi =
-                hdql_types_get_type(types, key->code);
+    struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
+    const struct hdql_ValueInterface * vi = hdql_types_get_type(types, key->code);
     if(!vi->get_as_string) {
         snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
                 , " (%zu:%zu:%s:%p)", queryLevel, queryNoInLevel, vi->name, key->pl.datum );
@@ -415,7 +360,7 @@ _hdql_key_str(
     return 0;
 }
 
-extern "C" int
+int
 hdql_query_keys_dump( const struct hdql_CollectionKey * key
                     , char * buf, size_t bufLen
                     , hdql_Context_t ctx
@@ -424,3 +369,66 @@ hdql_query_keys_dump( const struct hdql_CollectionKey * key
     return hdql_query_keys_for_each(key, ctx, _hdql_key_str, &kpp);
 }
 
+//                                                     ________________________
+// __________________________________________________/ "Flat" keys (key views)
+
+static int _count_flat_keys(
+          const struct hdql_CollectionKey * keys
+        , hdql_Context_t ctx
+        , void * count_
+        , size_t queryLevel
+        , size_t queryNoInLevel 
+        ) {
+    assert(count_);
+    assert(keys);
+    size_t * szPtr = (size_t *) count_;
+    if(keys->code) {
+        ++(*szPtr);
+    }
+    return 0;
+}
+
+size_t
+hdql_keys_flat_view_size( const struct hdql_Query * q
+                        , const struct hdql_CollectionKey * keys
+                        , hdql_Context_t ctx
+                        ) {
+    size_t count = 0;
+    hdql_query_keys_for_each( keys, ctx, _count_flat_keys, &count);
+    return count;
+}
+
+
+struct KeysFlatViewParams {
+    struct hdql_KeyView * c;
+};
+
+static int _copy_flat_view_ptrs(
+          const struct hdql_CollectionKey * keys
+        , hdql_Context_t ctx
+        , void * count_
+        , size_t queryLevel
+        , size_t queryNoInLevel 
+        ) {
+    assert(count_);
+    assert(keys);
+    struct KeysFlatViewParams * kcpPtr = (struct KeysFlatViewParams *) count_;
+    if(keys->code) {
+        struct hdql_ValueTypes * vts = hdql_context_get_types(ctx);
+        kcpPtr->c->code      = keys->code;
+        kcpPtr->c->keyPtr    = keys;
+        kcpPtr->c->interface = hdql_types_get_type(vts, keys->code);
+        ++(kcpPtr->c);
+    }
+    return 0;
+}
+
+int
+hdql_keys_flat_view_update( const struct hdql_Query * q
+                          , const struct hdql_CollectionKey * keys
+                          , struct hdql_KeyView * dest
+                          , hdql_Context_t ctx ) {
+    struct KeysFlatViewParams kfvp = {dest};
+    hdql_query_keys_for_each(keys, ctx, _copy_flat_view_ptrs, &kfvp);
+    return 0;
+}

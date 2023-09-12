@@ -32,8 +32,7 @@ hdql_query_keys_reserve( struct hdql_Query * query
                        , hdql_Context_t ctx );
 
 int
-hdql_query_keys_copy( struct hdql_Query * query
-                    , struct hdql_CollectionKey * dest
+hdql_query_keys_copy( struct hdql_CollectionKey * dest
                     , const struct hdql_CollectionKey * src
                     , hdql_Context_t ctx
                     );

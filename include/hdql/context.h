@@ -2,6 +2,7 @@
 #define H_HDQL_CONTEXT_H
 
 #include "hdql/types.h"
+#include "hdql/query-key.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +34,7 @@ extern "C" {
 #   endif  /* __cplusplus */
 #endif /* HDQL_TYPES_DEBUG */
 
-struct hdql_AttributeDefinition;
+struct hdql_AttrDef;
 struct hdql_Compound;
 struct hdql_Operations;
 struct hdql_ValueTypes;
@@ -72,10 +73,10 @@ struct hdql_Operations * hdql_context_get_operations( hdql_Context_t ctx );
 struct hdql_Functions * hdql_context_get_functions( hdql_Context_t ctx );
 
 /**\brief Allocates "local attribute" */
-struct hdql_AttributeDefinition * hdql_context_local_attribute_create( hdql_Context_t ctx );
+//struct hdql_AttrDef * hdql_context_local_attribute_create( hdql_Context_t ctx );
 
 /**\brief Deletes "local attribute" */
-void hdql_context_local_attribute_destroy( hdql_Context_t ctx, struct hdql_AttributeDefinition * );  // TODO
+void hdql_context_local_attribute_destroy( hdql_Context_t ctx, struct hdql_AttrDef * );  // TODO
 
 /**\brief Used by parser routines to create virtual compound types */
 void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );

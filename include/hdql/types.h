@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int hdql_Err_t;
 
 #ifndef HDQL_ARITH_BOOL_TYPE
@@ -80,6 +84,13 @@ typedef struct hdql_SelectionArgs * hdql_SelectionArgs_t;
 struct hdql_Context;
 typedef struct hdql_Context* hdql_Context_t;
 
+const char *
+hdql_cxx_demangle( const char * mangled
+                 , char * buf, size_t buflen
+                 );
 
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif /*H_NA64DP_MATH_DSL_TYPES_H*/

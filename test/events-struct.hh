@@ -4,6 +4,7 @@
 #include "hdql/operations.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
+#include <type_traits>
 #include <unordered_map>
 #include <memory>
 #include <vector>
@@ -13,14 +14,21 @@
 namespace hdql {
 namespace test {
 
+//
 // Testing fixture defining "testing" events structure
 
 typedef unsigned int DetID_t;
+
+struct RawData {
+    float time;
+    short samples[4];
+};
 
 struct Hit {
     float energyDeposition;
     float time;
     float x, y, z;
+    std::shared_ptr<RawData> rawData;
 };
 
 struct Track {
@@ -36,15 +44,15 @@ struct Event {
     std::vector<std::shared_ptr<Track>> tracks;
 };
 
+//
+// Register types
 int
-fill_tables( const hdql_ValueTypes * valTypes
-           , hdql_Compound * eventsCompound
-           , hdql_Compound * tracksCompound
-           , hdql_Compound * hitsCompound
+fill_tables( hdql_Compound * eventsCompound
+           , hdql_Context_t
            );
 
-void fill_data_sample_1( Event & );
-
+//
+// G-Test testing fixture
 class TestingEventStruct : public ::testing::Test {
 protected:
     hdql_ValueTypes * _valueTypes;

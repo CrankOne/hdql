@@ -23,8 +23,8 @@ extern "C" void _hdql_value_types_table_destroy(struct hdql_ValueTypes *);
 extern "C" struct hdql_Operations * _hdql_operations_create(struct hdql_Context *);
 extern "C" void _hdql_operations_destroy(struct hdql_Operations *, struct hdql_Context *);
 
-extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Context *);
-extern "C" void _hdql_functions_destroy(struct hdql_Context *, struct hdql_Functions *);
+//extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Context *);
+//extern "C" void _hdql_functions_destroy(struct hdql_Context *, struct hdql_Functions *);
 
 struct hdql_Context {
     #ifdef HDQL_TYPES_DEBUG
@@ -33,12 +33,12 @@ struct hdql_Context {
 
     struct hdql_ValueTypes * valueTypes;
     struct hdql_Operations * operations;
-    struct hdql_Functions * functions;
+    //struct hdql_Functions * functions;
     // temporary (virtual, usually sub-queries) attribute definitions that
     // meant to compose "virtual compound" types. Pointers should remain valid
     // during whole context lifecycle
     // TODO: 
-    std::list<hdql_AttributeDefinition> virtualCompoundAttributes;
+    //std::list<hdql_AttrDef> virtualCompoundAttributes;
 
     std::list<hdql_Compound *> virtualCompounds;
 
@@ -51,7 +51,7 @@ hdql_context_create() {
     auto ctx = new hdql_Context;
     ctx->valueTypes = _hdql_value_types_table_create(ctx);
     ctx->operations = _hdql_operations_create(ctx);
-    ctx->functions  = _hdql_functions_create(ctx);
+    //ctx->functions  = _hdql_functions_create(ctx);
     // ...
     return ctx;
 }
@@ -68,7 +68,8 @@ hdql_context_get_operations( hdql_Context_t ctx ) {
 
 struct hdql_Functions *
 hdql_context_get_functions( hdql_Context_t ctx ) {
-    return ctx->functions;
+    assert(0);
+    //return ctx->functions;
 }
 
 extern "C" hdql_Datum_t
@@ -121,12 +122,14 @@ hdql_context_free(hdql_Context_t ctx, hdql_Datum_t ptr) {
     return 0;
 }
 
-extern "C" struct hdql_AttributeDefinition *
+#if 0
+extern "C" struct hdql_AttrDef *
 hdql_context_local_attribute_create( hdql_Context_t ctx ) {
-    ctx->virtualCompoundAttributes.push_back(hdql_AttributeDefinition{});
+    ctx->virtualCompoundAttributes.push_back(hdql_AttrDef{});
     hdql_attribute_definition_init(&(ctx->virtualCompoundAttributes.back()));
     return &(ctx->virtualCompoundAttributes.back());
 }
+#endif
 
 extern "C" void
 hdql_context_add_virtual_compound(hdql_Context_t ctx, struct hdql_Compound * compoundPtr) {
@@ -147,8 +150,8 @@ hdql_context_err_push( hdql_Context_t context
 
 extern "C" void
 hdql_context_destroy(hdql_Context_t ctx) {
-    if(ctx->functions)
-        _hdql_functions_destroy(ctx, ctx->functions);
+    //if(ctx->functions)
+    //    _hdql_functions_destroy(ctx, ctx->functions);
     if(ctx->operations)
         _hdql_operations_destroy(ctx->operations, ctx);
     for(auto vCompoundPtr : ctx->virtualCompounds) {

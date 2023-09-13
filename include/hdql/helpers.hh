@@ -221,11 +221,28 @@ struct STLContainerTraits< std::vector<std::shared_ptr<ValueT>> > {
 
 }  // namespace ::hdql::helpers::detail
 
-template<auto T, typename EnableT=void> struct IFace;
+template< auto T
+        , typename SelectionT=void
+        , typename EnableT=void> struct IFace;
 
 template< typename T
         , typename EnableT=void
         > struct TypeInfoMixin;
+
+/**\brief Selection traits template
+ *
+ * Default is not defined, user code must provide specialization for their
+ * selection types. Specialization must implement following methods templated:
+ *
+ *      static Iterator advance(AttrT & owner, const SelectionT &, Iterator current)
+ *      static Iterator reset  (AttrT & owner, const SelectionT &, Iterator current)
+ *      static SelectionT * compile(const char *, const hdql_Datum_t, hdql_Context);
+ *      static void destroy(SelectionT *, const hdql_Datum_t, hdql_Context);
+ */
+template< typename T
+        , typename AttrT
+        , typename EnableT=void
+        > struct SelectionTraits;
 
 template< typename T>
 struct TypeInfoMixin<T, typename std::enable_if<std::is_arithmetic<T>::value>::type> {
@@ -279,8 +296,14 @@ struct TypeInfoMixin<T, typename std::enable_if<detail::IndirectAccessTraits<T>:
 };  // type info mixin for compounds
 
 /// Implements arithmetic scalar attribute access interface
-template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr>
-struct IFace<ptr, typename std::enable_if<std::is_arithmetic<AttrT>::value, void>::type>
+template< typename OwnerT
+        , typename AttrT
+        , AttrT OwnerT::*ptr
+        >
+struct IFace< ptr
+            , void
+            , typename std::enable_if<std::is_arithmetic<AttrT>::value, void>::type
+            >
         : public TypeInfoMixin<AttrT> {
     static constexpr bool isCollection = false;
 
@@ -309,7 +332,9 @@ struct IFace<ptr, typename std::enable_if<std::is_arithmetic<AttrT>::value, void
 
 /// Implements scalar compound access interface
 template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr>
-struct IFace<ptr, typename std::enable_if<detail::IndirectAccessTraits<AttrT>::provides, void>::type>
+struct IFace< ptr
+            , void
+            , typename std::enable_if<detail::IndirectAccessTraits<AttrT>::provides, void>::type>
         : public TypeInfoMixin<AttrT> {
     static constexpr bool isCollection = false;
 
@@ -338,13 +363,18 @@ struct IFace<ptr, typename std::enable_if<detail::IndirectAccessTraits<AttrT>::p
 };  // scalar compound attribute
 
 //
-// Implements arithmetic 1D array attribute access interface
+// Implements arithmetic 1D array attribute access interface, no selection
 //
-// Simple C/C++ 1D array of instances
+// Simple C/C++ 1D array of instances. This specialization implies no selection
 template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr>
-struct IFace< ptr, typename std::enable_if<
-              std::is_array<AttrT>::value && std::is_arithmetic<typename std::remove_extent<AttrT>::type>::value
-            , void>::type>
+struct IFace< ptr
+            , void
+            , typename std::enable_if<
+                    std::is_array<AttrT>::value
+                        && std::is_arithmetic<typename std::remove_extent<AttrT>::type>::value
+                  , void
+                  >::type
+            >
         : public TypeInfoMixin<typename std::remove_extent<AttrT>::type> {
     static constexpr bool isCollection = true;
 
@@ -358,11 +388,12 @@ struct IFace< ptr, typename std::enable_if<
     static hdql_It_t
     create( hdql_Datum_t owner
           , const hdql_Datum_t defData
-          , hdql_SelectionArgs_t
+          , hdql_SelectionArgs_t selection
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
+        assert(NULL == selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
@@ -391,11 +422,114 @@ struct IFace< ptr, typename std::enable_if<
     reset( hdql_It_t it_
          , hdql_Datum_t newOwner
          , const hdql_Datum_t defData
-         , hdql_SelectionArgs_t
+         , hdql_SelectionArgs_t selection
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        assert(NULL == selection);
         it->cIndex = 0;
+        return it_;
+    }
+
+    static void
+    destroy( hdql_It_t it_
+           , hdql_Context_t context ) {
+        hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
+    }
+
+    static hdql_CollectionAttrInterface iface() {
+        return hdql_CollectionAttrInterface{
+                  .definitionData = NULL
+                , .create = create
+                , .dereference = dereference
+                , .advance = advance
+                , .reset = reset
+                , .destroy = destroy
+                , .compile_selection = NULL
+                , .free_selection = NULL
+            };
+    }
+
+    static constexpr auto create_attr_def
+        = detail::AttrDefCallback< TypeInfoMixin<typename std::remove_extent<AttrT>::type>::isCompound
+                         , true>::create_attr_def;
+};  // 1D array of arithmetic type instances, no selection
+
+//
+// Implements arithmetic 1D array attribute access interface, with selection
+//
+// Simple C/C++ 1D array of instances. This specialization implies with
+// selection type
+template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr, typename SelectionT>
+struct IFace< ptr
+            , SelectionT
+            , typename std::enable_if<
+                    std::is_array<AttrT>::value
+                        && std::is_arithmetic<typename std::remove_extent<AttrT>::type>::value
+                        && !std::is_same<void, SelectionT>::value
+                  , void
+                  >::type
+            >
+        : public TypeInfoMixin<typename std::remove_extent<AttrT>::type> {
+    static constexpr bool isCollection = true;
+    typedef SelectionTraits<SelectionT, typename std::remove_extent<AttrT>::type> ConcreteSelectionTraits;
+
+    typedef typename std::remove_extent<AttrT>::type ElementType;
+    typedef size_t Key;
+    struct Iterator {
+        OwnerT * owner;
+        SelectionT * selection;
+        size_t cIndex;
+    };
+
+    static hdql_It_t
+    create( hdql_Datum_t owner
+          , const hdql_Datum_t defData
+          , hdql_SelectionArgs_t selection_
+          , hdql_Context_t context
+          ) {
+        Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
+        it->owner = reinterpret_cast<OwnerT*>(owner);
+        it->selection = reinterpret_cast<hdql_SelectionArgs_t>(selection_);
+        return reinterpret_cast<hdql_It_t>(it);
+    }
+
+    static hdql_Datum_t
+    dereference( hdql_It_t it_
+               , struct hdql_CollectionKey * key
+               ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        if(it->cIndex == std::extent<AttrT>::value) return NULL;
+        if(key) {
+            assert(key->pl.datum);
+            *reinterpret_cast<size_t *>(key->pl.datum) = it->cIndex;
+        }
+        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
+    }
+
+    static hdql_It_t
+    advance( hdql_It_t it_ ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        if(it->cIndex == std::extent<AttrT>::value) return it_;
+        it->cIndex = ConcreteSelectionTraits::advance( *it->owner
+                                                     , it->selection
+                                                     , it->cIndex
+                                                     );
+        return it_;
+    }
+
+    static hdql_It_t
+    reset( hdql_It_t it_
+         , hdql_Datum_t newOwner
+         , const hdql_Datum_t defData
+         , hdql_SelectionArgs_t selection
+         , hdql_Context_t ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        it->cIndex = ConcreteSelectionTraits::reset( *it->owner
+                        , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
+                        , it->cIndex
+                        );
         return it_;
     }
 
@@ -408,16 +542,19 @@ struct IFace< ptr, typename std::enable_if<
     static hdql_SelectionArgs_t
     compile_selection( const char * expt
                      , const hdql_Datum_t definitionData
-                     , hdql_Context_t
+                     , hdql_Context_t context
                      ) {
-        throw std::runtime_error("TODO");  // TODO
+        SelectionT * selection
+            = ConcreteSelectionTraits::compile(expt, definitionData, context);
+        return reinterpret_cast<hdql_SelectionArgs_t>(selection);
     }
 
     static void
     free_selection( const hdql_Datum_t definitionData
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
-        throw std::runtime_error("TODO");
+        ConcreteSelectionTraits::destroy( reinterpret_cast<SelectionT *>(sArgs)
+                , definitionData, context);
     }
 
     static hdql_CollectionAttrInterface iface() {
@@ -436,26 +573,30 @@ struct IFace< ptr, typename std::enable_if<
     static constexpr auto create_attr_def
         = detail::AttrDefCallback< TypeInfoMixin<typename std::remove_extent<AttrT>::type>::isCompound
                          , true>::create_attr_def;
-};  // scalar atomic attribute
+};  // 1D array of arithmetic type instances, with selection
 
 //
-// STL collection
+// STL collection, no selection
 //
 // Interfaces for collections based on STL containers ([un]ordered maps,
 // vectors, etc) are instantiated automatically using this specialization.
 // Collection must be one of the types foreseen by `STLContainerTraits<>`
-// template as it defines element access.
+// template as it defines element access. This specialization implies no
+// selection type (i.e. no filtering by collection key permitted making the
+// collection behave as a set).
 template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr>
-struct IFace<ptr, typename std::enable_if<
-              detail::STLContainerTraits<AttrT>::isOfType
-            , void>::type>
+struct IFace< ptr
+            , void
+            , typename std::enable_if<
+                  detail::STLContainerTraits<AttrT>::isOfType
+                , void>::type
+            >
         : public TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType> {
     static constexpr bool isCollection = true;
     typedef typename detail::STLContainerTraits<AttrT>::Key Key;
 
     struct Iterator {
         OwnerT * owner;
-        hdql_SelectionArgs_t selection;  // TODO: must be of templated type
         typename detail::STLContainerTraits<AttrT>::Iterator it;
     };
 
@@ -467,10 +608,7 @@ struct IFace<ptr, typename std::enable_if<
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
-
-        //it->selection = reinterpret_cast<SelectionArgs *>(selection);  // TODO
-        it->selection = selection;
-
+        assert(NULL == selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
@@ -500,10 +638,109 @@ struct IFace<ptr, typename std::enable_if<
     reset( hdql_It_t it_
          , hdql_Datum_t newOwner
          , const hdql_Datum_t defData
-         , hdql_SelectionArgs_t
+         , hdql_SelectionArgs_t selection
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        assert(NULL == selection);
+        it->it = (it->owner->*ptr).begin();
+        return it_;
+    }
+
+    static void
+    destroy( hdql_It_t it_
+           , hdql_Context_t context ) {
+        hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
+    }
+
+    static hdql_CollectionAttrInterface iface() {
+        return hdql_CollectionAttrInterface{
+                  .definitionData = NULL
+                , .create = create
+                , .dereference = dereference
+                , .advance = advance
+                , .reset = reset
+                , .destroy = destroy
+                , .compile_selection = NULL
+                , .free_selection = NULL
+            };
+    }
+
+    static constexpr auto create_attr_def
+        = detail::AttrDefCallback< TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType>::isCompound
+                         , true>::create_attr_def;
+};  // STL container collection, no selection
+
+//
+// STL collection, with selection
+template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr, typename SelectionT>
+struct IFace< ptr
+            , SelectionT
+            , typename std::enable_if<
+                  detail::STLContainerTraits<AttrT>::isOfType
+                        && !std::is_same<void, SelectionT>::value
+                , void>::type
+            >
+        : public TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType> {
+    static constexpr bool isCollection = true;
+    typedef SelectionTraits<SelectionT, AttrT> ConcreteSelectionTraits;
+    typedef typename detail::STLContainerTraits<AttrT>::Key Key;
+
+    struct Iterator {
+        OwnerT * owner;
+        SelectionT * selection;
+        typename detail::STLContainerTraits<AttrT>::Iterator it;
+    };
+
+    static hdql_It_t
+    create( hdql_Datum_t owner
+          , const hdql_Datum_t defData
+          , hdql_SelectionArgs_t selection
+          , hdql_Context_t context
+          ) {
+        Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
+        it->owner = reinterpret_cast<OwnerT*>(owner);
+        it->selection = reinterpret_cast<SelectionT *>(selection);
+        return reinterpret_cast<hdql_It_t>(it);
+    }
+
+    static hdql_Datum_t
+    dereference( hdql_It_t it_
+               , struct hdql_CollectionKey * key
+               ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        if((it->owner->*ptr).end() == it->it) return NULL;
+        if(key) {
+            assert(0x0 != key->code);
+            detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
+        }
+        return reinterpret_cast<hdql_Datum_t>(
+                detail::STLContainerTraits<AttrT>::get(it->it));
+    }
+
+    static hdql_It_t
+    advance( hdql_It_t it_ ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        if(it->it == (it->owner->*ptr).end()) return it_;
+        it->it = ConcreteSelectionTraits::advance( *(it->owner)
+                , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
+                , it->it
+                );
+        return it_;
+    }
+
+    static hdql_It_t
+    reset( hdql_It_t it_
+         , hdql_Datum_t newOwner
+         , const hdql_Datum_t defData
+         , hdql_SelectionArgs_t selection
+         , hdql_Context_t ) {
+        Iterator * it = reinterpret_cast<Iterator*>(it_);
+        it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        it->it = ConcreteSelectionTraits::reset( *(it->owner)
+                , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
+                , it->it
+                );
         it->it = (it->owner->*ptr).begin();
         return it_;
     }
@@ -517,16 +754,21 @@ struct IFace<ptr, typename std::enable_if<
     static hdql_SelectionArgs_t
     compile_selection( const char * expt
                      , const hdql_Datum_t definitionData
-                     , hdql_Context_t
+                     , hdql_Context_t context
                      ) {
-        throw std::runtime_error("TODO");  // TODO
+        return reinterpret_cast<hdql_SelectionArgs_t>(
+                    ConcreteSelectionTraits::compile(expt
+                        , definitionData
+                        , context
+                        ));
     }
 
     static void
     free_selection( const hdql_Datum_t definitionData
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
-        throw std::runtime_error("TODO");
+        ConcreteSelectionTraits::destroy(reinterpret_cast<SelectionT*>(sArgs)
+                , definitionData, context );
     }
 
     static hdql_CollectionAttrInterface iface() {
@@ -545,7 +787,7 @@ struct IFace<ptr, typename std::enable_if<
     static constexpr auto create_attr_def
         = detail::AttrDefCallback< TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType>::isCompound
                          , true>::create_attr_def;
-};  // STL container collection
+};  // STL container collection, with selection
 
 // ...
 class CompoundTypes : public Compounds {
@@ -567,20 +809,20 @@ class CompoundTypes : public Compounds {
             , _context(context)
             {}
     public:
-        template<auto ptr>
-        typename std::enable_if<helpers::IFace<ptr>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        template<auto ptr, typename SelectionT=void>
+        typename std::enable_if<helpers::IFace<ptr, SelectionT>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
         attr(const char * name) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
-            auto typeInfo = helpers::IFace<ptr>::type_info(vts, _compounds);
-            auto iface = helpers::IFace<ptr>::iface();
+            auto typeInfo = helpers::IFace<ptr, SelectionT>::type_info(vts, _compounds);
+            auto iface = helpers::IFace<ptr, SelectionT>::iface();
             hdql_ValueTypeCode_t keyTypeCode
                 = hdql_types_get_type_code(vts
-                        , detail::ArithTypeNames<typename helpers::IFace<ptr>::Key>::name );
+                        , detail::ArithTypeNames<typename helpers::IFace<ptr, SelectionT>::Key>::name );
             if(0x0 == keyTypeCode) {
                 throw std::runtime_error("Unknown key type.");  // TODO: elaborate
             }
-            hdql_AttrDef * ad = helpers::IFace<ptr>::create_attr_def(
+            hdql_AttrDef * ad = helpers::IFace<ptr, SelectionT>::create_attr_def(
                           &typeInfo
                         , &iface
                         , keyTypeCode
@@ -599,13 +841,13 @@ class CompoundTypes : public Compounds {
         }
 
         template<auto ptr>
-        typename std::enable_if<!helpers::IFace<ptr>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        typename std::enable_if<!helpers::IFace<ptr, void>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
         attr(const char * name) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
-            auto typeInfo = helpers::IFace<ptr>::type_info(vts, _compounds);
-            auto iface = helpers::IFace<ptr>::iface();
-            hdql_AttrDef * ad = helpers::IFace<ptr>::create_attr_def(
+            auto typeInfo = helpers::IFace<ptr, void>::type_info(vts, _compounds);
+            auto iface = helpers::IFace<ptr, void>::iface();
+            hdql_AttrDef * ad = helpers::IFace<ptr, void>::create_attr_def(
                           &typeInfo
                         , &iface
                         , 0x0
@@ -623,14 +865,14 @@ class CompoundTypes : public Compounds {
             throw std::runtime_error(errbf);
         }
 
-        template<auto ptr>
-        typename std::enable_if<helpers::IFace<ptr>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        template<auto ptr, typename SelectionT=void>
+        typename std::enable_if<helpers::IFace<ptr, SelectionT>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
         attr(const char * name, hdql_ReserveKeysListCallback_t keyListReserveCallback) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
-            auto typeInfo = helpers::IFace<ptr>::type_info(vts, _compounds);
-            auto iface = helpers::IFace<ptr>::iface();
-            hdql_AttrDef * ad = helpers::IFace<ptr>::create_attr_def(
+            auto typeInfo = helpers::IFace<ptr, SelectionT>::type_info(vts, _compounds);
+            auto iface = helpers::IFace<ptr, SelectionT>::iface();
+            hdql_AttrDef * ad = helpers::IFace<ptr, SelectionT>::create_attr_def(
                           &typeInfo
                         , &iface
                         , 0x0

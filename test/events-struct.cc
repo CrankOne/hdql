@@ -173,8 +173,8 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccess) {  // {{{
     ASSERT_TRUE(iface->advance);
     ASSERT_TRUE(iface->reset);
     ASSERT_TRUE(iface->destroy);
-    ASSERT_TRUE(iface->compile_selection);
-    ASSERT_TRUE(iface->free_selection);
+    EXPECT_FALSE(iface->compile_selection);
+    EXPECT_FALSE(iface->free_selection);
 
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
@@ -317,8 +317,8 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccess) {  // {{{
     ASSERT_TRUE(iface->advance);
     ASSERT_TRUE(iface->reset);
     ASSERT_TRUE(iface->destroy);
-    ASSERT_TRUE(iface->compile_selection);
-    ASSERT_TRUE(iface->free_selection);
+    EXPECT_FALSE(iface->compile_selection);
+    EXPECT_FALSE(iface->free_selection);
 
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
@@ -449,8 +449,8 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     ASSERT_TRUE(iface->advance);
     ASSERT_TRUE(iface->reset);
     ASSERT_TRUE(iface->destroy);
-    ASSERT_TRUE(iface->compile_selection);
-    ASSERT_TRUE(iface->free_selection);
+    EXPECT_FALSE(iface->compile_selection);
+    EXPECT_FALSE(iface->free_selection);
 
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
@@ -506,6 +506,36 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
 #endif  // }}} defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
 
 namespace hdql {
+
+namespace test {
+/// Some primitive selection type for tests
+typedef std::pair<size_t, size_t> SimpleRangeSelection;
+}  // namespace ::hdql::test
+
+namespace helpers {
+// implement traits specialization for selection type
+template<typename T>
+struct SelectionTraits<test::SimpleRangeSelection, T> {
+    using iterator = typename T::iterator;
+    static iterator advance( T & owner
+            , const test::SimpleRangeSelection & sel
+            , iterator current) {
+    }
+    static iterator reset( T & owner
+                         , const test::SimpleRangeSelection & sel
+                         , iterator current) {
+    }
+    static test::SimpleRangeSelection * compile( const char * strexpr
+                , const hdql_Datum_t defData
+                , hdql_Context & context) {
+    }
+    static void destroy( test::SimpleRangeSelection * selPtr
+                       , const hdql_Datum_t defData
+                       , hdql_Context & context ) {
+    }
+};
+}  // namespace ::hdql::helpers
+
 namespace test {
 
 int

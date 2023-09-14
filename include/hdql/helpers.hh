@@ -472,7 +472,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<typename std::remove_extent<AttrT>::type> {
     static constexpr bool isCollection = true;
-    typedef SelectionTraits<SelectionT, typename std::remove_extent<AttrT>::type> ConcreteSelectionTraits;
+    typedef SelectionTraits<SelectionT, AttrT> ConcreteSelectionTraits;
 
     typedef typename std::remove_extent<AttrT>::type ElementType;
     typedef size_t Key;
@@ -490,7 +490,7 @@ struct IFace< ptr
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
-        it->selection = reinterpret_cast<hdql_SelectionArgs_t>(selection_);
+        it->selection = reinterpret_cast<SelectionT *>(selection_);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
@@ -511,7 +511,7 @@ struct IFace< ptr
     advance( hdql_It_t it_ ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return it_;
-        it->cIndex = ConcreteSelectionTraits::advance( *it->owner
+        it->cIndex = ConcreteSelectionTraits::advance( it->owner->*ptr
                                                      , it->selection
                                                      , it->cIndex
                                                      );
@@ -526,7 +526,7 @@ struct IFace< ptr
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
-        it->cIndex = ConcreteSelectionTraits::reset( *it->owner
+        it->cIndex = ConcreteSelectionTraits::reset( *(it->owner->*ptr)
                         , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
                         , it->cIndex
                         );
@@ -545,7 +545,7 @@ struct IFace< ptr
                      , hdql_Context_t context
                      ) {
         SelectionT * selection
-            = ConcreteSelectionTraits::compile(expt, definitionData, context);
+            = ConcreteSelectionTraits::compile(expt, definitionData, *context);
         return reinterpret_cast<hdql_SelectionArgs_t>(selection);
     }
 
@@ -554,7 +554,7 @@ struct IFace< ptr
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
         ConcreteSelectionTraits::destroy( reinterpret_cast<SelectionT *>(sArgs)
-                , definitionData, context);
+                , definitionData, *context);
     }
 
     static hdql_CollectionAttrInterface iface() {
@@ -722,7 +722,7 @@ struct IFace< ptr
     advance( hdql_It_t it_ ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->it == (it->owner->*ptr).end()) return it_;
-        it->it = ConcreteSelectionTraits::advance( *(it->owner)
+        it->it = ConcreteSelectionTraits::advance( it->owner->*ptr
                 , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
                 , it->it
                 );
@@ -737,11 +737,10 @@ struct IFace< ptr
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
-        it->it = ConcreteSelectionTraits::reset( *(it->owner)
+        it->it = ConcreteSelectionTraits::reset( it->owner->*ptr
                 , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
                 , it->it
                 );
-        it->it = (it->owner->*ptr).begin();
         return it_;
     }
 
@@ -759,7 +758,7 @@ struct IFace< ptr
         return reinterpret_cast<hdql_SelectionArgs_t>(
                     ConcreteSelectionTraits::compile(expt
                         , definitionData
-                        , context
+                        , *context
                         ));
     }
 
@@ -768,7 +767,7 @@ struct IFace< ptr
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
         ConcreteSelectionTraits::destroy(reinterpret_cast<SelectionT*>(sArgs)
-                , definitionData, context );
+                , definitionData, *context );
     }
 
     static hdql_CollectionAttrInterface iface() {

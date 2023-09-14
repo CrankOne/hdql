@@ -1,4 +1,5 @@
 #include "events-struct.hh"
+#include "hdql/helpers.hh"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -32,21 +33,24 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql_Operations * operations = hdql_context_get_operations(ctx);
     // add std types arithmetics
     hdql_op_define_std_arith(operations, valTypes);
-    // this is the compound types definitions (TODO: should be wrapped in C++
-    // template-based helpers)
-    struct hdql_Compound * eventCompound = hdql_compound_new("Event", ctx)
-                       , * trackCompound = hdql_compound_new("Track", ctx)
-                       , * hitCompound   = hdql_compound_new("Hit", ctx)
-                       ;
-    int rc = hdql::test::fill_tables(eventCompound, ctx/*, trackCompound, hitCompound*/);
-    if(rc) return -1;
+    // emit testing compound types definitions
+    hdql::helpers::Compounds compounds = hdql::test::define_compound_types(ctx);
+    if(compounds.empty()) return -1;
+    hdql_Compound * eventCompound;
+    {
+        auto it = compounds.find(typeid(hdql::test::Event));
+        if(compounds.end() == it) {
+            return -1;
+        }
+        eventCompound = it->second;
+    }
 
     // Fill object
 
     hdql::test::Event ev;
     hdql::test::fill_data_sample_1(ev);  // TODO: utilize #nSample to select sample
     
-    rc = 0;
+    int rc = 0;
     hdql_Query * q; {
         char errBuf[256] = "";
         int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first column, first line, last column, last line
@@ -84,7 +88,8 @@ test_query_on_data( int nSample, const char * expression ) {
     char flKStr[1024] = "";
 
     bool hadResult = false;
-    while(NULL != (r = hdql_query_get(q, reinterpret_cast<hdql_Datum_t>(&ev), keys, ctx))) {
+    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), ctx);
+    while(NULL != (r = hdql_query_get(q, keys, ctx))) {
         hadResult = true;
         if(flatKeyViewLength) {
             flKStr[0] = ' ';
@@ -195,10 +200,6 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql_query_keys_destroy(keys, ctx);
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
-
-    hdql_compound_destroy(eventCompound, ctx);
-    hdql_compound_destroy(hitCompound, ctx);
-    hdql_compound_destroy(trackCompound, ctx);
 
     if(!hadResult) {
         fputs("Query resulted in empty set.\n", stdout);

@@ -45,12 +45,16 @@ hdql_query_product_advance(
     struct hdql_CollectionKey ** keys = qp->keys;
     // datum instance pointer currently set
     hdql_Datum_t * value = qp->values;
+
+    for(struct hdql_Query ** q = qp->qs; NULL != *q; ++q ) {
+        hdql_query_reset(*q, root, context);  // TODO: check rc
+    }
     // Retrieve values from argument queries as cartesian product,
     // incrementing iterators one by one till the last one is depleted
     for(struct hdql_Query ** q = qp->qs; NULL != *q; ++q, ++value ) {
         assert(*q);
         // retrieve next item from i-th list and consider it as an argument
-        *value = hdql_query_get(*q, root, *keys, context);
+        *value = hdql_query_get(*q, *keys, context);
         if(keys) ++keys;  // increment keys ptr
         // if i-th value is retrieved, nothing else should be done with the
         // argument list
@@ -73,7 +77,7 @@ hdql_query_product_advance(
                 // re-set the query
                 hdql_query_reset(*q2, root, context);
                 // get 1st value of every query till i-th, inclusive
-                *argValue2 = hdql_query_get(*q2, root, *keys2, context);
+                *argValue2 = hdql_query_get(*q2, *keys2, context);
                 // since we've iterated it already, a 1st lements of j-th
                 // query should always exist, otherwise one of the argument
                 // queris is not idempotent and that's an error
@@ -91,12 +95,16 @@ hdql_query_product_reset( hdql_Datum_t root
         , hdql_Context_t context ) {
     struct hdql_CollectionKey ** keys = qp->keys;
     hdql_Datum_t * value = qp->values;
+
+    for(struct hdql_Query ** q = qp->qs; NULL != *q; ++q ) {
+        hdql_query_reset(*q, root, context);  // TODO: check rc
+    }
     // Retrieve values from argument queries as cartesian product,
     // incrementing iterators one by one till the last one is depleted
     for(struct hdql_Query ** q = qp->qs; NULL != *q; ++q, ++value ) {
         assert(*q);
         hdql_query_reset(*q, root, context);
-        *value = hdql_query_get(*q, root, *keys, context);
+        *value = hdql_query_get(*q, *keys, context);
         if(keys) ++keys;  // increment keys ptr
         if(NULL != *value) {
             continue;

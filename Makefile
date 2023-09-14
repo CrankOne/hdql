@@ -32,7 +32,8 @@ OBJS:=obj/types.o \
 	  obj/hdql.tab.o \
 	  obj/main.o \
 	  obj/events-struct.o \
-	  obj/samples.o
+	  obj/samples.o \
+	  obj/iteration-tests.o
 
 test/events-struct_.cc: templates/events-struct.cc.m4 \
 					   templates/for-all-types.m4 \
@@ -48,9 +49,6 @@ test/events-struct_.cc: templates/events-struct.cc.m4 \
 					   templates/implems/scalarAtomic.cc.m4 \
 					   templates/implems/scalarCompound.cc.m4
 	m4 $< > $@
-
-obj/events-struct.o: test/events-struct.cc
-	g++ -c $(CCFLAGS) $^ -o $@
 
 hdql: $(OBJS)
 	g++ $^ -o $@ -lgtest

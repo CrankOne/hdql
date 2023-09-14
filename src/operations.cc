@@ -780,9 +780,9 @@ hdql_scalar_arith_op_dereference( hdql_Datum_t root
     hdql_query_reset(op->argQueries[0], root, ctx);
     if(op->argQueries[1])
         hdql_query_reset(op->argQueries[1], root, ctx);
-    hdql_Datum_t a = hdql_query_get(op->argQueries[0], root, op->keys[0], ctx);
+    hdql_Datum_t a = hdql_query_get(op->argQueries[0], op->keys[0], ctx);
     hdql_Datum_t b = op->argQueries[1]
-                   ? hdql_query_get(op->argQueries[1], root, op->keys[1], ctx)
+                   ? hdql_query_get(op->argQueries[1], op->keys[1], ctx)
                    : NULL
                //, c = op->argQueries[2]  // TODO
                //    ? hdql_query_get(op->argQueries[2], root, op->keys[2], ctx)

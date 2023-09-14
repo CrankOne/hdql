@@ -24,8 +24,10 @@
 
 namespace hdql {
 
-// Elementary query tier object
-struct Selection {
+// A runtime state of elementary query tier object
+//
+// attrDef + owner -> runtimeState
+struct QueryState {
     // Subject attribute definition
     //
     // This is immutable pointer to attribute's interface implementing all
@@ -46,15 +48,17 @@ struct Selection {
             hdql_SelectionArgs_t selectionArgs;
         } collection;
     } state;
+
+    // Gets set by `reset()`
     hdql_Datum_t owner;
 
-    Selection( const hdql_AttrDef * subject_
+    QueryState( const hdql_AttrDef * subject_
              , hdql_SelectionArgs_t selexpr
              );
 
     void finalize_tier(hdql_Context_t ctx);
 
-    ~Selection();
+    ~QueryState();
     // if state is not initialized, creates iterator and set it to first
     // available item, if possible, otherwise, sets it to end
     bool get_value( hdql_Datum_t & value
@@ -77,7 +81,7 @@ struct Selection {
 template<typename SelectionItemT>
 struct Query : public SelectionItemT {
     Query * next;
-    hdql_Datum_t currentAttr;
+    hdql_Datum_t result;
 
     Query( const hdql_AttrDef * subject_
          , const hdql_SelectionArgs_t selexpr_
@@ -85,14 +89,14 @@ struct Query : public SelectionItemT {
                            , selexpr_
                            )
            , next(NULL)
-           , currentAttr(NULL) {}
+           , result(NULL)
+           {}
 
-    bool get( hdql_Datum_t ownerDatum
-            , struct hdql_CollectionKey * keys
+    bool get( struct hdql_CollectionKey * keys
             , hdql_Context_t ctx
             ) {
         // try to get value using current selection
-        if(!SelectionItemT::get_value( currentAttr  // destination
+        if(!SelectionItemT::get_value( result  // destination
                                      , keys
                                      , ctx
                                      ) ) {
@@ -103,15 +107,15 @@ struct Query : public SelectionItemT {
             return true;  // got current and this is terminal
         }
         // this is not a terminal query in the chain 
-        while(!next->get(currentAttr, keys ? keys + 1 : NULL, ctx)) {  // try to get next and if failed, keep:
+        while(!next->get(keys ? keys + 1 : NULL, ctx)) {  // try to get next and if failed, keep:
             SelectionItemT::advance(ctx);  // advance next one
-            if(!SelectionItemT::get_value( currentAttr  // destination
+            if(!SelectionItemT::get_value( result  // destination
                                          , keys
                                          , ctx
                                          ) ) {
                 return false;
             }
-            next->reset(currentAttr, ctx);  // reset next one
+            next->reset(result, ctx);  // reset next one
         }
         return true;
     }
@@ -124,10 +128,10 @@ struct Query : public SelectionItemT {
 
     void reset( hdql_Datum_t owner, hdql_Context_t ctx ) {
         SelectionItemT::reset(owner, ctx);
-        if(!SelectionItemT::get_value(currentAttr, NULL, ctx))
+        if(!SelectionItemT::get_value(result, NULL, ctx))
             return;
         if(!next) return;
-        next->reset(currentAttr, ctx);
+        next->reset(result, ctx);
     }
 
     std::size_t depth() const {
@@ -138,6 +142,7 @@ struct Query : public SelectionItemT {
 
 }  // namespace hdql
 
+#if 0
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST  // tests for Query<> {{{
 struct TestingItem {
     // Current state and maximum permitted
@@ -223,11 +228,12 @@ TEST(BasicQueryIteration, ChainedSelectionIterationWorks) {
     }
 }
 #endif  /// }}}
+#endif
 
-struct hdql_Query : public hdql::Query<hdql::Selection> {
+struct hdql_Query : public hdql::Query<hdql::QueryState> {
     hdql_Query( const hdql_AttrDef * subject_
               , const hdql_SelectionArgs_t selexpr_
-              ) : hdql::Query<hdql::Selection>( subject_
+              ) : hdql::Query<hdql::QueryState>( subject_
                                               , selexpr_
                                               ) {}
     #if 0
@@ -245,9 +251,10 @@ struct hdql_Query : public hdql::Query<hdql::Selection> {
 
 namespace hdql {
 
-Selection::Selection( const hdql_AttrDef * subject_
+QueryState::QueryState( const hdql_AttrDef * subject_
                     , hdql_SelectionArgs_t selexpr
                     ) : subject(subject_)
+                      , owner(nullptr)
                       {
     //if(subject->isSubQuery) {
     //    bzero(&state, sizeof(state));
@@ -272,7 +279,7 @@ Selection::Selection( const hdql_AttrDef * subject_
 }
 
 void
-Selection::finalize_tier(hdql_Context_t ctx) {
+QueryState::finalize_tier(hdql_Context_t ctx) {
     if(hdql_attr_def_is_collection(subject)) {
         const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         if(state.collection.iterator) {
@@ -303,13 +310,13 @@ Selection::finalize_tier(hdql_Context_t ctx) {
     }
 }
 
-Selection::~Selection() {
+QueryState::~QueryState() {
 }
 
 // if state is not initialized, creates iterator and set it to first
 // available item, if possible, otherwise, sets it to end
 bool
-Selection::get_value( hdql_Datum_t & value
+QueryState::get_value( hdql_Datum_t & value
               , hdql_CollectionKey * keyPtr
               , hdql_Context_t ctx
               ) {
@@ -363,7 +370,7 @@ Selection::get_value( hdql_Datum_t & value
 
 // sets iterator to next available item, if possible, or sets it to end
 void
-Selection::advance( hdql_Context_t ctx ) {
+QueryState::advance( hdql_Context_t ctx ) {
     assert(subject);
     assert(owner);  // otherwise missing reset()
     //if(subject->isSubQuery) {
@@ -380,9 +387,10 @@ Selection::advance( hdql_Context_t ctx ) {
 }
 
 void
-Selection::reset( hdql_Datum_t newOwner
+QueryState::reset( hdql_Datum_t newOwner
                 , hdql_Context_t ctx
                 ) {
+    assert(newOwner);
     if(hdql_attr_def_is_fwd_query(subject)) {
         hdql_query_reset( hdql_attr_def_fwd_query(subject)
                 , newOwner, ctx);
@@ -399,7 +407,7 @@ Selection::reset( hdql_Datum_t newOwner
                     );
         } else {
             state.collection.iterator =
-                iface->create(newOwner
+                iface->create( newOwner
                     , iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
@@ -410,7 +418,7 @@ Selection::reset( hdql_Datum_t newOwner
         if(iface->instantiate) {
             if(NULL != state.scalar.dynamicSuppData ) {
                 assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
-                state.scalar.dynamicSuppData = iface->reset(newOwner
+                state.scalar.dynamicSuppData = iface->reset( newOwner
                         , state.scalar.dynamicSuppData
                         , iface->definitionData
                         , ctx
@@ -425,6 +433,7 @@ Selection::reset( hdql_Datum_t newOwner
         }
         state.scalar.isVisited = false;
     }
+    owner = newOwner;
 }
 
 }  // namespace hdql
@@ -514,20 +523,19 @@ hdql_query_str( const struct hdql_Query * q
 
 extern "C" hdql_Datum_t
 hdql_query_get( struct hdql_Query * query
-              , hdql_Datum_t root
               , struct hdql_CollectionKey * keys
               , hdql_Context_t ctx
               ) {
-    query->currentAttr = root;
+    assert(query->result);  // query->currentAttr = root;
     // evaluate query on data, return NULL if evaluation failed
     // Query::get() changes states of query chain and returns `false' if
     // full chain can not be evaluated
-    if(!query->get(root, keys, ctx)) return NULL;
+    if(!query->get(keys, ctx)) return NULL;
     // for successfully evaluated chain, dereference results to topmost query
     // and return its "current" value as a query result
     struct hdql_Query * current = query;
     while(NULL != current->next) current = static_cast<hdql_Query*>(current->next);
-    return current->currentAttr;
+    return current->result;
 }
 
 extern "C" void
@@ -577,6 +585,7 @@ hdql_query_is_fully_scalar(struct hdql_Query * q) {
 extern "C" struct hdql_Query *
 hdql_query_next_query(struct hdql_Query * q) {
     assert(q);
+    if(!q->next) return NULL;
     return static_cast<hdql_Query *>(q->next);
 }
 
@@ -609,7 +618,7 @@ hdql_query_dump( FILE * outf
 
 extern "C" const hdql_AttrDef *
 hdql_query_top_attr(const struct hdql_Query * q_) {
-    const hdql::Query<hdql::Selection> * q = q_;
+    const hdql::Query<hdql::QueryState> * q = q_;
     while(q->next) { q = q->next; }
     if(hdql_attr_def_is_fwd_query(q->subject)) {
         return hdql_query_top_attr(hdql_attr_def_fwd_query(q->subject));

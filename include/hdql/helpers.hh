@@ -606,8 +606,10 @@ struct IFace< ptr
           , hdql_SelectionArgs_t selection
           , hdql_Context_t context
           ) {
+        assert(owner);
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
+        it->it = (it->owner->*ptr).begin();
         assert(NULL == selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
@@ -617,6 +619,7 @@ struct IFace< ptr
                , struct hdql_CollectionKey * key
                ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
+        assert(it->owner);
         if((it->owner->*ptr).end() == it->it) return NULL;
         if(key) {
             assert(0x0 != key->code);

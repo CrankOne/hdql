@@ -825,7 +825,8 @@ filtered_dereference_scalar( hdql_Datum_t d
     struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) filterQPtr);
     assert(tfqp->q);
     // retrieve logic result using filtering query
-    hdql_Datum_t r = hdql_query_get(tfqp->q, d, NULL, ctx);
+    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
+    hdql_Datum_t r = hdql_query_get(tfqp->q, NULL, ctx);
     // no result means filter failure
     if(NULL == r) return NULL;
     assert(tfqp->vi);
@@ -862,8 +863,9 @@ filtered_dereference_collection( hdql_Datum_t d
     hdql_Bool_t passes = true;
     
     hdql_Datum_t ir;
+    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
     do {
-        ir = hdql_query_get(tfqp->q, d, NULL, ctx);
+        ir = hdql_query_get(tfqp->q, NULL, ctx);
         if(ir)
             passes &= tfqp->vi->get_as_logic(ir);
     } while(ir && passes);

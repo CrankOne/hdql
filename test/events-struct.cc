@@ -904,10 +904,8 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
 namespace hdql {
 namespace test {
 
-int
-fill_tables( hdql_Compound * eventCompound
-           , hdql_Context_t context
-           ) {
+helpers::Compounds
+define_compound_types(hdql_Context_t context) {
     #if 1
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
@@ -934,8 +932,8 @@ fill_tables( hdql_Compound * eventCompound
         .attr<&Event::eventID>("eventID")
         .attr<&Event::hits>("hits")
         .attr<&Event::tracks>("tracks")
-    .end_compound()
-    ;
+    .end_compound();
+    return types;
     #else
     hdql::helpers::Compounds compounds;
     struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", context);
@@ -1004,7 +1002,6 @@ fill_tables( hdql_Compound * eventCompound
                               , ad);
     }
     #endif
-    return 0;
 }
 
 }  // namespace ::hdql::test

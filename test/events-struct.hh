@@ -1,9 +1,8 @@
 #pragma once
 
-#include "hdql/context.h"
-#include "hdql/operations.h"
-#include "hdql/types.h"
-#include "hdql/value.h"
+#include "hdql/compound.h"
+#include "hdql/helpers.hh"
+
 #include <type_traits>
 #include <unordered_map>
 #include <memory>
@@ -44,12 +43,8 @@ struct Event {
     std::vector<std::shared_ptr<Track>> tracks;
 };
 
-//
-// Register types
-int
-fill_tables( hdql_Compound * eventsCompound
-           , hdql_Context_t
-           );
+// Register testing types
+helpers::Compounds define_compound_types(hdql_Context_t);
 
 //
 // G-Test testing fixture
@@ -57,13 +52,9 @@ class TestingEventStruct : public ::testing::Test {
 protected:
     hdql_ValueTypes * _valueTypes;
     hdql_Operations * _operations;
-
-    hdql_Compound * _eventCompound
-                , * _trackCompound
-                , * _hitCompound
-                ;
-
+    hdql::helpers::Compounds _compounds;
     hdql_Context_t _context;
+    hdql_Compound * _eventCompound;
 protected:
     void SetUp() override;
     void TearDown() override;

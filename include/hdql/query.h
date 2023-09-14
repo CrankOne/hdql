@@ -104,7 +104,6 @@ hdql_query_next_query(struct hdql_Query *);
  * */
 hdql_Datum_t
 hdql_query_get( struct hdql_Query * query
-              , hdql_Datum_t root
               , struct hdql_CollectionKey * keys
               , hdql_Context_t ctx
               );

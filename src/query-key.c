@@ -1,5 +1,6 @@
 #include "hdql/query-key.h"
 #include "hdql/compound.h"
+#include "hdql/context.h"
 #include "hdql/errors.h"
 #include "hdql/query.h"
 #include "hdql/query-key.h"
@@ -22,14 +23,14 @@ hdql_query_keys_reserve( struct hdql_Query * query
         return HDQL_ERR_BAD_ARGUMENT;
     size_t nKeys = hdql_query_depth(query);
     if(nKeys <= 0)
-        return HDQL_ERR_BAD_ARGUMENT;
+        return HDQL_ERR_BAD_ARGUMENT;  // bad query arg, zero depth
     *keys_ = (struct hdql_CollectionKey *) (
             hdql_context_alloc(ctx, sizeof(struct hdql_CollectionKey)*nKeys));
     if(NULL == *keys_)
-        return HDQL_ERR_MEMORY;
+        return HDQL_ERR_MEMORY;  // key alloc failure
     struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
     if(NULL == types)
-        return HDQL_ERR_CONTEXT_INCOMPLETE;
+        return HDQL_ERR_CONTEXT_INCOMPLETE;  // no types table in context
     struct hdql_CollectionKey * cKey = *keys_;
     int rc = 0;
     do {
@@ -39,7 +40,9 @@ hdql_query_keys_reserve( struct hdql_Query * query
         const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
         hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(subj);
+        cKey->code = keyTypeCode;
         if(0x0 == keyTypeCode) {
+            // type code for query is zero, that can be a list or null key
             rc = hdql_attr_def_reserve_keys(subj, cKey, ctx);
             if(0 != rc) {
                 hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
@@ -52,7 +55,10 @@ hdql_query_keys_reserve( struct hdql_Query * query
                 cKey->isTerminal = 0x1;
                 return HDQL_ERR_INTERFACE_ERROR;
             }
-            assert(cKey->isList);
+            assert(cKey->isList || NULL == cKey->pl.datum);  // key is either null key or a list
+        } else {
+            const struct hdql_ValueInterface * vi = hdql_types_get_type(types, keyTypeCode);
+            cKey->pl.datum = hdql_context_alloc(ctx, vi->size);
         }
         #if 0
         if(query->subject->isSubQuery) {

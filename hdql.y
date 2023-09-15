@@ -1182,6 +1182,7 @@ hdql_compile_query( const char * strexpr
     struct Workspace ws;
     /* inti buffer for error message */
     ws.errMsg     = errBuf;
+    if(ws.errMsg) *ws.errMsg  = '\0';
     ws.errMsgSize = errBufLength;
     /* make user-provided context available for subsequent calls */
     ws.context = ctx;

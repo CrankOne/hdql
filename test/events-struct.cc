@@ -8,6 +8,7 @@
 #include "hdql/value.h"
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -32,9 +33,19 @@ _compile_simple_selection(const char * expression_) {
     const std::string expression(expression_);
     size_t n = expression.find(':');
     SimpleRangeSelection r;
-    r.first = std::stoul(expression.substr(0, n));
+    std::string fromStr = expression.substr(0, n);
+    if(fromStr != "...") {
+        r.first = std::stoul(fromStr);
+    } else {
+        r.first = std::numeric_limits<decltype(r.first)>::min();
+    }
     if(std::string::npos != n) {
-        r.second = std::stoul(expression.substr(n+1));
+        std::string toStr = expression.substr(n+1);
+        if(toStr != "...") {
+            r.second = std::stoul(toStr);
+        } else {
+            r.second = std::numeric_limits<decltype(r.second)>::max();
+        }
     } else {
         r.second = r.first + 1;
     }
@@ -46,6 +57,9 @@ _compile_simple_selection(const char * expression_) {
 namespace helpers {
 // implement traits specialization for selection type
 // - array of arithmetic type
+//      * uses element index as an iterator
+//      * benefits from advance being forwarded to traits as on reset() sets
+//        index to the beginning of range if possible
 template<typename T, size_t N>
 struct SelectionTraits<test::SimpleRangeSelection, T[N]> {
     //using iterator = typename T::iterator;
@@ -87,6 +101,8 @@ struct SelectionTraits<test::SimpleRangeSelection, T[N]> {
     }
 };
 // - unordered map
+//      * implements simple advance-and-check strategy as keys can have
+//        arbitrary layout within unordered container
 template<typename KeyT, typename ValueT>
 struct SelectionTraits< test::SimpleRangeSelection, std::unordered_map<KeyT, ValueT> > {
     using Container = std::unordered_map<KeyT, ValueT>;
@@ -116,6 +132,52 @@ struct SelectionTraits< test::SimpleRangeSelection, std::unordered_map<KeyT, Val
             ) {
             ++it;
         }
+        return it;
+    }
+
+    static test::SimpleRangeSelection *
+    compile( const char * strexpr
+           , const hdql_Datum_t defData
+           , hdql_Context & context) {
+        hdql_Datum_t buf = hdql_context_alloc(&context, sizeof(test::SimpleRangeSelection));
+        return new (buf) test::SimpleRangeSelection(test::_compile_simple_selection(strexpr));
+    }
+
+    static void destroy( test::SimpleRangeSelection * selPtr
+                       , const hdql_Datum_t defData
+                       , hdql_Context & context ) {
+        selPtr->test::SimpleRangeSelection::~SimpleRangeSelection();
+        hdql_context_free(&context, reinterpret_cast<hdql_Datum_t>(selPtr));
+    }
+};
+// - vector
+//      * an example of benefit provided by advance being forwarded to traits
+//      * may directly set an iterator to the beginning of selected range thus
+//        omitting unnecessary advance-and-check loop
+template<typename ValueT>
+struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
+    using Container = std::vector<ValueT>;
+    using iterator = typename Container::iterator;
+    static iterator advance( Container & owner
+            , const test::SimpleRangeSelection * sel
+            , iterator it) {
+        if(!sel) {
+            if(it != owner.end()) ++it;
+            return it;
+        }
+        if(owner.end() == it) return it;
+        if(static_cast<size_t>(std::distance(owner.begin(), it)) < sel->second) ++it;
+        return it;
+    }
+
+    static iterator reset( Container & owner
+                       , const test::SimpleRangeSelection * sel
+                       , iterator current) {
+        if(NULL == sel)
+            return owner.begin();
+        if(owner.size() < sel->first) return owner.end();  // sleection range left boundary exceeds vec's size
+        auto it = owner.begin();
+        std::advance(it, sel->first);
         return it;
     }
 
@@ -912,7 +974,7 @@ define_compound_types(hdql_Context_t context) {
     helpers::CompoundTypes types(context);
     types.new_compound<RawData>("RawData")
         .attr<&RawData::time>("time")
-        .attr<&RawData::samples>("samples")
+        .attr<&RawData::samples, SimpleRangeSelection>("samples")
     .end_compound()
     .new_compound<Hit>("Hit")
         .attr<&Hit::energyDeposition>("energyDeposition")
@@ -926,12 +988,12 @@ define_compound_types(hdql_Context_t context) {
         .attr<&Track::chi2>("chi2")
         .attr<&Track::ndf>("ndf")
         .attr<&Track::pValue>("pValue")
-        .attr<&Track::hits>("hits")
+        .attr<&Track::hits, SimpleRangeSelection>("hits")
     .end_compound()
     .new_compound<Event>("Event")
         .attr<&Event::eventID>("eventID")
-        .attr<&Event::hits>("hits")
-        .attr<&Event::tracks>("tracks")
+        .attr<&Event::hits, SimpleRangeSelection>("hits")
+        .attr<&Event::tracks, SimpleRangeSelection>("tracks")
     .end_compound();
     return types;
     #else

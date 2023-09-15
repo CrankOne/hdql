@@ -13,7 +13,7 @@ hdql_cxx_demangle( const char * mangled
                  , char * buf, size_t buflen
                  ) {
     assert(buf);
-    assert(buflen);
+    assert(buflen > 4);
     char * buf_ = (char *) malloc(buflen);
     size_t buflen_ = buflen;
     int status = 0;
@@ -32,8 +32,14 @@ hdql_cxx_demangle( const char * mangled
     };
     assert(r);
     assert(status == 0);
-    strncpy(buf, buf_, buflen - 1);
-    free(buf_);
+    strncpy(buf, r, buflen);
+    if(strlen(r) > buflen) {
+        for(int i = 1; i < 4; ++i) {
+            buf[buflen - i - 1] = '.';
+        }
+    }
+    free(r);
+    buf[buflen-1] = '\0';
     return buf;
 }
 

@@ -397,22 +397,21 @@ QueryState::reset( hdql_Datum_t newOwner
     }
     if(hdql_attr_def_is_collection(subject)) {
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
-        if(NULL != state.collection.iterator) {
-            state.collection.iterator =
-                iface->reset(state.collection.iterator
-                    , newOwner
-                    , iface->definitionData
-                    , state.collection.selectionArgs
-                    , ctx
-                    );
-        } else {
+        if(NULL == state.collection.iterator) {
             state.collection.iterator =
                 iface->create( newOwner
                     , iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
                     );
-        }
+        }   
+        state.collection.iterator =
+                iface->reset(state.collection.iterator
+                    , newOwner
+                    , iface->definitionData
+                    , state.collection.selectionArgs
+                    , ctx
+                    );
     } else {
         const hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(subject);
         if(iface->instantiate) {

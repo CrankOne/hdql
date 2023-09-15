@@ -10,6 +10,8 @@
 #include <typeindex>
 #include <cstring>
 
+#include <iostream>  // XXX, dev only
+
 #include "hdql/errors.h"
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
@@ -711,7 +713,9 @@ struct IFace< ptr
     dereference( hdql_It_t it_
                , struct hdql_CollectionKey * key
                ) {
+        assert(it_);
         Iterator * it = reinterpret_cast<Iterator*>(it_);
+        assert(it->owner);
         if((it->owner->*ptr).end() == it->it) return NULL;
         if(key) {
             assert(0x0 != key->code);

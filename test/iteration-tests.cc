@@ -189,14 +189,13 @@ TEST_F(TestingEventStruct, straightDataIterationWorksOnSample1) {
     }
 };
 
-#if 0
 //
 // Selective iteration of two-level collection
 
 TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
     // note, that since hits in track are in unordered_map, particular order is
     // not guaranteed
-    const char expression[] = ".tracks[2-...].hits[202-...].x";
+    const char expression[] = ".tracks[2:...].hits[202:...].x";
     static struct {
         int keys[3];
         float result;
@@ -215,24 +214,25 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
-    ASSERT_EQ(errDetails[0], 0);
+    ASSERT_EQ(errDetails[0], 0) << "Can't compile query: " << errBuf;
     // iterate over query results, check all expected keys and values appeared
     //size_t nResult = 0;  // xxx
     hdql_Datum_t r;
     size_t keysDepth = hdql_query_depth(q);
     
     hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_reserve_keys_for(q, &keys, _context));
+    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _context));
 
-    const hdql_AttributeDefinition * topAttrDef = hdql_query_top_attr(q);
-    ASSERT_TRUE(topAttrDef);
-    ASSERT_FALSE( topAttrDef->isCollection );
-    ASSERT_TRUE( topAttrDef->isAtomic );
-    ASSERT_NE( topAttrDef->typeInfo.atomic.arithTypeCode, 0x0 );
+    const hdql_AttrDef * ad = hdql_query_top_attr(q);
+    ASSERT_TRUE( ad );
+    ASSERT_FALSE( hdql_attr_def_is_collection(ad) );
+    ASSERT_TRUE( hdql_attr_def_is_atomic(ad) );
+    ASSERT_FALSE( hdql_attr_def_is_static_value(ad) );
     const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, topAttrDef->typeInfo.atomic.arithTypeCode);
+        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    while(NULL != (r = hdql_query_get(q, reinterpret_cast<hdql_Datum_t>(&ev), keys, _context))) {
+    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _context);
+    while(NULL != (r = hdql_query_get(q, keys, _context))) {
         //printf("#%zu: ", nResult++);  // xxx
         //char bf[32] = "";
         int kk[3];  // key to control
@@ -246,7 +246,7 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
             assert(vi->get_as_string);
             //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
             //printf(" %s ", bf);
-            kk[lvl] = vi->get_as_int(keys[lvl].datum);
+            kk[lvl] = vi->get_as_int(keys[lvl].pl.datum);
         }
         //vi->get_as_string(r, bf, sizeof(bf));
         //printf(" => %s\n", bf);
@@ -266,7 +266,7 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_destroy_keys_for(q, keys, _context));
+    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _context));
 
     hdql_query_destroy(q, _context);
 
@@ -276,6 +276,7 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
     }
 };
 
+#if 0
 //
 // Iteration of virtual compound providing collection
 

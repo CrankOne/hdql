@@ -15,6 +15,8 @@ struct hdql_CollectionKey;  /* fwd */
 /**\brief Atomic type definition */
 struct hdql_AtomicTypeFeatures {
     /** If set, value can not be assigned*/
+
+
     hdql_ValueTypeCode_t isReadOnly:1;
     /** Refers to value type interface */
     hdql_ValueTypeCode_t arithTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;

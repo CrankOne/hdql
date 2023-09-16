@@ -76,7 +76,7 @@ extern "C" hdql_Datum_t
 hdql_context_alloc( hdql_Context_t ctx
                   , size_t len
                   ) {
-    // TODO: ctx-based allocation
+    // TODO: page-aligned/pool allocation
     return reinterpret_cast<hdql_Datum_t>(malloc(len));
 }
 
@@ -117,7 +117,7 @@ hdql_context_check_type( hdql_Context_t ctx
 
 extern "C" int
 hdql_context_free(hdql_Context_t ctx, hdql_Datum_t ptr) {
-    // TODO: ctx-based allocation
+    // TODO: page-aligned/pool allocation
     free(ptr);
     return 0;
 }

@@ -33,7 +33,9 @@ OBJS:=obj/types.o \
 	  obj/main.o \
 	  obj/events-struct.o \
 	  obj/samples.o \
-	  obj/iteration-tests.o
+	  obj/iteration-tests.o \
+	  obj/iface-fwd-query-as-collection.o \
+	  obj/iface-fwd-query-as-scalar.o
 
 test/events-struct_.cc: templates/events-struct.cc.m4 \
 					   templates/for-all-types.m4 \
@@ -80,6 +82,9 @@ obj/%.o: src/%.c
 
 obj/%.o: src/%.cc
 	gcc -c $(CCFLAGS) $< -o $@
+
+obj/iface-%.o: src/ifaces/%.c
+	gcc -c $(CFLAGS) $< -o $@
 
 obj/%-tests.o: test/%-tests.cc
 	g++ -c $(CCFLAGS) $< -o $@

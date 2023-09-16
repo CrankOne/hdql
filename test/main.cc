@@ -1,4 +1,5 @@
 #include "events-struct.hh"
+#include "hdql/attr-def.h"
 #include "hdql/helpers.hh"
 #include "samples.hh"
 
@@ -69,6 +70,7 @@ test_query_on_data( int nSample, const char * expression ) {
         }
     }
     assert(q);
+    puts("-- query composition:");
     hdql_query_dump(stdout, q, hdql_context_get_types(ctx));
     const hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
     // iterate over query results
@@ -89,6 +91,12 @@ test_query_on_data( int nSample, const char * expression ) {
 
     bool hadResult = false;
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), ctx);
+
+    //puts("-- uninit keys topology:");
+    //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
+    //puts(keyStrBf);
+
+    puts("-- query results:");
     while(NULL != (r = hdql_query_get(q, keys, ctx))) {
         hadResult = true;
         if(flatKeyViewLength) {
@@ -112,8 +120,75 @@ test_query_on_data( int nSample, const char * expression ) {
             strcat(flKStr, "), ");
         }
 
-        //hdql_key(q, keys, ctx, hdql_query_print_key_to_buf);
-        hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
+        printf(" %4lu) ", nResult);
+
+        if(!topAttrDef) {
+            fputs("??? (query did not provide attribute definition)", stdout);
+        } else {
+            fputs(flKStr, stdout);  // flat keys
+            if(hdql_attr_def_is_static_value(topAttrDef)) {
+                printf( "static value %p of type %d"
+                      ,  hdql_attr_def_get_static_value(topAttrDef)
+                      , (int) hdql_attr_def_get_atomic_value_type_code(topAttrDef)
+                      );
+                if(hdql_attr_def_get_atomic_value_type_code(topAttrDef)) {
+                    const hdql_ValueInterface * vi
+                        = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
+                    if(vi && vi->get_as_string) {
+                        char bf[32];
+                        vi->get_as_string(r, bf, sizeof(bf));
+                        printf( "value=\"%s\"", bf );
+                    } else {
+                        fputs(" (no value interface)", stdout);
+                    }
+                }
+            } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {
+                printf("subquery %p", hdql_attr_def_fwd_query(topAttrDef));
+            } else if(!hdql_attr_def_is_atomic(topAttrDef)) {
+                printf( "compound %s instance %p of type `%s'"
+                      , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
+                      , r
+                      , hdql_compound_get_name(hdql_attr_def_compound_type_info(topAttrDef))
+                      );
+            } else {
+                if(!hdql_attr_def_is_collection(topAttrDef)) {
+                    const hdql_ValueInterface * vi = hdql_types_get_type(valTypes
+                            , hdql_attr_def_get_atomic_value_type_code(topAttrDef) );
+                    if(!vi) {
+                        printf( "scalar instance %p of unknown type", r);
+                    } else if(!vi->get_as_string) {
+                        printf( "scalar instance %p of type <%s> (no to-string method)"
+                                , r, vi->name );
+                    } else {
+                        char valueBf[32];
+                        vi->get_as_string(r, valueBf, sizeof(valueBf));
+                        printf( "scalar instance %p of type <%s> with value \"%s\""
+                                , r, vi->name, valueBf );
+                    }
+                } else {
+                    #if 1
+                    const hdql_ValueInterface * vi
+                        = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
+                    if(vi && vi->get_as_string) {
+                        char bf[32];
+                        vi->get_as_string(r, bf, sizeof(bf));
+                        printf( "value=\"%s\"", bf );
+                    } else {
+                        fputs(" (no value interface)", stdout);
+                    }
+                    #else
+                    // Query resulted in weird item
+                    printf("??? (attr.def. provided, %s, %s, %s %s)"
+                          , topAttrDef->staticValueFlags ? "stat.val." : "not a static value"
+                          , topAttrDef->isSubQuery ? "subquery" : "not a subquery"
+                          , topAttrDef->isAtomic ? "atomic" : "compound"
+                          , topAttrDef->isCollection ? "collection" : "scalar"
+                          );
+                    #endif
+                }
+            }
+            puts(".");
+        }
 
         #if 0
         printf("#%zu: %s[%s] => ", nResult++, flKStr, keyStrBf);
@@ -194,12 +269,16 @@ test_query_on_data( int nSample, const char * expression ) {
         //printf("  type: %s\n", hdql_qeury_result_type(qr) ? ... );
         keyStrBf[0] = '\0';
         #endif
+        ++nResult;
     }
     if(kv) free(kv);
 
     hdql_query_keys_destroy(keys, ctx);
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
+    for(auto & ce : compounds) {
+        hdql_compound_destroy(ce.second, ctx);
+    }
 
     if(!hadResult) {
         fputs("Query resulted in empty set.\n", stdout);

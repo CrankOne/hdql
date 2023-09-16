@@ -42,12 +42,6 @@ typedef void *yyscan_t;  /* circumvent circular dep: YACC/BISON does not know th
 %parse-param {yyscan_t yyscanner}
 
 %code {
-static hdql_Datum_t trivial_dereference( hdql_Datum_t d
-    , hdql_Datum_t
-    , struct hdql_CollectionKey *
-    , const hdql_Datum_t
-    , hdql_Context_t
-    ) { return d; }
 struct TypedFilterQueryCache {
     struct hdql_Query * q;
     const struct hdql_ValueInterface * vi;
@@ -721,15 +715,55 @@ _resolve_query_top_as_compound( struct hdql_Query * q
     return 0;  // ok
 }
 
+static hdql_Datum_t _trivial_dereference( hdql_Datum_t d
+    , hdql_Datum_t dd
+    , struct hdql_CollectionKey * key
+    , const hdql_Datum_t defData
+    , hdql_Context_t ctx
+    ) { return d; }
+
+/* This function gets called upon finalizing scope operator (after `}'
+ * in `{...}' and produces filtering or trivial query node that should return
+ * a virtual compound instance. Virtual compound itself is built and defined
+ * up to the moment this function gets invoked, we just have to pack it into
+ * a query node. Not-so-trivial case arises if filtering expression was given
+ * in the scope operator. Example:
+ *
+ *      a.b{c := .d*2, e := .f/2}.e
+ *  
+ * up to the closing `}' virtual compound has been composed already, we shall
+ * provide the parser with query node attributed to this v-compound in order
+ * it will be capable to resolve `.e'. Note, this query is always a scalar
+ * instance (there is no way in HDQL currently to "split" single instance into
+ * a collection of items within the "scope operator"). This scalar is optional
+ * as filtering expression can result of the instance to be declined. */
 static struct hdql_Query *
 _new_virtual_compound_query( YYLTYPE * yylloc
                            , Workspace_t ws
                            , yyscan_t yyscanner
-                           , struct hdql_Compound * compoundPtr
+                           , struct hdql_Compound * vCompoundPtr
                            , struct hdql_Query * filterQuery
                            ) {
     #if 1
-    assert(0);
+    struct hdql_AttrDef * vCompoundAttrDef;
+    struct hdql_ScalarAttrInterface iface = {
+            .definitionData = NULL,
+            .instantiate = NULL,
+            .dereference = _trivial_dereference,
+            .reset = NULL,
+            .destroy = NULL
+        };
+    if(NULL != filterQuery) {
+        assert(0);  // TODO
+    }
+    vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
+              vCompoundPtr  /* ... compound ptr */
+            , &iface  /* ......... scalar iface ptr */
+            , 0x0  /* ............ key type code */
+            , NULL  /* ........... key copy callback */
+            , ws->context  /* .... context */
+            );
+    return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
     #else
     /* create "attribute definition" yielding virtual compound
      * instance based on the sub-query */

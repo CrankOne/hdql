@@ -1,8 +1,11 @@
 #include "hdql/attr-def.h"
 #include "hdql/context.h"
 #include "hdql/errors.h"
+#include "hdql/query-key.h"
+#include "hdql/query.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
+#include "hdql/internal-ifaces.h"
 
 #include <string.h>
 #include <assert.h>
@@ -188,7 +191,7 @@ hdql_attr_def_create_compound_scalar(
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
     ad->isAtomic         = 0x0;
-    ad->isCollection     = 0x1;
+    ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
 
@@ -240,12 +243,51 @@ hdql_attr_def_create_compound_collection(
     return ad;
 }
 
+static struct hdql_CollectionKey *
+_hdql_reserve_keys_list_for_fwd_query(
+          const hdql_Datum_t fwdQ_
+        , hdql_Context_t context ) {
+    struct hdql_Query * sq = (struct hdql_Query *) fwdQ_;
+    struct hdql_CollectionKey * k = NULL;
+    int rc = hdql_query_keys_reserve(sq, &k, context);
+    if(0 != rc) return NULL;
+    return k;
+}
+
 struct hdql_AttrDef *
 hdql_attr_def_create_fwd_query(
           struct hdql_Query * subquery
         , hdql_Context_t context
         ) {
-    assert(0);  // TODO
+    struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
+    const struct hdql_AttrDef * fwdAD = hdql_query_top_attr(subquery);
+    bool isFullyScalar = hdql_query_is_fully_scalar(subquery);
+
+    bzero((void*) ad, sizeof(struct hdql_AttrDef));
+
+    /* atomic/collection flags are inherited from what the fwded
+     * query is supposed to fetch */
+    ad->isAtomic         = hdql_attr_def_is_atomic(fwdAD) ? 0x1 : 0x0;
+    ad->isCollection     = isFullyScalar ? 0x0 : 0x1;
+    /* ^^^ we check here the full chain and consider
+     *     fwd query as a scalar only if all the chained queries results in
+     *     a scalar values */
+    
+    ad->isFwdQuery       = 0x1;
+    ad->staticValueFlags = 0x0;
+
+    if(isFullyScalar) {
+        ad->interface.scalar = _hdql_gScalarFwdQueryIFace;
+    } else {
+        ad->interface.collection = _hdql_gCollectionFwdQueryIFace;
+    }
+
+    ad->keyTypeCode = 0x0;
+    ad->reserveKeys = _hdql_reserve_keys_list_for_fwd_query;
+
+    ad->typeInfo.fwdQuery = subquery;
+
+    return ad;
 }
 
 struct hdql_AttrDef *
@@ -322,7 +364,6 @@ hdql_attr_def_compound_type_info(const hdql_AttrDef_t ad) {
 struct hdql_Query *
 hdql_attr_def_fwd_query(const hdql_AttrDef_t ad) {
     assert(ad->isFwdQuery);
-    assert(!ad->isAtomic);
     assert(0x0 == ad->staticValueFlags);
     return ad->typeInfo.fwdQuery;
 }
@@ -360,30 +401,44 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
         return 0;
     }
     if( hdql_attr_def_is_collection(ad) ) {
+        hdql_Datum_t suppData
+            = hdql_attr_def_is_direct_query(ad)
+            ? ad->interface.collection.definitionData
+            : (hdql_Datum_t) ad->typeInfo.fwdQuery
+            ;
         key->pl.keysList
-            = ad->reserveKeys(ad->interface.collection.definitionData, context); 
-        assert(key->pl.keysList);
+            = ad->reserveKeys( suppData
+                             , context
+                             ); 
+        if(NULL == key->pl.keysList) return -1;
         key->isList = 0x1;
         return 0;
     }
     if( hdql_attr_def_is_scalar(ad) ) {
+        hdql_Datum_t suppData
+            = hdql_attr_def_is_direct_query(ad)
+            ? ad->interface.collection.definitionData
+            : (hdql_Datum_t) ad->typeInfo.fwdQuery
+            ;
         key->pl.keysList
-            = ad->reserveKeys(ad->interface.scalar.definitionData, context); 
-        assert(key->pl.keysList);
+            = ad->reserveKeys( suppData
+                             , context
+                             ); 
+        if(NULL == key->pl.keysList) return -1;
         key->isList = 0x1;
         return 0;
     }
     assert(0);  /* bad interface definition -- not a collection, nor a scalar */
-    return -1;
+    return -2;
 }
 
 void
 hdql_attr_def_destroy( hdql_AttrDef_t ad
                      , hdql_Context_t ctx
                      ) {
-    if(hdql_attr_def_is_fwd_query(ad)) {
-        assert(0);  // TODO: query_destroy
-    }
+    //if(hdql_attr_def_is_fwd_query(ad)) {
+    //  hdql_query_destroy(hdql_attr_def_fwd_query(ad), ctx);
+    //}
     hdql_context_free(ctx, (hdql_Datum_t) ad);
 }
 

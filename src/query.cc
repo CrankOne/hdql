@@ -31,7 +31,9 @@ struct QueryState {
     // Subject attribute definition
     //
     // This is immutable pointer to attribute's interface implementing all
-    // access interfaces
+    // access interfaces. Note, that subject is not owned by query or query
+    // state as this instances are provided by compound definitions (and
+    // deleted by them)
     const hdql_AttrDef * subject;
 
     // This is actual selection state with all data mutable during query
@@ -121,9 +123,10 @@ struct Query : public SelectionItemT {
     }
 
     void finalize(hdql_Context_t ctx) {
-        if(next) next->finalize(ctx);
+        if(next) {
+            hdql_query_destroy(static_cast<hdql_Query *>(next), ctx);
+        }
         SelectionItemT::finalize_tier(ctx);
-        if(next) delete next;
     }
 
     void reset( hdql_Datum_t owner, hdql_Context_t ctx ) {
@@ -271,11 +274,13 @@ QueryState::QueryState( const hdql_AttrDef * subject_
         assert(!selexpr);
     }
 
+    #if 0
     if(hdql_attr_def_is_fwd_query(subject)) {
         assert(NULL == state.collection.selectionArgs);
         assert(0);  // TODO
         //state.collection.selectionArgs = reinterpret_cast<hdql_SelectionArgs_t>(subject->typeInfo.subQuery);
     }
+    #endif
 }
 
 void
@@ -284,12 +289,14 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
         const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         if(state.collection.iterator) {
             iface->destroy( state.collection.iterator, ctx );
+            state.collection.iterator = nullptr;
         }
         if(state.collection.selectionArgs) {
             if(hdql_attr_def_is_direct_query(subject)) {
                 assert(iface->free_selection);
                 iface->free_selection( iface->definitionData
                                      , state.collection.selectionArgs, ctx);
+                state.collection.selectionArgs = nullptr;
             }
         }
     } else {
@@ -307,6 +314,13 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
         //if(subject->typeInfo.staticValue.datum) {
         //  hdql_context_free(ctx, subject->typeInfo.staticValue.datum);
         //}
+    }
+
+    if( hdql_attr_def_is_compound(subject)
+     && hdql_compound_is_virtual( hdql_attr_def_compound_type_info(subject) )) {
+        // exception for owning the attribute queries is made for synthetic
+        // ones
+        hdql_context_free(ctx, (hdql_Datum_t) subject);
     }
 }
 
@@ -391,16 +405,26 @@ QueryState::reset( hdql_Datum_t newOwner
                 , hdql_Context_t ctx
                 ) {
     assert(newOwner);
+    hdql_Datum_t fwdQ = NULL;  // used only for forwarding query instead of definition data
     if(hdql_attr_def_is_fwd_query(subject)) {
-        hdql_query_reset( hdql_attr_def_fwd_query(subject)
-                , newOwner, ctx);
+        assert( (hdql_attr_def_is_collection(subject) && NULL == hdql_attr_def_collection_iface(subject)->definitionData )
+             || (NULL == hdql_attr_def_scalar_iface(subject)->definitionData) );
+        // ^^^ definition data must not be not set for forwarding query
+        //     interface
+        //hdql_query_reset( hdql_attr_def_fwd_query(subject), newOwner, ctx);
+        // ^^^ not needed as interface implementation should do it by its own
+        assert( (!hdql_attr_def_is_collection(subject))
+             || NULL == state.collection.selectionArgs );
+        // ^^^ selection arguments are meaningless for forwarding query
+        fwdQ = (hdql_Datum_t) hdql_attr_def_fwd_query(subject);
     }
     if(hdql_attr_def_is_collection(subject)) {
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         if(NULL == state.collection.iterator) {
+            assert(iface->create);
             state.collection.iterator =
                 iface->create( newOwner
-                    , iface->definitionData
+                    , fwdQ ? fwdQ : iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
                     );
@@ -408,27 +432,26 @@ QueryState::reset( hdql_Datum_t newOwner
         state.collection.iterator =
                 iface->reset(state.collection.iterator
                     , newOwner
-                    , iface->definitionData
+                    , fwdQ ? fwdQ : iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
                     );
     } else {
         const hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(subject);
         if(iface->instantiate) {
-            if(NULL != state.scalar.dynamicSuppData ) {
-                assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
-                state.scalar.dynamicSuppData = iface->reset( newOwner
-                        , state.scalar.dynamicSuppData
-                        , iface->definitionData
-                        , ctx
-                        );
-            } else {
+            if(NULL == state.scalar.dynamicSuppData ) {
                 state.scalar.dynamicSuppData
                     = iface->instantiate( newOwner
-                        , iface->definitionData
+                        , fwdQ ? fwdQ : iface->definitionData
                         , ctx
                         );
             }
+            assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
+            state.scalar.dynamicSuppData = iface->reset( newOwner
+                        , state.scalar.dynamicSuppData
+                        , fwdQ ? fwdQ : iface->definitionData
+                        , ctx
+                        );
         }
         state.scalar.isVisited = false;
     }
@@ -444,7 +467,8 @@ hdql_query_create(
         , hdql_SelectionArgs_t selArgs
         , hdql_Context_t ctx
         ) {
-    return new hdql_Query( attrDef, selArgs );
+    hdql_Datum_t bf = hdql_context_alloc(ctx, sizeof(hdql_Query));
+    return new (bf) hdql_Query( attrDef, selArgs );
 }
 
 extern "C" const struct hdql_AttrDef *
@@ -470,10 +494,10 @@ hdql_query_str( const struct hdql_Query * q
             , hdql_attr_def_is_fwd_query(q->subject)
               ? " forwarding to "
               : ( hdql_attr_def_is_atomic(q->subject)
-                ? "of atomic type"
+                ? " of atomic type"
                 : ( hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
-                  ? "of virtual compound type"
-                  : "of compound type"
+                  ? " of virtual compound type"
+                  : " of compound type"
                   )
                 )
             );
@@ -525,7 +549,6 @@ hdql_query_get( struct hdql_Query * query
               , struct hdql_CollectionKey * keys
               , hdql_Context_t ctx
               ) {
-    assert(query->result);  // query->currentAttr = root;
     // evaluate query on data, return NULL if evaluation failed
     // Query::get() changes states of query chain and returns `false' if
     // full chain can not be evaluated
@@ -549,7 +572,8 @@ extern "C" void
 hdql_query_destroy(struct hdql_Query * q, hdql_Context_t ctx) {
     assert(q);
     q->finalize(ctx);
-    delete q;
+    q->~hdql_Query();
+    hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(q));
 }
 
 extern "C" hdql_Query *
@@ -611,7 +635,9 @@ hdql_query_dump( FILE * outf
     for(; q; q = static_cast<hdql_Query *>(q->next)) {
         rc = hdql_query_str(q, buf, sizeof(buf), vts);
         if(0 != rc) return;
+        fputs(" * ", outf);
         fputs(buf, outf);
+        fputc('\n', outf);
     }
 }
 

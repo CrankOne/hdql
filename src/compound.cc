@@ -44,7 +44,8 @@ extern "C" hdql_Compound *
 hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ctx) {
     assert(parent);
     assert(!parent->name.empty());
-    return new hdql_Compound("", parent);  // TODO: ctx-based allocator
+    char * bf = reinterpret_cast<char *>(hdql_alloc(ctx, struct hdql_Compound));
+    return new (bf) hdql_Compound("", parent);
 }
 
 extern "C" void
@@ -53,9 +54,10 @@ hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * c
         if(hdql_attr_def_is_fwd_query(attrDef.second)) {
             hdql_query_destroy(hdql_attr_def_fwd_query(attrDef.second), ctx);
         }
-        hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(attrDef.second));
+        hdql_attr_def_destroy(attrDef.second, ctx);
     }
-    delete vCompound;
+    vCompound->~hdql_Compound();
+    hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(vCompound));
 }
 
 extern "C" int

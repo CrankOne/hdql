@@ -37,14 +37,19 @@ hdql_query_keys_reserve( struct hdql_Query * query
         assert(cKey - *keys_ < (ssize_t) nKeys);
         assert(query);
         cKey->isTerminal = 0x0;
+        cKey->isList = 0x0;
         const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
         hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(subj);
         cKey->code = keyTypeCode;
-        if(0x0 == keyTypeCode) {
+        if(0x0 != keyTypeCode) {
+            const struct hdql_ValueInterface * vi = hdql_types_get_type(types, keyTypeCode);
+            cKey->pl.datum = hdql_context_alloc(ctx, vi->size);
+        } else {
             // type code for query is zero, that can be a list or null key
             rc = hdql_attr_def_reserve_keys(subj, cKey, ctx);
             if(0 != rc) {
+                assert(0);  // XXX
                 hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
                         , "List-key reserve method failed"
                           " to reserve key for query %p with code %d"
@@ -56,10 +61,12 @@ hdql_query_keys_reserve( struct hdql_Query * query
                 return HDQL_ERR_INTERFACE_ERROR;
             }
             assert(cKey->isList || NULL == cKey->pl.datum);  // key is either null key or a list
-        } else {
-            const struct hdql_ValueInterface * vi = hdql_types_get_type(types, keyTypeCode);
-            cKey->pl.datum = hdql_context_alloc(ctx, vi->size);
         }
+        assert( /* either a typed key (with non-zero code and allocated payload */
+                (cKey->code != 0 &&  (!cKey->isList) && cKey->pl.datum != NULL)
+                /* or untyped key with list or null (trivial) payload */
+             || (cKey->code == 0 && (( cKey->isList && cKey->pl.keysList ) || (cKey->pl.datum == NULL) ))
+              );
         #if 0
         if(query->subject->isSubQuery) {
             // subquery

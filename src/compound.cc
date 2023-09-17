@@ -11,6 +11,10 @@
 #include <cstring>
 #include <climits>
 
+// Compound instances are not used during query evaluation, so no need to
+// put them into context-based allocator
+//#define HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
+
 namespace hdql {
 
 struct Compound {
@@ -36,28 +40,42 @@ struct hdql_Compound : public hdql::Compound {
 
 extern "C" hdql_Compound *
 hdql_compound_new(const char * name, struct hdql_Context * ctx) {
+    #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     char * bf = reinterpret_cast<char *>(hdql_alloc(ctx, struct hdql_Compound));
     return new (bf) hdql_Compound(name, NULL);
+    #else
+    return new hdql_Compound(name, NULL);
+    #endif
 }
 
 extern "C" hdql_Compound *
 hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ctx) {
     assert(parent);
     assert(!parent->name.empty());
+    #ifdef  HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     char * bf = reinterpret_cast<char *>(hdql_alloc(ctx, struct hdql_Compound));
     return new (bf) hdql_Compound("", parent);
+    #else
+    return new hdql_Compound("", parent);
+    #endif
 }
 
 extern "C" void
 hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * ctx) {
     for(auto & attrDef : vCompound->attrsByName ) {
-        if(hdql_attr_def_is_fwd_query(attrDef.second)) {
-            hdql_query_destroy(hdql_attr_def_fwd_query(attrDef.second), ctx);
-        }
+        //if(hdql_attr_def_is_fwd_query(attrDef.second)) {
+        //    hdql_query_destroy(hdql_attr_def_fwd_query(attrDef.second), ctx);
+        //}
+        // ^^^ order is not guaranteed, so forwarded queries get destroyed
+        //     when the owning query getse finalize()'d (see Query<>::finalize())
         hdql_attr_def_destroy(attrDef.second, ctx);
     }
+    #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     vCompound->~hdql_Compound();
     hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(vCompound));
+    #else
+    delete vCompound;
+    #endif
 }
 
 extern "C" int
@@ -109,7 +127,11 @@ hdql_compound_destroy(hdql_Compound * compound, hdql_Context_t context) {
     for(auto & attrDef : compound->attrsByName ) {
         hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(attrDef.second));
     }
+    #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     compound->~hdql_Compound();
     hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(compound));
+    #else
+    delete compound;
+    #endif
 }
 

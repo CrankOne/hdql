@@ -291,6 +291,12 @@ QueryState::QueryState( const hdql_AttrDef * subject_
 
 void
 QueryState::finalize_tier(hdql_Context_t ctx) {
+    // NOTE: we do not require here that iterator/suppData state values to be
+    // created to call destroy() method of corresponding (scalar or collection)
+    // interface. This is to facilitate cases when definition data has to be
+    // finalized in some way... That means, destroy() methods must consider
+    // NULL state (collection iterator or scalar's suppData) as a valid
+    // argument.
     if(hdql_attr_def_is_collection(subject)) {
         const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         if(state.collection.iterator) {
@@ -313,6 +319,7 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
                           , ctx);
     }
 
+    #if 0
     if(hdql_attr_def_is_static_value(subject)) {
         //hdql_context_local_attribute_destroy(ctx, );
         //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
@@ -321,11 +328,14 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
         //  hdql_context_free(ctx, subject->typeInfo.staticValue.datum);
         //}
     }
+    #endif
 
     if( hdql_attr_def_is_compound(subject)
      && hdql_compound_is_virtual( hdql_attr_def_compound_type_info(subject) )) {
         // exception for owning the attribute queries is made for synthetic
         // ones
+        hdql_context_free(ctx, (hdql_Datum_t) subject);
+    } else if( hdql_attr_def_is_static_value(subject) ) {
         hdql_context_free(ctx, (hdql_Datum_t) subject);
     }
 }

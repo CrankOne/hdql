@@ -277,25 +277,10 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
                 *((hdql_Flt_t *) valueCopy) = $1;
                 struct hdql_AttrDef * attrDef
-                        = hdql_attr_def_create_static_value(vtCode, valueCopy, ws->context);
-                //struct hdql_AttrDef * attrDef
-                //        = hdql_context_local_attribute_create(ws->context);
-                //assert(attrDef->attrFlags == 0x0);
-                //attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
-                //attrDef->interface.scalar.dereference = trivial_dereference;
-                //attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
-                //        hdql_context_get_types(ws->context), "hdql_Flt_t");
-                //assert(attrDef->typeInfo.staticValue.typeCode);
-                //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Flt_t));
-                //if( NULL == attrDef->typeInfo.staticValue.datum ) {
-                //    hdql_error(&yyloc, ws, yyscanner
-                //            , "Failed to allocate memory for floating point constant value");
-                //    return HDQL_ERR_MEMORY;
-                //}
-                //*((hdql_Flt_t *) attrDef->typeInfo.staticValue.datum) = $1;
+                        = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
-                // todo: ^^^ check query creation result
                 assert($$);
+                assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
             }
             | T_INT_STATIC_VALUE
             {
@@ -311,24 +296,10 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
                 *((hdql_Int_t *) valueCopy) = $1;
                 struct hdql_AttrDef * attrDef
-                        = hdql_attr_def_create_static_value(vtCode, valueCopy, ws->context);
-                //struct hdql_AttrDef * attrDef
-                //        = hdql_context_local_attribute_create(ws->context);
-                //assert(attrDef->attrFlags == 0x0);
-                //attrDef->attrFlags |= hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
-                //attrDef->interface.scalar.dereference = trivial_dereference;
-                //attrDef->typeInfo.staticValue.typeCode = hdql_types_get_type_code(
-                //        hdql_context_get_types(ws->context), "hdql_Int_t");
-                //assert(attrDef->typeInfo.staticValue.typeCode);
-                //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
-                //if( NULL == attrDef->typeInfo.staticValue.datum ) {
-                //    hdql_error(&yyloc, ws, yyscanner
-                //            , "Failed to allocate memory for integer constant value");
-                //}
-                //*((hdql_Int_t *) attrDef->typeInfo.staticValue.datum) = $1;
+                        = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
-                // todo: ^^^ check query creation result
                 assert($$);
+                assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
             }
             | queryExpr { $$ = $1; }
             ;
@@ -754,7 +725,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
             .destroy = NULL
         };
     if(NULL != filterQuery) {
-        assert(0);  // TODO
+        assert(0);  // TODO: once arithmetics is ready...
     }
     vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
               vCompoundPtr  /* ... compound ptr */
@@ -978,28 +949,26 @@ _operation( struct hdql_Query * a
           , const char * opDescription
           , struct hdql_Query ** r
           ) {
-    #if 1
-    assert(0);
-    #else
     assert(ws);
     assert(ws->context);
     const struct hdql_AttrDef
-        * attrA = hdql_query_top_attr(a),
+        * attrA =     hdql_query_top_attr(a),
         * attrB = b ? hdql_query_top_attr(b) : NULL;
     const struct hdql_ValueTypes * types
         = hdql_context_get_types(ws->context);
     assert(types);
     /* these assertions must be fullfilled by `hdql_query_top_attr()` */
-    assert(is_direct_query(attrA));
+    assert(                 is_direct_query(attrA));
     assert(attrB == NULL || is_direct_query(attrB));
-    /* in current version arithmetic operations on compounds are prohibited */
+    /* arithmetic operations on compounds are prohibited (at least in current
+     * HDQL specifications */
     if(is_compound(attrA)) {
         hdql_error(yyloc, ws, NULL
                 , "%soperand of %s operator is of compound type `%s')"
                   " (can't use compound instance in arithmetics)"
                 , opDescription
                 , b ? "first " : ""
-                , hdql_compound_get_name(attrB->typeInfo.compound));
+                , hdql_compound_get_name(hdql_attr_def_compound_type_info(attrA)));
         return HDQL_ERR_OPERATION_NOT_SUPPORTED;
     }
     if(attrB && is_compound(attrB)) {
@@ -1007,59 +976,47 @@ _operation( struct hdql_Query * a
                 , "second operand of %s operator is of compound type `%s'"
                   " (can't use compound instance in arithmetics)"
                 , opDescription
-                , hdql_compound_get_name(attrB->typeInfo.compound));
+                , hdql_compound_get_name(hdql_attr_def_compound_type_info(attrB)));
         return HDQL_ERR_OPERATION_NOT_SUPPORTED;
     }
     /* Figure out query types, this time not just top attribute definition,
      * but query result as a whole. If all queries in a chain returns  */
-    bool attrAIsFullScalar = hdql_query_is_fully_scalar(a)
+    bool attrAIsFullScalar =     hdql_query_is_fully_scalar(a)
        , attrBIsFullScalar = b ? hdql_query_is_fully_scalar(b) : true;
     /* in current version arithmetic operations on both collection operands
      * are prohibited */
     if((!attrAIsFullScalar) && (!attrBIsFullScalar)) {
         hdql_error(yyloc, ws, NULL
-                , "both operands of %s arithmetic operator are collections"
+                , "can't apply %s arithmetic operator to arguments which are both collections"
                 , opDescription );
         return HDQL_ERR_OPERATION_NOT_SUPPORTED;
     }
 
     /* obtain the arithmetic operator implementation based on type code(s) for
      * operand(s) */
-    hdql_ValueTypeCode_t codeA, codeB;
-    if(is_static(attrA)) {
-        codeA = attrA->typeInfo.staticValue.typeCode;
-    } else {
-        assert(attrA);
-        codeA = attrA->typeInfo.atomic.arithTypeCode;
-    }
-    
-    if(attrB) {
-        if(is_static(attrB)) {
-            codeB = attrB->typeInfo.staticValue.typeCode;
-        } else {
-            assert(attrB);
-            codeB = attrB->typeInfo.atomic.arithTypeCode;
-        }
-    } else {
-        codeB = 0x0;
-    }
-
+    hdql_ValueTypeCode_t codeA =         hdql_attr_def_get_atomic_value_type_code(attrA)
+                       , codeB = attrB ? hdql_attr_def_get_atomic_value_type_code(attrB) : 0x0
+                       ;
     const struct hdql_OperationEvaluator * evaluator
             = hdql_op_get(hdql_context_get_operations(ws->context), codeA, opCode, codeB );
     if(NULL == evaluator) {
-        if(codeB) {
+        if(attrA) {
+            const struct hdql_ValueInterface * viA = hdql_types_get_type(types, codeA)
+                                           , * viB = hdql_types_get_type(types, codeB)
+                                     ;
             hdql_error( yyloc, ws, NULL
                       , "%s operator is not defined for operands of types %s and %s"
                       , opDescription
-                      , hdql_types_get_type(types, codeA)->name
-                      , hdql_types_get_type(types, codeB)->name
+                      , viA ? viA->name : "(null type)"
+                      , viB ? viB->name : "(null type)"
                       );
             return HDQL_ERR_OPERATION_NOT_SUPPORTED;
         } else {
+            struct hdql_ValueInterface * viA = hdql_types_get_type(types, codeA);
             hdql_error( yyloc, ws, NULL
-                      , opDescription
                       , "%s operator is not defined for operand of type %s"
-                      , hdql_types_get_type(types, codeA)->name
+                      , opDescription
+                      , viA ? viA->name : "(null type)"
                       );
             return HDQL_ERR_OPERATION_NOT_SUPPORTED;
         }
@@ -1067,14 +1024,23 @@ _operation( struct hdql_Query * a
 
     /* check, if query can be calculated statically (i.e., consists only
      * from constant values. In this case we calculate the value prior to
-     * execution to save CPU.
-     * In such a case, we create new trivial query calculated from static
-     * values, free operands and return the new one */
+     * execution to save CPU... */
     if( is_static(attrA)
      && ((!attrB) || is_static(attrB))) {
-        const hdql_Datum_t valueA = hdql_query_get(a, NULL, NULL, ws->context)
-                         , valueB = b ? hdql_query_get(b, NULL, NULL, ws->context) : NULL
+        /* ...in such a case, we create new trivial query calculated from static
+         * values, free operands and return the new one. Both nodes do not
+         * need an owner object, so we do not rely on query resolution
+         * mechanics here, by directly retrieving values from attr defs and
+         * making an op */
+        #if 0
+        const hdql_Datum_t valueA =     hdql_query_get(a, NULL, ws->context)
+                         , valueB = b ? hdql_query_get(b, NULL, ws->context) : NULL
                          ;
+        #else
+        const hdql_Datum_t valueA =     hdql_attr_def_get_static_value(attrA)
+                         , valueB = b ? hdql_attr_def_get_static_value(attrB) : NULL
+                         ;
+        #endif
         assert(valueA);
         assert((!b) || NULL != valueB);
         hdql_Datum_t result = hdql_create_value(evaluator->returnType, ws->context);
@@ -1088,25 +1054,20 @@ _operation( struct hdql_Query * a
             hdql_destroy_value(evaluator->returnType, result, ws->context);
             return HDQL_ERR_ARITH_OPERATION;
         }
+
         /* new value calculated, create the result */
-        struct hdql_AttrDef * attrDef
-                        = hdql_context_local_attribute_create(ws->context);
-        attrDef->attrFlags = hdql_kAttrIsAtomic | hdql_kAttrIsStaticValue;
-        attrDef->interface.scalar.dereference = trivial_dereference;
-        attrDef->typeInfo.staticValue.typeCode = evaluator->returnType;
-        attrDef->typeInfo.staticValue.datum = result;
-        *r = hdql_query_create(attrDef, NULL, ws->context);
+        struct hdql_AttrDef * resultAD
+            = hdql_attr_def_create_static_atomic_scalar_value(evaluator->returnType, result, ws->context);
+        *r = hdql_query_create(resultAD, NULL, ws->context);
         assert(*r);
         /* destroy sub-queries */
         hdql_query_destroy(a, ws->context);
-        if(b) {
-            hdql_query_destroy(b, ws->context);
-        }
+        if(b) hdql_query_destroy(b, ws->context);
         /* TODO (?): destroy owned attribute definitions */
         return 0;
     }
-
-    /* otherwise, create operation node */
+    #if 0
+    /* ...otherwise, create operation node */
     assert(is_atomic(attrA) && ((!attrB) || is_atomic(attrB)));
     struct hdql_AttrDef * opAttrDef
             = hdql_context_local_attribute_create(ws->context);
@@ -1117,7 +1078,6 @@ _operation( struct hdql_Query * a
     opAttrDef->typeInfo.atomic.isReadOnly = 0x1;  /* result is RO */
     opAttrDef->typeInfo.atomic.arithTypeCode = evaluator->returnType;  /* result type defined by arith op */
 
-    #if 0
     if(attrAIsFullScalar && attrBIsFullScalar) {
         /* arithmetic operation on scalar values */
         hdql_Datum_t scalarOp = hdql_scalar_arith_op_create(a, b, evaluator, ws->context);
@@ -1149,7 +1109,6 @@ _operation( struct hdql_Query * a
     #else
     assert(0);
     return -1;
-    #endif
     #endif
 }
 

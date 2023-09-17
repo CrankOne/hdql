@@ -15,8 +15,6 @@ struct hdql_CollectionKey;  /* fwd */
 /**\brief Atomic type definition */
 struct hdql_AtomicTypeFeatures {
     /** If set, value can not be assigned*/
-
-
     hdql_ValueTypeCode_t isReadOnly:1;
     /** Refers to value type interface */
     hdql_ValueTypeCode_t arithTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
@@ -181,7 +179,7 @@ hdql_attr_def_create_fwd_query(
         );
 
 struct hdql_AttrDef *
-hdql_attr_def_create_static_value(
+hdql_attr_def_create_static_atomic_scalar_value(
           hdql_ValueTypeCode_t valueType
         , const hdql_Datum_t valueDatum
         , hdql_Context_t

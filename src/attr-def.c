@@ -66,18 +66,6 @@ struct hdql_AttrDef {
         struct hdql_AtomicTypeFeatures   atomic;
         struct hdql_Compound           * compound;
         struct hdql_Query              * fwdQuery;
-        struct {
-            hdql_ValueTypeCode_t typeCode;
-            union {
-                /**\brief Extern const value (e.g. numeric literal, math constant, etc)*/
-                hdql_Datum_t staticValue;
-                /**\brief Extern value that can change during lifetime */
-                struct {
-                    const void * userdata;
-                    hdql_Datum_t (*get)(void * userdata, hdql_Context_t);
-                } dynamicValue;
-            } pl;
-        } staticValue;
     } typeInfo;
 };  /* struct hdql_AttrDef */
 
@@ -290,14 +278,63 @@ hdql_attr_def_create_fwd_query(
     return ad;
 }
 
+
+static hdql_Datum_t
+_static_atomic_scalar_dereference( hdql_Datum_t root
+        , hdql_Datum_t dynData
+        , struct hdql_CollectionKey * key
+        , const hdql_Datum_t defData
+        , hdql_Context_t ctx ) {
+    assert(NULL == dynData);
+    assert(NULL == key || NULL == key->pl.datum);
+    assert(NULL != defData);
+    return (hdql_Datum_t) defData;
+}
+
+static void
+_static_atomic_scalar_destroy( hdql_Datum_t dynData
+        , const hdql_Datum_t defData
+        , hdql_Context_t context) {
+    assert(dynData == NULL);
+    assert(defData != NULL);
+    assert(context != NULL);
+    hdql_context_free(context, (hdql_Datum_t) defData);
+}
+
 struct hdql_AttrDef *
-hdql_attr_def_create_static_value(
+hdql_attr_def_create_static_atomic_scalar_value(
           hdql_ValueTypeCode_t valueType
         , const hdql_Datum_t valueDatum
-        , hdql_Context_t
+        , hdql_Context_t context
         ) {
-    assert(0);  // TODO, shall make copy
+    assert(valueType != 0x0);
+
+    struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
+    bzero((void*) ad, sizeof(struct hdql_AttrDef));
+
+    ad->isAtomic         = 0x1;
+    ad->isCollection     = 0x0;
+    ad->isFwdQuery       = 0x0;
+    ad->staticValueFlags = 0x1;  /* 0x1 means "const extern value" */
+
+    struct hdql_ScalarAttrInterface iface;
+    bzero(&iface, sizeof(iface));
+    iface.definitionData = valueDatum;
+    iface.dereference = _static_atomic_scalar_dereference;
+    iface.destroy = _static_atomic_scalar_destroy;
+
+    ad->interface.scalar = iface;
+
+    ad->typeInfo.atomic.isReadOnly = 0x1;
+    
+    ad->typeInfo.atomic.arithTypeCode = valueType;
+
+    ad->keyTypeCode = 0x0;
+    ad->reserveKeys = NULL;
+
+    return ad;
 }
+
 
 struct hdql_AttrDef *
 hdql_attr_def_create_dynamic_value(
@@ -312,7 +349,7 @@ hdql_attr_def_create_dynamic_value(
 bool
 hdql_attr_def_is_atomic(const hdql_AttrDef_t ad) {
     if(ad->isFwdQuery) return false;
-    if(0x0 != ad->staticValueFlags) return false;
+    /* if(0x0 != ad->staticValueFlags) return false;  XXX ?! */
     return ad->isAtomic;
 }
 
@@ -333,11 +370,7 @@ bool hdql_attr_def_is_static_value(hdql_AttrDef_t ad) { return ad->staticValueFl
 hdql_ValueTypeCode_t
 hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t ad) {
     assert(ad->isAtomic || 0x0 != ad->staticValueFlags);  // unguarded type code
-    if(ad->staticValueFlags) {
-        return ad->typeInfo.staticValue.typeCode;
-    } else {
-        return ad->typeInfo.atomic.arithTypeCode;
-    }
+    return ad->typeInfo.atomic.arithTypeCode;
 }
 
 hdql_ValueTypeCode_t
@@ -381,8 +414,13 @@ hdql_attr_def_collection_iface(const hdql_AttrDef_t ad) {
 }
 
 const hdql_Datum_t
-hdql_attr_def_get_static_value(const hdql_AttrDef_t) {
-    assert(0);  // TODO
+hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
+    assert(0x1 == ad->staticValueFlags);  // TODO: dynamic extern values
+    if(hdql_attr_def_is_collection(ad)) {
+        return ad->interface.collection.definitionData;
+    } else {
+        return ad->interface.scalar.definitionData;
+    }
 }
 
 int

@@ -43,14 +43,10 @@ typedef void *yyscan_t;  /* circumvent circular dep: YACC/BISON does not know th
 %parse-param {yyscan_t yyscanner}
 
 %code {
-struct TypedFilterQueryCache {
-    struct hdql_Query * q;
-    const struct hdql_ValueInterface * vi;
-};
-static hdql_Datum_t filtered_dereference_scalar(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
-static void free_filter_scalar_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
-static hdql_Datum_t filtered_dereference_collection(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
-static void free_filter_collection_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
+//static hdql_Datum_t filtered_dereference_scalar(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
+//static void free_filter_scalar_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
+//static hdql_Datum_t filtered_dereference_collection(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
+//static void free_filter_collection_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
 static int
 _resolve_query_top_as_compound( struct hdql_Query * q
                               , char * identifier
@@ -687,7 +683,7 @@ _resolve_query_top_as_compound( struct hdql_Query * q
         return HDQL_ERR_ATTRIBUTE;
     }
     return 0;  // ok
-}
+}  // _resolve_query_top_as_compound()
 
 static hdql_Datum_t _trivial_dereference( hdql_Datum_t d
     , hdql_Datum_t dd
@@ -719,24 +715,21 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Query * filterQuery
                            ) {
     #if 1
-    struct hdql_AttrDef * vCompoundAttrDef;
-    struct hdql_ScalarAttrInterface iface = {
-            .definitionData = NULL,
-            .instantiate = NULL,
-            .dereference = _trivial_dereference,
-            .reset = NULL,
-            .destroy = NULL
-        };
-    if(NULL != filterQuery) {
-        assert(0);  // TODO: once arithmetics is ready...
+    struct hdql_ScalarAttrInterface iface;
+    if(NULL == filterQuery) {
+        bzero(&iface, sizeof(iface));
+        iface.dereference = _trivial_dereference;
+    } else {
+        iface = _hdql_gFilteredCompoundIFace;
+        iface.definitionData = (hdql_Datum_t) filterQuery;
     }
-    vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
-              vCompoundPtr  /* ... compound ptr */
-            , &iface  /* ......... scalar iface ptr */
-            , 0x0  /* ............ key type code */
-            , NULL  /* ........... key copy callback */
-            , ws->context  /* .... context */
-            );
+    struct hdql_AttrDef * vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
+                  vCompoundPtr  /* ... compound ptr */
+                , &iface  /* ......... scalar iface ptr */
+                , 0x0  /* ............ key type code */
+                , NULL  /* ........... key copy callback */
+                , ws->context  /* .... context */
+                );
     hdql_attr_def_set_stray(vCompoundAttrDef);
     return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
     #else
@@ -772,17 +765,19 @@ _new_virtual_compound_query( YYLTYPE * yylloc
             }
             /* - Filter can not be applied to atomic attribute (no properties) */
             if(is_compound(fQResultTypeAttrDef)) {
-                if(!hdql_compound_is_virtual(fQResultTypeAttrDef->typeInfo.compound)) {
+                struct hdql_Compound * compound
+                        = hdql_attr_def_compound_type_info(fQResultTypeAttrDef);
+                if(!hdql_compound_is_virtual(compound)) {
                     hdql_error(yylloc, ws, yyscanner
                                 , "Filter query result is of compound type `%s'"
                                   " (logic or arithmetic type expected)"
-                                , hdql_compound_get_name(fQResultTypeAttrDef->typeInfo.compound));
+                                , hdql_compound_get_name(compound));
                 } else {
                     hdql_error(yylloc, ws, yyscanner
                                 , "Filter query result is of virtual compound type"
                                   " based on type `%s'"
                                   " (logic or arithmetic type expected)"
-                                , hdql_compound_get_name(hdql_virtual_compound_get_parent(fQResultTypeAttrDef->typeInfo.compound)));
+                                , hdql_compound_get_name(hdql_virtual_compound_get_parent(compound)));
                 }
                 return NULL;
             }
@@ -801,7 +796,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
 
         /* check filtering query return type */
         tfqp->vi = hdql_types_get_type( hdql_context_get_types(ws->context)
-                , fQResultTypeAttrDef->typeInfo.atomic.arithTypeCode
+                , hdql_attr_def_get_atomic_value_type_code(fQResultTypeAttrDef)
                 );
         assert(tfqp->vi);
 
@@ -824,72 +819,72 @@ _new_virtual_compound_query( YYLTYPE * yylloc
 }
 
 #if 1
-static hdql_Datum_t
-filtered_dereference_scalar( hdql_Datum_t d
-                           , hdql_Context_t ctx
-                           , hdql_Datum_t filterQPtr
-                           ) {
-    assert(filterQPtr);
-    // `filtered dereference`-specific arguments
-    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) filterQPtr);
-    assert(tfqp->q);
-    // retrieve logic result using filtering query
-    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
-    hdql_Datum_t r = hdql_query_get(tfqp->q, NULL, ctx);
-    // no result means filter failure
-    if(NULL == r) return NULL;
-    assert(tfqp->vi);
-    assert(tfqp->vi->get_as_logic);
-    // filter must provide scalar of atomic type which has to-logic interface
-    // method implemented
-    hdql_Bool_t passes = tfqp->vi->get_as_logic(r);
-
-    hdql_query_reset(tfqp->q, d, ctx);
-    return passes ? d : r;
-}
-
-static void
-free_filter_scalar_dereference_supp_data(hdql_Datum_t suppData, hdql_Context_t ctx) {
-    if(!suppData) return;
-    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) suppData);
-    hdql_query_destroy(tfqp->q, ctx);
-    hdql_context_free(ctx, suppData);
-}
-
-static hdql_Datum_t
-filtered_dereference_collection( hdql_Datum_t d
-                               , hdql_Context_t ctx
-                               , hdql_Datum_t filterQPtr
-                               ) {
-    assert(filterQPtr);
-    // `filtered dereference`-specific arguments
-    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) filterQPtr);
-    assert(tfqp->q);
-    assert(tfqp->vi);
-    assert(tfqp->vi->get_as_logic);
-    // filter must provide collection of atomic type instances which has
-    // to-logic interface method implemented
-    hdql_Bool_t passes = true;
-    
-    hdql_Datum_t ir;
-    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
-    do {
-        ir = hdql_query_get(tfqp->q, NULL, ctx);
-        if(ir)
-            passes &= tfqp->vi->get_as_logic(ir);
-    } while(ir && passes);
-
-    hdql_query_reset(tfqp->q, d, ctx);
-    return passes ? d : NULL;
-}
-
-static void
-free_filter_collection_dereference_supp_data(hdql_Datum_t suppData, hdql_Context_t ctx) {
-    if(!suppData) return;
-    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) suppData);
-    hdql_query_destroy(tfqp->q, ctx);
-    hdql_context_free(ctx, suppData);
-}
+//static hdql_Datum_t
+//filtered_dereference_scalar( hdql_Datum_t d
+//                           , hdql_Context_t ctx
+//                           , hdql_Datum_t filterQPtr
+//                           ) {
+//    assert(filterQPtr);
+//    // `filtered dereference`-specific arguments
+//    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) filterQPtr);
+//    assert(tfqp->q);
+//    // retrieve logic result using filtering query
+//    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
+//    hdql_Datum_t r = hdql_query_get(tfqp->q, NULL, ctx);
+//    // no result means filter failure
+//    if(NULL == r) return NULL;
+//    assert(tfqp->vi);
+//    assert(tfqp->vi->get_as_logic);
+//    // filter must provide scalar of atomic type which has to-logic interface
+//    // method implemented
+//    hdql_Bool_t passes = tfqp->vi->get_as_logic(r);
+//
+//    hdql_query_reset(tfqp->q, d, ctx);
+//    return passes ? d : r;
+//}
+//
+//static void
+//free_filter_scalar_dereference_supp_data(hdql_Datum_t suppData, hdql_Context_t ctx) {
+//    if(!suppData) return;
+//    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) suppData);
+//    hdql_query_destroy(tfqp->q, ctx);
+//    hdql_context_free(ctx, suppData);
+//}
+//
+//static hdql_Datum_t
+//filtered_dereference_collection( hdql_Datum_t d
+//                               , hdql_Context_t ctx
+//                               , hdql_Datum_t filterQPtr
+//                               ) {
+//    assert(filterQPtr);
+//    // `filtered dereference`-specific arguments
+//    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) filterQPtr);
+//    assert(tfqp->q);
+//    assert(tfqp->vi);
+//    assert(tfqp->vi->get_as_logic);
+//    // filter must provide collection of atomic type instances which has
+//    // to-logic interface method implemented
+//    hdql_Bool_t passes = true;
+//    
+//    hdql_Datum_t ir;
+//    hdql_query_reset(tfqp->q, d, ctx);  // TODO: check rc
+//    do {
+//        ir = hdql_query_get(tfqp->q, NULL, ctx);
+//        if(ir)
+//            passes &= tfqp->vi->get_as_logic(ir);
+//    } while(ir && passes);
+//
+//    hdql_query_reset(tfqp->q, d, ctx);
+//    return passes ? d : NULL;
+//}
+//
+//static void
+//free_filter_collection_dereference_supp_data(hdql_Datum_t suppData, hdql_Context_t ctx) {
+//    if(!suppData) return;
+//    struct TypedFilterQueryCache * tfqp = ((struct TypedFilterQueryCache *) suppData);
+//    hdql_query_destroy(tfqp->q, ctx);
+//    hdql_context_free(ctx, suppData);
+//}
 #else
 static int
 _bind_filter( struct hdql_Query * target
@@ -1099,47 +1094,7 @@ _operation( struct hdql_Query * a
     hdql_attr_def_set_stray(rAD);
     *r = hdql_query_create(rAD, NULL, ws->context);
     return 0;
-    #if 0
-    assert(is_atomic(attrA) && ((!attrB) || is_atomic(attrB)));
-    struct hdql_AttrDef * opAttrDef
-            = hdql_context_local_attribute_create(ws->context);
-
-    /* arithmetic operations are defined for atomics only */
-    opAttrDef->attrFlags = hdql_kAttrIsAtomic;
-
-    opAttrDef->typeInfo.atomic.isReadOnly = 0x1;  /* result is RO */
-    opAttrDef->typeInfo.atomic.arithTypeCode = evaluator->returnType;  /* result type defined by arith op */
-
-    if(attrAIsFullScalar && attrBIsFullScalar) {
-        /* arithmetic operation on scalar values */
-        hdql_Datum_t scalarOp = hdql_scalar_arith_op_create(a, b, evaluator, ws->context);
-
-        assert(0);  // TODO
-        opAttrDef->interface.scalar.suppData = (hdql_Datum_t) scalarOp;
-        opAttrDef->interface.scalar.free_supp_data = hdql_scalar_arith_op_free;
-        opAttrDef->interface.scalar.dereference = hdql_scalar_arith_op_dereference;
-
-        *r = hdql_query_create(opAttrDef, NULL, ws->context);
-    } else {
-        /* new node must be of a collection type as one of the operands
-         * is a collection */
-        opAttrDef->isCollection = 0x1;
-        opAttrDef->interface.collection = hdql_gArithOpIFace;
-        /* special marker denoting that key is produced by argument queries */
-        opAttrDef->interface.collection.keyTypeCode = 0x0;
-        /* instance get freed at query destruction */
-        struct hdql_ArithCollectionArgs * arithCollectionArgs
-                = hdql_alloc(ws->context, struct hdql_ArithCollectionArgs);
-        arithCollectionArgs->a = a;
-        arithCollectionArgs->b = b;
-        arithCollectionArgs->evaluator = evaluator;
-
-        *r = hdql_query_create(opAttrDef, ((hdql_SelectionArgs_t) arithCollectionArgs), ws->context);
-    }
-    assert(*r);
-    return 0;
-    #endif
-}
+}  /* _operation() */
 
 static struct hdql_Query *
 _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
@@ -1188,7 +1143,7 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
     assert(0);  // TODO create query around a function
 
     return NULL;  // TODO
-}
+}  /* _new_function() */
 
 /* 
  * Main parser function

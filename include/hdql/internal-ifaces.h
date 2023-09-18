@@ -24,6 +24,8 @@ extern const struct hdql_CollectionAttrInterface    _hdql_gCollectionArithOpIFac
 struct hdql_CollectionKey *
 hdql_reserve_arith_op_collection_key(const hdql_Datum_t defData, hdql_Context_t context);
 
+extern const struct hdql_ScalarAttrInterface _hdql_gFilteredCompoundIFace;
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

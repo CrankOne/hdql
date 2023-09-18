@@ -438,7 +438,6 @@ TEST_F(TestingEventStruct, twoSubqueriesIterationWorksOnSample1) {
 };
 
 
-#if 0
 //
 // Iteration works for virtual compound arithmetics
 
@@ -475,29 +474,30 @@ TEST_F(TestingEventStruct, virtualCompoundArithmeticsWorksOnSample1) {
     ASSERT_EQ(keysDepth, 1);
     
     hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_reserve_keys_for(q, &keys, _context));
+    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _context));
 
-    const hdql_AttributeDefinition * topAttrDef = hdql_query_top_attr(q);
-    ASSERT_TRUE( topAttrDef );
-    ASSERT_TRUE( topAttrDef->isCollection );
-    ASSERT_TRUE( topAttrDef->isAtomic );
-    ASSERT_NE( topAttrDef->typeInfo.atomic.arithTypeCode, 0x0 );
+    const hdql_AttrDef * ad = hdql_query_top_attr(q);
+    ASSERT_TRUE( ad );
+    ASSERT_TRUE( hdql_attr_def_is_collection(ad) );
+    ASSERT_TRUE( hdql_attr_def_is_atomic(ad) );
+    ASSERT_FALSE( hdql_attr_def_is_static_value(ad) );
     const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, topAttrDef->typeInfo.atomic.arithTypeCode);
+        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _context);
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _context);
     
-    while(NULL != (r = hdql_query_get(q, reinterpret_cast<hdql_Datum_t>(&ev), keys, _context))) {
+    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _context);
+    while(NULL != (r = hdql_query_get(q, keys, _context))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
         ASSERT_TRUE(keysViews[0].interface->get_as_int);
         ASSERT_TRUE(keysViews[1].interface->get_as_int);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->datum) != expectedQueryResults[i].keys[1]
+            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
+             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -507,7 +507,7 @@ TEST_F(TestingEventStruct, virtualCompoundArithmeticsWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_destroy_keys_for(q, keys, _context));
+    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _context));
 
     hdql_query_destroy(q, _context);
 
@@ -548,29 +548,30 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
     hdql_Datum_t r;
     
     hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_reserve_keys_for(q, &keys, _context));
+    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _context));
 
-    const hdql_AttributeDefinition * topAttrDef = hdql_query_top_attr(q);
-    ASSERT_TRUE( topAttrDef );
+    const hdql_AttrDef * ad = hdql_query_top_attr(q);
+    ASSERT_TRUE( ad );
     //ASSERT_TRUE( topAttrDef->isCollection );
-    ASSERT_TRUE( topAttrDef->isAtomic );
-    ASSERT_NE( topAttrDef->typeInfo.atomic.arithTypeCode, 0x0 );
+    ASSERT_TRUE( hdql_attr_def_is_atomic(ad) );
+    ASSERT_NE( hdql_attr_def_get_atomic_value_type_code(ad), 0x0 );
     const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, topAttrDef->typeInfo.atomic.arithTypeCode);
+        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _context);
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _context);
     
-    while(NULL != (r = hdql_query_get(q, reinterpret_cast<hdql_Datum_t>(&ev), keys, _context))) {
+    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _context);
+    while(NULL != (r = hdql_query_get(q, keys, _context))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
         ASSERT_TRUE(keysViews[0].interface->get_as_int);
         ASSERT_TRUE(keysViews[1].interface->get_as_int);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->datum) != expectedQueryResults[i].keys[1]
+            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
+             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -580,7 +581,7 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_destroy_keys_for(q, keys, _context));
+    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _context));
 
     hdql_query_destroy(q, _context);
 
@@ -590,4 +591,3 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
     }
 };
 
-#endif

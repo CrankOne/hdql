@@ -80,8 +80,6 @@ test_query_on_data( int nSample, const char * expression ) {
     rc = hdql_query_keys_reserve(q, &keys, ctx);
     assert(rc == 0);
 
-    char keyStrBf[512] = "";  // 1st is null -- important!
-
     size_t flatKeyViewLength = hdql_keys_flat_view_size(q, keys, ctx);
     hdql_KeyView * kv = flatKeyViewLength
                       ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*flatKeyViewLength)

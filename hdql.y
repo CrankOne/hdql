@@ -5,6 +5,7 @@
 #include "hdql/function.h"
 #include "hdql/errors.h"
 #include "hdql/attr-def.h"
+#include "hdql/internal-ifaces.h"
 
 struct hdql_FuncArgList {
     struct hdql_Query * thisArgument;
@@ -278,6 +279,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 *((hdql_Flt_t *) valueCopy) = $1;
                 struct hdql_AttrDef * attrDef
                         = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
+                hdql_attr_def_set_stray(attrDef);
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 assert($$);
                 assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
@@ -297,6 +299,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 *((hdql_Int_t *) valueCopy) = $1;
                 struct hdql_AttrDef * attrDef
                         = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
+                hdql_attr_def_set_stray(attrDef);
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
                 assert($$);
                 assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
@@ -734,6 +737,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
             , NULL  /* ........... key copy callback */
             , ws->context  /* .... context */
             );
+    hdql_attr_def_set_stray(vCompoundAttrDef);
     return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
     #else
     /* create "attribute definition" yielding virtual compound
@@ -1012,7 +1016,7 @@ _operation( struct hdql_Query * a
                       );
             return HDQL_ERR_OPERATION_NOT_SUPPORTED;
         } else {
-            struct hdql_ValueInterface * viA = hdql_types_get_type(types, codeA);
+            const struct hdql_ValueInterface * viA = hdql_types_get_type(types, codeA);
             hdql_error( yyloc, ws, NULL
                       , "%s operator is not defined for operand of type %s"
                       , opDescription
@@ -1058,6 +1062,7 @@ _operation( struct hdql_Query * a
         /* new value calculated, create the result */
         struct hdql_AttrDef * resultAD
             = hdql_attr_def_create_static_atomic_scalar_value(evaluator->returnType, result, ws->context);
+        hdql_attr_def_set_stray(resultAD);
         *r = hdql_query_create(resultAD, NULL, ws->context);
         assert(*r);
         /* destroy sub-queries */
@@ -1066,8 +1071,35 @@ _operation( struct hdql_Query * a
         /* TODO (?): destroy owned attribute definitions */
         return 0;
     }
-    #if 0
     /* ...otherwise, create operation node */
+    struct hdql_AtomicTypeFeatures typeInfo;
+    typeInfo.isReadOnly = 0x1; /* result is RO */
+    typeInfo.arithTypeCode = evaluator->returnType;  /* result type defined by arith op */
+    struct hdql_AttrDef * rAD;
+    struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) hdql_context_alloc(
+            ws->context, sizeof(struct hdql_ArithOpDefData));
+    assert(defData);
+    defData->args[0] = a;
+    defData->args[1] = b;
+    defData->evaluator = evaluator;
+    if(attrAIsFullScalar && attrBIsFullScalar) {
+        /* operation results in scalar */
+        struct hdql_ScalarAttrInterface scalarIFace = _hdql_gScalarArithOpIFace;
+        scalarIFace.definitionData = (hdql_Datum_t) defData;
+        rAD = hdql_attr_def_create_atomic_scalar(
+                &typeInfo, &scalarIFace, 0x0, NULL, ws->context );
+    } else {
+        /* operation results in collection */
+        struct hdql_CollectionAttrInterface collectionIFace = _hdql_gCollectionArithOpIFace;
+        collectionIFace.definitionData = (hdql_Datum_t) defData;
+        rAD = hdql_attr_def_create_atomic_collection(
+                  &typeInfo, &collectionIFace, 0x0
+                , hdql_reserve_arith_op_collection_key, ws->context );
+    }
+    hdql_attr_def_set_stray(rAD);
+    *r = hdql_query_create(rAD, NULL, ws->context);
+    return 0;
+    #if 0
     assert(is_atomic(attrA) && ((!attrB) || is_atomic(attrB)));
     struct hdql_AttrDef * opAttrDef
             = hdql_context_local_attribute_create(ws->context);
@@ -1106,9 +1138,6 @@ _operation( struct hdql_Query * a
     }
     assert(*r);
     return 0;
-    #else
-    assert(0);
-    return -1;
     #endif
 }
 

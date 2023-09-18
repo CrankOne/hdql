@@ -35,7 +35,9 @@ OBJS:=obj/types.o \
 	  obj/samples.o \
 	  obj/iteration-tests.o \
 	  obj/iface-fwd-query-as-collection.o \
-	  obj/iface-fwd-query-as-scalar.o
+	  obj/iface-fwd-query-as-scalar.o \
+	  obj/iface-arith-op-as-scalar.o \
+	  obj/iface-arith-op-as-collection.o
 
 test/events-struct_.cc: templates/events-struct.cc.m4 \
 					   templates/for-all-types.m4 \

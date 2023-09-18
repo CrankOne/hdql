@@ -48,6 +48,9 @@ struct hdql_AttrDef {
      *  0x1 -- constant value (parser should calculate simple arithmetics)
      *  0x2 -- externally set variable (no arithmetics on parsing) */
     unsigned int staticValueFlags:2;
+    /** If set, owning query must delete this attribute definition with
+     * finilize() */
+    unsigned int isStray:1;
  
     /**\brief Key type code, can be zero (unset) */
     hdql_ValueTypeCode_t keyTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
@@ -102,6 +105,7 @@ hdql_attr_def_create_atomic_scalar(
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
+    ad->isStray          = 0x0;
 
     ad->interface.scalar = *interface;
     ad->typeInfo.atomic = *typeInfo;
@@ -142,6 +146,7 @@ hdql_attr_def_create_atomic_collection(
     ad->isCollection     = 0x1;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
+    ad->isStray          = 0x0;
 
     ad->interface.collection = *interface;
     ad->typeInfo.atomic = *typeInfo;
@@ -182,6 +187,7 @@ hdql_attr_def_create_compound_scalar(
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
+    ad->isStray          = 0x0;
 
     ad->interface.scalar = *interface;
     ad->typeInfo.compound = typeInfo;
@@ -222,6 +228,7 @@ hdql_attr_def_create_compound_collection(
     ad->isCollection     = 0x1;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
+    ad->isStray          = 0x0;
 
     ad->interface.collection = *interface;
     ad->typeInfo.compound = typeInfo;
@@ -263,6 +270,7 @@ hdql_attr_def_create_fwd_query(
     
     ad->isFwdQuery       = 0x1;
     ad->staticValueFlags = 0x0;
+    ad->isStray          = 0x0;
 
     if(isFullyScalar) {
         ad->interface.scalar = _hdql_gScalarFwdQueryIFace;
@@ -316,6 +324,7 @@ hdql_attr_def_create_static_atomic_scalar_value(
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x1;  /* 0x1 means "const extern value" */
+    ad->isStray          = 0x0;
 
     struct hdql_ScalarAttrInterface iface;
     bzero(&iface, sizeof(iface));
@@ -346,6 +355,12 @@ hdql_attr_def_create_dynamic_value(
     assert(0);  // TODO
 }
 
+void
+hdql_attr_def_set_stray(struct hdql_AttrDef * ad) {
+    assert(ad);
+    ad->isStray = 0x1;
+}
+
 bool
 hdql_attr_def_is_atomic(const hdql_AttrDef_t ad) {
     if(ad->isFwdQuery) return false;
@@ -365,6 +380,7 @@ bool hdql_attr_def_is_collection(hdql_AttrDef_t ad) { return ad->isCollection; }
 bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t ad) { return !ad->isFwdQuery; }
 bool hdql_attr_def_is_static_value(hdql_AttrDef_t ad) { return ad->staticValueFlags; }
+bool hdql_attr_def_is_stray(hdql_AttrDef_t ad) { return ad->isStray; }
 
 
 hdql_ValueTypeCode_t

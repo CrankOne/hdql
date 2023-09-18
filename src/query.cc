@@ -330,6 +330,7 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
     }
     #endif
 
+    #if 0
     if( hdql_attr_def_is_compound(subject)
      && hdql_compound_is_virtual( hdql_attr_def_compound_type_info(subject) )) {
         // exception for owning the attribute queries is made for synthetic
@@ -338,6 +339,11 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
     } else if( hdql_attr_def_is_static_value(subject) ) {
         hdql_context_free(ctx, (hdql_Datum_t) subject);
     }
+    #else
+    if(hdql_attr_def_is_stray(subject)) {
+        hdql_context_free(ctx, (hdql_Datum_t) subject);
+    }
+    #endif
 }
 
 QueryState::~QueryState() {

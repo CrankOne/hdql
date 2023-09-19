@@ -795,7 +795,10 @@ struct IFace< ptr
                          , true>::create_attr_def;
 };  // STL container collection, with selection
 
-// ...
+/**\brief Helper class providing compound type definition interface
+ *
+ * Used to collect compound type info based on C++ RTTI.
+ * */
 class CompoundTypes : public Compounds {
     template<typename CompoundT>
     class AttributeInsertionProxy {
@@ -913,7 +916,7 @@ public:
         this->emplace(typeid(T), newCompound);
         return AttributeInsertionProxy<T>(*newCompound, *this, *_contextPtr);
     }
-};
+};  // CompoundTypes
 
 }  // ::hdql::helpers
 }  // namespace hdql

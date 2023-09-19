@@ -11,13 +11,20 @@
 extern "C" {
 #endif
 
+#if 1
+
+struct hdql_FuncDef;
+struct hdql_Functions;
+
+
+
+#else
 /**\brief Common struct for function-like objects
  * */
 struct hdql_Func;
 
 /**\brief Dictionary of functions */
 struct hdql_Functions;
-
 #if 1
 struct hdql_FuncDef {
     bool returnsCollection;
@@ -72,6 +79,7 @@ int hdql_func_destroy_keys( struct hdql_Func * fDef
                           , struct hdql_CollectionKey * keys
                           , hdql_Context_t
                           );
+#endif
 #endif
 
 #ifdef __cplusplus

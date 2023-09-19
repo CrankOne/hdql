@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <string>
 
+#if 0
 //
 // Function interface
 
@@ -60,6 +61,7 @@ hdql_func_copy_keys( struct hdql_Func * fDef
     assert(0);
     //return fDef->copy_keys(dest, src, ctx);
 }
+#endif
 
 //                                       ______________________________________
 // ____________________________________/ Context-private functions table mgmnt
@@ -70,12 +72,12 @@ struct hdql_Functions : public std::unordered_multimap<std::string, void*> {
 // NOT exposed to public header
 extern "C" struct hdql_Functions *
 _hdql_functions_create(struct hdql_Context * ctx) {
-    return new hdql_Functions;
+    //return new hdql_Functions;
 }
 
 // NOT exposed to public header
 extern "C" void
 _hdql_functions_destroy(struct hdql_Context * ctx, struct hdql_Functions * funcDict) {
-    delete funcDict;
+    //delete funcDict;
 }
 

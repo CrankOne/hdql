@@ -43,10 +43,6 @@ typedef void *yyscan_t;  /* circumvent circular dep: YACC/BISON does not know th
 %parse-param {yyscan_t yyscanner}
 
 %code {
-//static hdql_Datum_t filtered_dereference_scalar(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
-//static void free_filter_scalar_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
-//static hdql_Datum_t filtered_dereference_collection(hdql_Datum_t d, hdql_Context_t, hdql_Datum_t);
-//static void free_filter_collection_dereference_supp_data(hdql_Datum_t, hdql_Context_t);
 static int
 _resolve_query_top_as_compound( struct hdql_Query * q
                               , char * identifier
@@ -505,15 +501,6 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                  * provided by query's top attribute */
                 struct hdql_AttrDef * newAttrDef
                     = hdql_attr_def_create_fwd_query($3, ws->context);
-
-                //hdql_attribute_definition_init(&newAttrDef);
-                //newAttrDef.interface.collection = gSubQueryInterface;
-                //newAttrDef.typeInfo.subQuery = $3;
-                ///* (!) sub-query results always considered as collection */
-                //newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
-                //if(hdql_query_top_attr($3)->attrFlags & hdql_kAttrIsAtomic) {
-                //    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
-                //}
                 /* Add new attribute to virtual compound */
                 int rc = hdql_compound_add_attr(vCompound, $1, newAttrDef);
                 if(0 != rc) {
@@ -539,16 +526,6 @@ vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                  * provided by query's top attribute */
                 struct hdql_AttrDef * newAttrDef
                     = hdql_attr_def_create_fwd_query($6, ws->context);
-
-                //struct hdql_AttrDef newAttrDef;
-                //hdql_attribute_definition_init(&newAttrDef);
-                //newAttrDef.interface.collection = gSubQueryInterface;
-                //newAttrDef.typeInfo.subQuery = $6;
-                ///* (!) sub-query results always considered as collection */
-                //newAttrDef.attrFlags = hdql_kAttrIsCollection | hdql_kAttrIsSubquery;
-                //if(is_atomic(hdql_query_top_attr($6))) {
-                //    newAttrDef.attrFlags |= hdql_kAttrIsAtomic;
-                //}
                 /* Add new attribute to virtual compound */
                 int rc = hdql_compound_add_attr($1.compoundPtr, $4, newAttrDef);
                 if(0 != rc) {

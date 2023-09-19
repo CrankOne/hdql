@@ -5,17 +5,11 @@
 YACC=bison
 LEX=flex
 
-CFLAGS=-g -ggdb -Wall -x c -Iinclude/ -DBUILD_GT_UTEST=1 -DHDQL_TYPES_DEBUG=1 -Wfatal-errors
-CCFLAGS=-g -ggdb -Wall -Iinclude/ -DBUILD_GT_UTEST=1 -DHDQL_TYPES_DEBUG=1 -Wfatal-errors
+CFLAGS=-g -ggdb -Wall -x c -MMD -Iinclude/ -DBUILD_GT_UTEST=1 -DHDQL_TYPES_DEBUG=1 -Wfatal-errors
+CCFLAGS=-g -ggdb -Wall -MMD -Iinclude/ -DBUILD_GT_UTEST=1 -DHDQL_TYPES_DEBUG=1 -Wfatal-errors
 
-all: hdql
-
-grammar: hdql.tab.c lex.yy.c
-
-#obj/query.o obj/hdql.tab.o obj/lex.yy.o obj/main.o obj/compound.o \
-# obj/context.o obj/types.o obj/value.o \
-# obj/operations.o obj/function.o obj/errors.o
-	#obj/events-struct.o obj/iteration-tests.o
+C_FILES=$(wildcard src/*.c) $(wildcard src/ifaces/*.c)
+CXX_FILES=$(wildcard src/*.cc) $(wildcard test/*.cc)
 
 OBJS:=obj/types.o \
 	  obj/errors.o \
@@ -40,31 +34,23 @@ OBJS:=obj/types.o \
 	  obj/iface-arith-op-as-collection.o \
 	  obj/iface-filtered-v-compound.o
 
-test/events-struct_.cc: templates/events-struct.cc.m4 \
-					   templates/for-all-types.m4 \
-					   templates/iface-implems.cc.m4 \
-					   templates/pop-defs.m4 \
-					   templates/push-defs-declare.m4 \
-					   templates/push-defs-impl-iface.m4 \
-					   templates/push-defs-register-attr-def.m4 \
-					   templates/for-all-types.m4 \
-					   templates/implems/arrayAtomic.cc.m4 \
-					   templates/implems/arrayCompound.cc.m4 \
-					   templates/implems/mapCompound.cc.m4 \
-					   templates/implems/scalarAtomic.cc.m4 \
-					   templates/implems/scalarCompound.cc.m4
-	m4 $< > $@
+DEPS=$(OBJS:%.o=%.d)
+
+all: hdql
+
+# Include deps files
+-include $(DEPS)
 
 hdql: $(OBJS)
 	g++ $^ -o $@ -lgtest
 
-obj/hdql.tab.o: hdql.tab.c grammar
+obj/hdql.tab.o: hdql.tab.c
 	gcc -c $(CFLAGS) $< -o $@
 
-obj/lex.yy.o: lex.yy.c grammar
+obj/lex.yy.o: lex.yy.c
 	gcc -c $(CFLAGS) $< -o $@
 
-obj/main.o: test/main.cc grammar
+obj/main.o: test/main.cc
 	gcc -c $(CCFLAGS) $< -o $@
 
 obj/events-struct.o: test/events-struct.cc test/events-struct.hh
@@ -73,12 +59,11 @@ obj/events-struct.o: test/events-struct.cc test/events-struct.hh
 obj/samples.o: test/samples.cc
 	gcc -c $(CCFLAGS) $< -o $@
 
-lex.yy.c: hdql.l hdql.tab.h
+lex.yy.h lex.yy.c: hdql.l hdql.tab.h
 	$(LEX) --header-file=lex.yy.h $<
 
 hdql.tab.h hdql.tab.c: hdql.y
 	$(YACC) -Wcounterexamples -d -p hdql_ $<
-
 
 obj/%.o: src/%.c
 	gcc -c $(CFLAGS) $< -o $@
@@ -96,8 +81,8 @@ clean:
 	rm -fv hdql.tab.h y.tab.h \
 		   hdql.tab.c hdql.tab.c \
 		   lex.yy.h lex.yy.c \
-		   obj/*.o \
+		   obj/*.o obj/*.d \
 		   test/events-struct_.cc \
 		   hdql
 
-.PHONY: all clean grammar
+.PHONY: all clean

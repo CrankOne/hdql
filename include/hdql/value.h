@@ -36,6 +36,7 @@ struct hdql_ValueInterface {
     int (*destroy)(hdql_Datum_t, size_t, hdql_Context_t);
     int (*copy)(hdql_Datum_t dest, const hdql_Datum_t src, size_t, hdql_Context_t);
 
+    /* todo: delete in favor of conversion funcs? */
     hdql_Bool_t (*get_as_logic)(const hdql_Datum_t);
     void (*set_as_logic)(hdql_Datum_t, hdql_Bool_t);
 
@@ -87,6 +88,38 @@ int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
 
 hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
 int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
+
+/**\brief Callback type for value conversion
+ *
+ * Should convert value from `src` to `dest` for assumed types and return
+ * `HDQL_ERR_CODE_OK` on success. On failure `HDQL_ERR_CONVERSION` must be
+ * returned and ptrs kept intact. */
+typedef int
+(*hdql_TypeConverter)( struct hdql_Datum * __restrict__ dest
+                     , struct hdql_Datum * __restrict__ src
+                     );
+
+/**\brief Dictionary of value conversion functions */
+struct hdql_Converters;
+
+/**\brief Adds new value conversion */
+int
+hdql_converters_add( struct hdql_Converters *cnvs
+                   , hdql_ValueTypeCode_t to
+                   , hdql_ValueTypeCode_t from
+                   , hdql_TypeConverter cnvf
+                   );
+
+/**\brief Returns value converter function or NULL if conversion is forbidden */
+hdql_TypeConverter
+hdql_converters_get( struct hdql_Converters *cnvs
+                   , hdql_ValueTypeCode_t to
+                   , hdql_ValueTypeCode_t from
+                   );
+
+/**\brief Adds standard conversion functions*/
+void
+hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts);
 
 #ifdef __cplusplus
 }  // extern "C"

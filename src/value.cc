@@ -20,6 +20,11 @@ struct hdql_ValueTypes {
     std::vector<hdql_ValueInterface> types;
     // Note: by-name index is not unique, it contains aliases
     std::unordered_map<std::string, hdql_ValueTypeCode_t> idxByName;
+
+    // TODO: to support parent one has to rewrite routines as code is no more
+    // just an index in vector...
+    hdql_ValueTypes * parent;
+    hdql_ValueTypes() : parent(nullptr) {}
 };
 
 static const size_t gMaxTypeID = HDQL_VALUE_TYPE_CODE_MAX - 1;
@@ -33,6 +38,13 @@ hdql_types_define( hdql_ValueTypes * vt
     if(!vti->name) return -1;
     if('\0' == *(vti->name)) return -1;
     // ... other checks for "name"?
+
+    //size_t cSize = 0;
+    //{
+    //    for(hdql_ValueTypes * cVTypes = vt; cVTypes; cVTypes = cVTypes->parent) {
+    //        cSize += vt->types.size();
+    //    }
+    //}
     if(vt->types.size() == gMaxTypeID) return -3;
 
     vt->types.push_back(*vti);
@@ -281,7 +293,7 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
 
 // TODO: whether or not current platform supports these types may change, we
 // have to support it
-#define for_each_std_type(m)                \
+#define _M_hdql_for_each_std_type(m)        \
     m( "bool",      bool )                  \
     m( "int8_t",    int8_t )                \
     m( "uint8_t",   uint8_t )               \
@@ -293,7 +305,7 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
     m( "uint64_t",  uint64_t )              \
     m( "float",     float )                 \
     m( "double",    double )                \
-    // ... TODO: other standard types
+    // ... other standard types?
 
 extern "C" int
 hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
@@ -317,7 +329,7 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         int rc = hdql_types_define(vt, &vti); \
         if(rc < 1) { hadErrors = 1; } \
     }
-    for_each_std_type(_M_add_std_type);
+    _M_hdql_for_each_std_type(_M_add_std_type);
     #undef _M_add_std_type
     if(hadErrors) return hadErrors;
     // add aliases
@@ -346,7 +358,9 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     hdql_ValueTypeCode_t stdULongIntTypeCode = hdql_types_get_type_code(vt, "uint64_t");
     assert(0 != stdULongIntTypeCode);
     assert(sizeof(size_t) == sizeof(uint64_t));
-    hadErrors = hdql_types_alias(vt, "size_t", stdULongIntTypeCode) > 0 ? 0 : 1;
+    hadErrors = hdql_types_alias(vt, "unsigned long", stdULongIntTypeCode) > 0 ? 0 : 1;
+    assert(0 == hadErrors);
+    hadErrors = hdql_types_alias(vt, "size_t",        stdULongIntTypeCode) > 0 ? 0 : 1;
     assert(0 == hadErrors);
 
     // TODO: depends on macro definition

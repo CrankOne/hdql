@@ -532,27 +532,32 @@ hdql_query_str( const struct hdql_Query * q
     if(hdql_attr_def_is_atomic(q->subject)) {
         // "[static ](collection|scalar) of atomic type <%s>"
         assert(vts);
-        const hdql_ValueInterface * vi
-            = hdql_types_get_type( vts
-                                 , hdql_attr_def_get_atomic_value_type_code(q->subject)
-                                 );
-        assert(NULL != vi);
-        _M_pr("<%s>", vi->name);
-        if(hdql_attr_def_is_static_value(q->subject)) {
-            assert(vi);
-            // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
-            if(vi->get_as_string) {
-                char vBf[64];
-                int rc = vi->get_as_string(hdql_attr_def_get_static_value(q->subject)
-                            , vBf, sizeof(vBf));
-                if(0 == rc) {
-                    _M_pr(" =%s", vBf);
+        hdql_ValueTypeCode_t vtc = hdql_attr_def_get_atomic_value_type_code(q->subject);
+        if(0x0 != vtc) {
+            const hdql_ValueInterface * vi
+                = hdql_types_get_type( vts
+                                     , hdql_attr_def_get_atomic_value_type_code(q->subject)
+                                     );
+            assert(NULL != vi);
+            _M_pr("<%s>", vi->name);
+            if(hdql_attr_def_is_static_value(q->subject)) {
+                assert(vi);
+                // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
+                if(vi->get_as_string) {
+                    char vBf[64];
+                    int rc = vi->get_as_string(hdql_attr_def_get_static_value(q->subject)
+                                , vBf, sizeof(vBf));
+                    if(0 == rc) {
+                        _M_pr(" =%s", vBf);
+                    } else {
+                        _M_pr(" =? at %p", hdql_attr_def_get_static_value(q->subject));
+                    }
                 } else {
-                    _M_pr(" =? at %p", hdql_attr_def_get_static_value(q->subject));
+                    _M_pr(" at %p", hdql_attr_def_get_static_value(q->subject));
                 }
-            } else {
-                _M_pr(" at %p", hdql_attr_def_get_static_value(q->subject));
             }
+        } else {
+            _M_pr("?%p?", q->subject);
         }
     } else {
         // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"

@@ -1,6 +1,7 @@
 #ifndef H_HDQL_FUNCTION_H
 #define H_HDQL_FUNCTION_H
 
+#include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/operations.h"
 #include "hdql/query.h"
@@ -11,75 +12,119 @@
 extern "C" {
 #endif
 
-#if 1
-
-struct hdql_FuncDef;
-struct hdql_Functions;
-
-
-
-#else
-/**\brief Common struct for function-like objects
- * */
-struct hdql_Func;
-
-/**\brief Dictionary of functions */
-struct hdql_Functions;
-#if 1
-struct hdql_FuncDef {
-    bool returnsCollection;
-    bool returnsCompoundType;
-    bool stateful;
-
-    /**\brief Supplementary function definition data*/
-    hdql_Datum_t definitionData;
-
-    /**\brief Initializes userdata for function using given argument queries*/
-    hdql_Datum_t (*instantiate)( struct hdql_Query **
-                               , struct hdql_AttrDef *
-                               , hdql_Datum_t definitionData
-                               , hdql_Context_t
-                               );
-    /**\brief Invokes a function, sets the result */
-    int (*call)(hdql_Datum_t root, hdql_Datum_t result, hdql_Datum_t userdata, hdql_Context_t context);
-    /**\brief Deletes userdata */
-    void (*destroy)(hdql_Datum_t, hdql_Context_t);
-
-    int (*reserve_keys)();
-    int (*copy_keys)();
-    int (*call_on_keys)();
-    int (*destroy_keys)();
-};
-#endif
-
-#if 1
-/**\brief Reserves keys sub-list
+/**\file
+ * \brief HDQL function definition
  *
- * Given pointer will be set to an array of keys containing sub-arrays.
- * Terminated with an item of type code `HDQL_VALUE_TYPE_CODE_MAX`. */
-int hdql_func_reserve_keys( struct hdql_Func *
-                          , struct hdql_CollectionKey ** dest
-                          , hdql_Context_t );
+ * Programmatically, a "function" in HDQL query machine is just another kind of
+ * "virtual" attribute associated with consodered object. An object is
+ * considered as the source of argument's queries.
+ *
+ * A "function definition" must define a rule of production for this virtual
+ * attribute definition. By refering a particular name HDQL script picks up
+ * certain "function definition" that is then used by a parser to build up a
+ * particular attribute that is then placed to a "query" object ready for
+ * evaluation.
+ * */
 
-/**\brief Copies argument keys */
-int hdql_func_copy_keys( struct hdql_Func * fDef
-                       , struct hdql_CollectionKey * dest
-                       , const struct hdql_CollectionKey * src
-                       , hdql_Context_t ctx
-                       );
-/**\brief Invoces callback on every key respecting query topology */
-int hdql_func_call_on_keys( struct hdql_Func * fDef
-                          , struct hdql_CollectionKey * keys
-                          , hdql_KeyIterationCallback_t callback, void * userdata
-                          , size_t cLevel, size_t nKeyAtLevel
-                          , hdql_Context_t context
-                          );
-/**\brief Destroys keys respecting query topology */
-int hdql_func_destroy_keys( struct hdql_Func * fDef
-                          , struct hdql_CollectionKey * keys
-                          , hdql_Context_t
-                          );
-#endif
+/**\brief HDQL functions dictionary */
+struct hdql_Functions;
+
+/**\brief Constructor instantiating function object for given queries 
+ *
+ * Shall return either a pointer to attribute definition performing certain
+ * function call, or a null pointer. In the latter case, may set a message
+ * in the given buffer explaining why failure reason. */
+typedef struct hdql_AttrDef * (*hdql_FunctionConstructor_t)(
+          struct hdql_Query ** args, void * userdata
+        , char * failureBuffer
+        , size_t failureBufferSize
+        , hdql_Context_t context);
+
+/**\brief Creates new function definition in a dictionary */
+int
+hdql_functions_define( struct hdql_Functions *
+                     , const char * name
+                     , hdql_FunctionConstructor_t
+                     , void * userdata
+                     );
+
+/**\brief Instantiates function object based on name and argument queries */
+int
+hdql_functions_resolve( struct hdql_Functions * funcDict
+                      , const char * name
+                      , struct hdql_Query ** args
+                      , struct hdql_AttrDef ** r
+                      , hdql_Context_t context
+                      );
+
+int
+hdql_functions_add_standard_math(struct hdql_Functions * functions);
+
+#if 0
+
+/*
+ * Some common implementations
+ */
+
+/**\brief Common constructor for single-argument math functions
+ *
+ * Constructor for simple 1-argument functions on real number like
+ * exp(), sin(), abs(), etc. Argument query must be "scalar atomic" (results in
+ * scalar) or "collection of atomics" type (results in collection with
+ * forwarded keys). Created `hdql_FuncDef` must have function of the signature
+ * `double (*)(double)`. Examples:
+ *  - trigonometric functions
+ *  - exponentiation, logarithms
+ * */
+struct hdql_AttrDef *
+hdql_func_helper__try_instantiate_unary_math(struct hdql_Query **, void *, hdql_Context_t);
+
+/**\brief Common constructor for logic functions
+ *
+ * Constructor for functions taking one argument of "collection atomic"
+ * type and returning one (scalar) value typed as logic, without key. Examples:
+ *  - `any()` returns `true` if at least one of the collection elements
+ *      evaluated to `true`, similar to OR concatenation
+ *  - `all()` returns `true` only if all the collection elements evaluated to
+ *      `true`, similar to AND concatenation
+ *  - `none()` returns `true` only if all the collection elements evaluated to
+ *      `false`, similar to inversion of OR concatenation
+ * */
+struct hdql_AttrDef *
+hdql_func_helper__try_instantiate_logic(struct hdql_Query **, void *, hdql_Context_t);
+
+/**\brief Common constructor for aggregate functions
+ *
+ * Constructor for aggregate functions taking one argument of "collection atomic"
+ * type and returning one (scalar) value typed the same, without key. Examples:
+ *  - `sum()` returns numerical sum of collection elements
+ *  - `average()` returns mean value of collection elements
+ *  - `median()` returns median value of collection elements
+ *  - `variance()` returns square of the standard deviation
+ *  - `stddev()` returns standard deviation
+ * */
+struct hdql_AttrDef *
+hdql_func_helper__try_instantiate_aggregate(struct hdql_Query **, void *, hdql_Context_t);
+
+/**\brief Common constructor for aggregate functions returning result with key
+ *
+ * Constructor for aggregate functions taking one argument of "collection atomic"
+ * type and returning one value typed the same with key. Examples:
+ *  - `arb()` returns arbitrary element (note: iterates over collection first)
+ *  - `minimum()` returns minimum element from a collection
+ *  - `maximum()` returns maximum element from a collection
+ * */
+struct hdql_AttrDef *
+hdql_func_helper__try_instantiate_aggregate_w_key(struct hdql_Query **, void *, hdql_Context_t);
+
+/**\brief Common constructor for aggregate functions returning collection
+ *
+ * Constructor for aggregate functions taking one argument of "collection atomic"
+ * type and returning "collection atomic". Examples:
+ *  - `unique()`
+ * */
+struct hdql_AttrDef *
+hdql_func_helper__try_instantiate_aggregate_w_key(struct hdql_Query **, void *, hdql_Context_t);
 #endif
 
 #ifdef __cplusplus

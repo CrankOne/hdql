@@ -1,7 +1,7 @@
 #pragma once
 
 #include "hdql/compound.h"
-#include "hdql/helpers.hh"
+#include "hdql/helpers/compounds.hh"
 
 #include <type_traits>
 #include <unordered_map>
@@ -19,7 +19,7 @@ namespace test {
 typedef unsigned int DetID_t;
 
 struct RawData {
-    float time;
+    double time;
     short samples[4];
 };
 

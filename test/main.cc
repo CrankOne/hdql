@@ -1,6 +1,6 @@
 #include "events-struct.hh"
 #include "hdql/attr-def.h"
-#include "hdql/helpers.hh"
+#include "hdql/helpers/compounds.hh"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -10,6 +10,7 @@
 #include "hdql/query.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
+#include "hdql/function.h"
 
 #include "events-struct.hh"
 
@@ -45,6 +46,8 @@ test_query_on_data( int nSample, const char * expression ) {
         }
         eventCompound = it->second;
     }
+    // add standard functions
+    hdql_functions_add_standard_math(hdql_context_get_functions(ctx));
 
     // Fill object
 

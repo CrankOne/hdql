@@ -1094,32 +1094,29 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
         free(toFree);
     }
     argsArray[nArgs] = NULL;
-
-    #if 1
-    assert(0);
-    #else
-    struct hdql_Func * fDef = NULL;
-    int rc = hdql_func_create(funcName, argsArray, &fDef);
-    if(fDef == NULL && rc == 0) {  /* special state for name lookup failure */
-        free(argsArray);
-        hdql_error(yyloc, ws, yyscanner, "Function \"%s\" is not defined", funcName);
+    /* Retrieve functions dictionary and try to to instantiate function object */
+    struct hdql_Functions * fDict = hdql_context_get_functions(ws->context);
+    assert(fDict);
+    struct hdql_AttrDef * fAD;
+    int rc = hdql_functions_resolve(fDict, funcName
+            , argsArray, &fAD, ws->context);
+    free(argsArray);  /* free tmp args array */
+    /* Functions construction may fail, in this case we should provide the
+     * user with explainatory information on which arguments were lookup
+     * performed */
+    if( HDQL_ERR_CODE_OK != rc ) {
+        //assert(0);  // TODO: dump arg queries description
+        //hdql_query_dump();
+        hdql_error( yyloc, ws, NULL
+                  , "Failed to instantiate function object %s(...): %s"
+                  , funcName, hdql_err_str(rc)
+                  );
         return NULL;
     }
-    if( rc < 0 ) {
-        // TODO: list argument types here to provide more explainatory
-        // information on failure
-        hdql_error(yyloc, ws, yyscanner, "Function \"%s\" can not be applied,"
-            " return code %d", funcName, rc);
-        free(argsArray);
-        return NULL;
-    }
-    /* free temporary array of argument queries */
-    free(argsArray);
-    #endif
-
-    assert(0);  // TODO create query around a function
-
-    return NULL;  // TODO
+    assert(fAD);
+    /* Otherwise, create a new query object wrapping "function attribute
+     * definition */
+    return hdql_query_create(fAD, NULL, ws->context);
 }  /* _new_function() */
 
 /* 

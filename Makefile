@@ -28,6 +28,7 @@ OBJS:=obj/types.o \
 	  obj/events-struct.o \
 	  obj/samples.o \
 	  obj/iteration-tests.o \
+	  obj/converters.o \
 	  obj/iface-fwd-query-as-collection.o \
 	  obj/iface-fwd-query-as-scalar.o \
 	  obj/iface-arith-op-as-scalar.o \

@@ -64,13 +64,16 @@ hdql_Datum_t hdql_context_check_type(hdql_Context_t, hdql_Datum_t, const char *)
 int hdql_context_free(hdql_Context_t, hdql_Datum_t);
 
 /**\brief Returns pointer to value types table */
-struct hdql_ValueTypes * hdql_context_get_types( hdql_Context_t ctx );
+struct hdql_ValueTypes * hdql_context_get_types(hdql_Context_t ctx);
 
 /**\brief Returns pointer to operations table */
-struct hdql_Operations * hdql_context_get_operations( hdql_Context_t ctx );
+struct hdql_Operations * hdql_context_get_operations(hdql_Context_t ctx);
 
 /**\brief Returns functions definitions dictionary */
-struct hdql_Functions * hdql_context_get_functions( hdql_Context_t ctx );
+struct hdql_Functions * hdql_context_get_functions(hdql_Context_t ctx);
+
+/**\brief Returns table of atomic type conversions */
+struct hdql_Converters * hdql_context_get_conversions(hdql_Context_t ctx);
 
 /**\brief Allocates "local attribute" */
 //struct hdql_AttrDef * hdql_context_local_attribute_create( hdql_Context_t ctx );

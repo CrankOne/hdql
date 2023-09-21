@@ -54,7 +54,6 @@ _fwd_query_scalar_interface_dereference(
         assert(key->isList);
         hdql_query_keys_copy(key->pl.keysList, dd->keys, dd->context);
     }
-    assert(dd->result);  /* dereference() without reset() */
     return dd->result;
 }
 

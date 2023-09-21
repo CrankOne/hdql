@@ -35,11 +35,27 @@ namespace detail {
 
 template<typename T> struct ArithTypeNames;
 
-template<> struct ArithTypeNames<float> { static constexpr const char * name = "float"; };
-template<> struct ArithTypeNames<short> { static constexpr const char * name = "short"; };
-template<> struct ArithTypeNames<int>   { static constexpr const char * name = "int"; };
-template<> struct ArithTypeNames<size_t>{ static constexpr const char * name = "size_t"; };
-template<> struct ArithTypeNames<uint32_t>{ static constexpr const char * name = "uint32_t"; };
+#define _HDQL_M_STD_TYPE(nm) \
+    template<> struct ArithTypeNames<nm>   { static constexpr const char * name = #nm ; };
+_HDQL_M_STD_TYPE(bool);
+_HDQL_M_STD_TYPE(signed char);
+_HDQL_M_STD_TYPE(unsigned char);
+_HDQL_M_STD_TYPE(short);
+_HDQL_M_STD_TYPE(unsigned short);
+_HDQL_M_STD_TYPE(int);
+_HDQL_M_STD_TYPE(unsigned int);
+_HDQL_M_STD_TYPE(long);
+_HDQL_M_STD_TYPE(unsigned long);
+_HDQL_M_STD_TYPE(float);
+_HDQL_M_STD_TYPE(double);
+#undef _HDQL_M_STD_TYPE
+
+//template<> struct ArithTypeNames<float>   { static constexpr const char * name = "float"; };
+//template<> struct ArithTypeNames<double>  { static constexpr const char * name = "double"; };
+//template<> struct ArithTypeNames<short>   { static constexpr const char * name = "short"; };
+//template<> struct ArithTypeNames<int>     { static constexpr const char * name = "int"; };
+//template<> struct ArithTypeNames<size_t>  { static constexpr const char * name = "size_t"; };
+//template<> struct ArithTypeNames<uint32_t>{ static constexpr const char * name = "uint32_t"; };
 // ...
 
 template<typename T> struct is_shared_ptr : std::false_type {};

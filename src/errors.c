@@ -33,12 +33,14 @@ hdql_err_str(hdql_Err_t code) {
             return "division by zero";
         case HDQL_ARITH_ERR_NEGATIVE_SHIFT:
             return "negative bit shift";
-        case HDQL_ERR_FUNC_MAX_NARG:
-            return "maximum number of function arguments exceed";
-        case HDQL_ERR_FUNC_ARG_COLLISION:
-            return "argument #N already has been set";
-        case HDQL_ERR_FUNC_REDEFINITION:
-            return "function has been already defined";
+        case HDQL_ERR_FUNC_UNKNOWN:
+            return "unknown function identifier";
+        case HDQL_ERR_FUNC_CANT_INSTANTIATE:
+            return "could not instantiate function candidate for given arguments";
+        //case HDQL_ERR_FUNC_ARG_COLLISION:
+        //    return "argument #N already has been set";
+        //case HDQL_ERR_FUNC_REDEFINITION:
+        //    return "function has been already defined";
 
         default:
             return "(unidentified error)";

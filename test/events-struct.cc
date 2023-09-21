@@ -17,7 +17,8 @@
 #include <cstring>
 #include <set>
 #include <unordered_map>
-#include "hdql/helpers.hh"
+
+#include "hdql/helpers/compounds.hh"
 
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST  // BasicInterfacesTests {{{
 

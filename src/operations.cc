@@ -5,6 +5,8 @@
 #include "hdql/compound.h"
 #include "hdql/query.h"
 
+#include "hdql/helpers/compounds.hh"
+
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -20,8 +22,6 @@ namespace hdql {
 
 //
 // Operator implementations: common binary arithmetic
-
-#if 1
 
 template<typename T>
 struct DynamicTraits {
@@ -78,6 +78,45 @@ struct ArithmeticOpTraits< T1, T2
 
 #define _M_for_each_type_() _M_for_each_type
 #define _M_for_each_type__(...) _M_for_each_type_ _M_EXPAND(()) (__VA_ARGS__)
+
+// -- implement basic conversions ---------------------------------------------
+
+namespace {
+template<typename T1, typename T2>
+struct Converter {
+    static int
+    convert( struct hdql_Datum * __restrict__ dest
+           , struct hdql_Datum * __restrict__ src ) {
+        *reinterpret_cast<T1 * __restrict__>(dest) = *reinterpret_cast<T2 * __restrict__>(src);
+        return 0;
+    }
+    static int
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+        hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T1>::name)
+                           , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T2>::name)
+                           ;
+        return hdql_converters_add( &cnvs
+                                  , toVTC
+                                  , fromVTC
+                                  , convert );
+    }
+};  // struct Converter
+}  // empty ns
+
+extern "C" void
+hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts) {
+    #define _M_add_conversion_implem(t1, t2) Converter<t1, t2>::add(vts, *cnvs);
+    // NOTE: we do not add here bool -> int conversion to prevent unintended
+    // mistakes
+    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_add_conversion_implem));
+
+    #define _M_add_num_to_int_conversion(_, t1) \
+        _M_add_conversion_implem(bool, t1)
+
+    _M_for_each_numerical_type(_M_add_num_to_int_conversion)
+
+    #undef _M_add_conversion_implem
+}
 
 // -- implement binary arithmetic ---------------------------------------------
 #define _M_for_every_binary_arith_op(m, ...) \
@@ -231,271 +270,6 @@ _T_unary_l_not(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r
     return 0;
 }
 
-#else
-template<typename T1, typename T2> struct plusOp;
-template<typename T1, typename T2> struct minusOp;
-template<typename T1, typename T2> struct prodOp;
-template<typename T1, typename T2> struct divideOp;
-
-#define _M_for_every_arith_type(m, ...) \
-    m( int8_t,  int8_t,     __VA_ARGS__  ) \
-    m( int8_t,  uint8_t,    __VA_ARGS__  ) \
-    m( uint8_t, int8_t,     __VA_ARGS__  ) \
-    m( uint8_t, uint8_t,    __VA_ARGS__  ) \
-    m( int8_t,  float,      __VA_ARGS__  ) \
-    m( int8_t,  double,     __VA_ARGS__  ) \
-    m( uint8_t, float,      __VA_ARGS__  ) \
-    m( uint8_t, double,     __VA_ARGS__  ) \
-    m( float,   int8_t,     __VA_ARGS__  ) \
-    m( double,  int8_t,     __VA_ARGS__  ) \
-    m( float,   uint8_t,    __VA_ARGS__  ) \
-    m( double,  uint8_t,    __VA_ARGS__  ) \
-    \
-    m( float,   float,      __VA_ARGS__  ) \
-    m( float,   double,     __VA_ARGS__  ) \
-    m( double,  float,      __VA_ARGS__  ) \
-    m( double,  double,     __VA_ARGS__  ) \
-
-#define _M_implement_operation(OpName, opSign, T1, T2)      \
-template<>                                                  \
-struct OpName ## Op<T1, T2> {                               \
-    typedef ArithmeticOpTraits<T1, T2>::Result_t Result_t;  \
-    static int result(const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \
-        *reinterpret_cast<Result_t*>(r_)                    \
-            = *reinterpret_cast<const T1 *>(a_)             \
-            opSign *reinterpret_cast<const T2 *>(b_);       \
-        return 0;                                           \
-    }                                                       \
-};
-
-#define _M_(T1, T2, m) _M_for_every_binary_arith_op(m, T1, T2)
-
-_M_for_every_arith_type(_M_, _M_implement_operation);
-#endif
-
-#if 0
-
-#define _M_for_every_basic_arith_op(m) \
-    m( Int, Int, Int ) \
-    m( Flt, Int, Flt ) \
-    m( Int, Flt, Flt ) \
-    m( Flt, Flt, Flt )
-
-#define _M_impl_plus_op( typeA, typeB, typeR ) \
-    static int \
-    _plus_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           + *reinterpret_cast<const hdql_ ## typeB ## _t *>(b); \
-        return 0; \
-    }
-#define _M_impl_minus_op( typeA, typeB, typeR ) \
-    static int \
-    _minus_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           - *reinterpret_cast<const hdql_ ## typeB ## _t *>(b); \
-        return 0; \
-    }
-#define _M_impl_product_op( typeA, typeB, typeR ) \
-    static int \
-    _product_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           * *reinterpret_cast<const hdql_ ## typeB ## _t *>(b); \
-        return 0; \
-    }
-#define _M_impl_divide_op( typeA, typeB, typeR ) \
-    static int \
-    _divide_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           / *reinterpret_cast<const hdql_ ## typeB ## _t *>(b); \
-        return 0; \
-    }
-
-_M_for_every_basic_arith_op( _M_impl_plus_op    );
-_M_for_every_basic_arith_op( _M_impl_minus_op   );
-_M_for_every_basic_arith_op( _M_impl_product_op );
-_M_for_every_basic_arith_op( _M_impl_divide_op  );
-
-#undef _M_impl_plus_op
-#undef _M_impl_minus_op
-#undef _M_impl_product_op
-#undef _M_impl_divide_op
-
-#define _M_for_every_arith_comparison_op(m) \
-    m( Int, Int, Int ) \
-    m( Flt, Int, Int ) \
-    m( Int, Flt, Int ) \
-    m( Flt, Flt, Int )
-
-#define _M_impl_gt_op( typeA, typeB, typeR ) \
-    static int \
-    _gt_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           > *reinterpret_cast<const hdql_ ## typeB ## _t *>(b) ? HDQL_TRUE : HDQL_FALSE; \
-        return 0; \
-    }
-#define _M_impl_gte_op( typeA, typeB, typeR ) \
-    static int \
-    _gte_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           =  *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           >= *reinterpret_cast<const hdql_ ## typeB ## _t *>(b) ? HDQL_TRUE : HDQL_FALSE; \
-        return 0; \
-    }
-#define _M_impl_lt_op( typeA, typeB, typeR ) \
-    static int \
-    _lt_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           = *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           < *reinterpret_cast<const hdql_ ## typeB ## _t *>(b) ? HDQL_TRUE : HDQL_FALSE; \
-        return 0; \
-    }
-#define _M_impl_lte_op( typeA, typeB, typeR ) \
-    static int \
-    _lte_ ## typeA ## _ ## typeB( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) \
-    {   *reinterpret_cast<hdql_ ## typeR ## _t *>(r) \
-           =  *reinterpret_cast<const hdql_ ## typeA ## _t *>(a)  \
-           <= *reinterpret_cast<const hdql_ ## typeB ## _t *>(b) ? HDQL_TRUE : HDQL_FALSE; \
-        return 0; \
-    }
-
-_M_for_every_arith_comparison_op( _M_impl_gt_op  );
-_M_for_every_arith_comparison_op( _M_impl_gte_op );
-_M_for_every_arith_comparison_op( _M_impl_lt_op  );
-_M_for_every_arith_comparison_op( _M_impl_lte_op );
-
-#undef _M_impl_plus_op
-#undef _M_impl_minus_op
-#undef _M_impl_product_op
-#undef _M_impl_divide_op
-
-//
-// Integer only binary operators
-
-static int
-_modulo( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) { 
-    hdql_Int_t bVal = *reinterpret_cast<const hdql_Int_t *>(b);
-    if(0 == bVal)
-        return HDQL_ARITH_ERR_ZERO_DIVISION;
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       % bVal;
-    return 0;
-}
-
-static int
-_rshift( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) { 
-    hdql_Int_t bVal = *reinterpret_cast<const hdql_Int_t *>(b);
-    if(bVal < 0)
-        return HDQL_ARITH_ERR_NEGATIVE_SHIFT;
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       >> bVal;
-    return 0;
-}
-
-static int
-_lshift( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) { 
-    hdql_Int_t bVal = *reinterpret_cast<const hdql_Int_t *>(b);
-    if(bVal < 0)
-        return HDQL_ARITH_ERR_NEGATIVE_SHIFT;
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       << bVal;
-    return 0;
-}
-
-static int
-_b_and( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) {
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       & *reinterpret_cast<const hdql_Int_t *>(b);
-    return 0;
-}
-
-static int
-_b_or( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) {
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       | *reinterpret_cast<const hdql_Int_t *>(b);
-    return 0;
-}
-
-static int
-_b_xor( const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t r ) {
-    *reinterpret_cast<hdql_Int_t *>(r)
-       = *reinterpret_cast<const hdql_Int_t *>(a)
-       ^ *reinterpret_cast<const hdql_Int_t *>(b);
-    return 0;
-}
-
-int
-hdql_op_define_std_arith( struct hdql_Operations * operations
-                        , struct hdql_ValueTypes * types
-                        ) {
-    hdql_ValueTypeCode_t IntCode = hdql_types_get_type_code(types, "hdql_Int_t")
-                       , FltCode = hdql_types_get_type_code(types, "hdql_Flt_t")
-                       ;
-    assert(IntCode);
-    assert(FltCode);
-    std::pair<hdql_Operations::iterator, bool> ir;
-
-    #define _M_impose_std_arith_of_types(typeA, typeB, typeR) \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpSum} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_plus_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpMinus} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_minus_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpProduct} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_product_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpDivide} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_divide_ ## typeA ## _ ## typeB }); \
-        assert(ir.second);
-    
-    _M_for_every_basic_arith_op(_M_impose_std_arith_of_types);
-    #undef _M_impose_std_arith_of_types
-
-    #define _M_impose_std_comparison_of_types(typeA, typeB, typeR) \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpGT} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_gt_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpGTE} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_gte_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpLT} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_lt_ ## typeA ## _ ## typeB }); \
-        assert(ir.second); \
-        ir = operations->emplace( hdql::OpKey{ typeA ## Code, typeB ## Code, hdql_kOpLTE} \
-                                , hdql_OperationEvaluator{ typeR ## Code, hdql::_lte_ ## typeA ## _ ## typeB }); \
-        assert(ir.second);
-    
-    _M_for_every_arith_comparison_op(_M_impose_std_comparison_of_types);
-    #undef _M_impose_std_comparison_of_types
-
-    #define _M_impose_int_only_op( opName, fName )                          \
-        ir = operations                                                     \
-            ->emplace( hdql::OpKey{ IntCode, IntCode, hdql_kOp ## opName}   \
-                     , hdql_OperationEvaluator{ IntCode, hdql::_ ## fName });   \
-
-    _M_impose_int_only_op( Modulo,  modulo );
-    _M_impose_int_only_op( RBShift, rshift );
-    _M_impose_int_only_op( LBShift, lshift );
-    _M_impose_int_only_op( BAnd,    b_and  );
-    _M_impose_int_only_op( BOr,     b_or   );
-    _M_impose_int_only_op( BXOr,    b_xor  );
-
-    #undef _M_impose_int_only_op
-
-    return ir.second ? 0 : -1;
-}
-#endif
-
 //
 // (typed) operation lookup key
 
@@ -525,6 +299,8 @@ struct std::hash<hdql::OpKey> {
 };
 
 struct hdql_Operations : public std::unordered_map<hdql::OpKey, hdql_OperationEvaluator> {
+    hdql_Operations * parent;
+    hdql_Operations() : parent(nullptr) {}
 };
 
 extern "C" {
@@ -550,69 +326,10 @@ hdql_op_get( const struct hdql_Operations * ops
         ) {
     hdql::OpKey opKey{t1, t2, opCode};
     auto it = ops->find(opKey);
-    if(ops->end() == it) return NULL;
-    return &(it->second);
+    if(ops->end() != it) return &(it->second);
+    if(ops->parent) return hdql_op_get(ops->parent, t1, opCode, t2);
+    return NULL;
 }
-
-#if 0
-int
-hdql_op_eval( hdql_Datum_t valueA
-            , hdql_OperationEvaluator_t opEvaluator
-            , hdql_Datum_t valueB
-            //, const struct hdql_ValueTypes * types
-            //, char * errBuffer, size_t errBufferSize
-            , hdql_Datum_t result
-            ) {
-    assert(valueA);
-    assert(opEvaluator);
-    assert(result);
-
-    return opEvaluator->op(valueA, valueB, result); 
-
-    #if 0
-    if(0 == rc) return rc;
-
-    /* otherwise an error has occured */
-    const struct hdql_ValueInterface
-                      * viA = hdql_types_get_type(types, t1)
-                    , * viB = valueB ? hdql_types_get_type(types, t2) : NULL
-                    ;
-
-    char strBfA[64];
-    int rc2 = -1;
-    if(viA && viA->get_as_string) {
-        rc2 = viA->get_as_string(valueA, strBfA, sizeof(strBfA));
-    }
-    if(0 != rc2)
-        snprintf(strBfA, sizeof(strBfA), "(data at %p)", valueA);
-    if(valueB) {
-        char strBfB[64];
-        rc2 = -1;
-        if(viB) {
-            rc2 = viB->get_as_string(valueB, strBfB, sizeof(strBfB));
-        }
-        if(0 != rc2) {
-            snprintf(strBfB, sizeof(strBfB), "(data at %p)", valueB);
-        }
-        if(0 != rc2) strncpy(strBfB, "(no str value)", sizeof(strBfB));
-        snprintf( errBuffer, errBufferSize
-                  , "operator evaluation returned code %d with"
-                    " operands %s of type %s and %s of type %s"
-                  , rc
-                  , strBfA, viA->name
-                  , strBfB, viB->name
-                  );
-    } else {
-        snprintf( errBuffer, errBufferSize
-                  , "operator evaluation returned code %d with"
-                    " value %s (of type %s)"
-                  , rc, strBfA, viA->name
-                  );
-    }
-    return rc;
-    #endif
-}
-#endif
 
 int
 hdql_op_define_std_arith( struct hdql_Operations * operations
@@ -819,14 +536,12 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
 // NOT exposed to public header
 struct hdql_Operations *
 _hdql_operations_create(hdql_Context_t ctx) {
-    // TODO: use context-based allocations
     return new hdql_Operations;
 }
 
 // NOT exposed to public header
 void
 _hdql_operations_destroy(struct hdql_Operations * instance, hdql_Context_t ctx) {
-    // TODO: use context-based allocations
     delete instance;
 }
 

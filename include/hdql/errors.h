@@ -26,9 +26,10 @@
 #define HDQL_ERR_ARITH_OPERATION          -22   /* arithmetic operation error */
 #define HDQL_ARITH_ERR_ZERO_DIVISION      -23   /* division by zero */
 #define HDQL_ARITH_ERR_NEGATIVE_SHIFT     -24   /* negative bit shift */
-#define HDQL_ERR_FUNC_MAX_NARG            -25   /* maximum number of function arguments exceed */
-#define HDQL_ERR_FUNC_ARG_COLLISION       -26   /* argument #N already has been set */
-#define HDQL_ERR_FUNC_REDEFINITION        -27   /* function has been already defined */
+#define HDQL_ERR_FUNC_UNKNOWN             -25   /* unknown function identifier */
+#define HDQL_ERR_FUNC_CANT_INSTANTIATE    -26   /* could not instantiate function candidate for given arguments */
+//#define HDQL_ERR_FUNC_ARG_COLLISION       -26   /* argument #N already has been set */
+//#define HDQL_ERR_FUNC_REDEFINITION        -27   /* function has been already defined */
 /* Interface-specific errors */
 #define HDQL_ERR_INTERFACE_ERROR         -101  /* failed to reserve key */
 

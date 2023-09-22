@@ -28,6 +28,7 @@
 #define HDQL_ARITH_ERR_NEGATIVE_SHIFT     -24   /* negative bit shift */
 #define HDQL_ERR_FUNC_UNKNOWN             -25   /* unknown function identifier */
 #define HDQL_ERR_FUNC_CANT_INSTANTIATE    -26   /* could not instantiate function candidate for given arguments */
+#define HDQL_ERR_CONVERSION               -31   /* value conversion failed */
 //#define HDQL_ERR_FUNC_ARG_COLLISION       -26   /* argument #N already has been set */
 //#define HDQL_ERR_FUNC_REDEFINITION        -27   /* function has been already defined */
 /* Interface-specific errors */

@@ -236,6 +236,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             | T_IDENTIFIER T_LBC argsList T_RBC
             {
                 $$ = _new_function(&yyloc, ws, yyscanner, $1, $3);
+                free($1);
                 if(NULL == $$) return HDQL_ERR_TRANSLATION_FAILURE;
             }
             ;
@@ -1114,6 +1115,7 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
         return NULL;
     }
     assert(fAD);
+    hdql_attr_def_set_stray(fAD);
     /* Otherwise, create a new query object wrapping "function attribute
      * definition */
     return hdql_query_create(fAD, NULL, ws->context);

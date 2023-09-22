@@ -11,6 +11,7 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
 #include "hdql/query.h"
 #include "hdql/function.h"
@@ -73,23 +74,35 @@ apply(RetT (*pf)(ArgsT...), struct hdql_Datum ** args) {
  * */
 template<typename ResultT, typename ...ArgsT >
 struct AutoFunction {
+    static_assert(sizeof...(ArgsT) != 0, "Can't instantiate function with"
+            " empty arguments list.");
     typedef ResultT (*FuncPtr)(ArgsT ...);
 
     /**\brief Function instantiation arguments considered as def.data by iface
      *
      * Caveat: for attribute access functions this instance is considered as
      * const definition data, yet it is in fact a synthetic object provided by
-     * function constructor. */
+     * function constructor and its `args` attribute gets changed during
+     * function instance lifetime */
     struct FunctionInstantiationArgs {
         hdql_Query ** args;
+        struct ArgumentConverterEntry {
+            hdql_TypeConverter func;
+            hdql_ValueTypeCode_t retTypeCode;
+        } * converters;
         FuncPtr functionPointer;
     };
 
     /**\brief Function result calculation cache */
     struct ScalarState {
+        /**\brief Function result instance */
         ResultT result;
+        /**\brief argument value pointers
+         *
+         * If conversion function is set for corresponding argument, the
+         * pointer is managed by the context. Otherwise (when conversion
+         * function is not set), this is the data pointer returned by query. */
         hdql_Datum_t * argValuesPtrs;
-        hdql_Datum_t (**converters)(hdql_Datum_t);
         bool isValid, isExhausted;
     };
 
@@ -102,16 +115,21 @@ struct AutoFunction {
         FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
                 reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
         /* Allocate array of pointers for argument values */
+        {
+            const size_t argArrLenBytes = sizeof(hdql_Datum_t*)*sizeof...(ArgsT);
+            state->argValuesPtrs = reinterpret_cast<hdql_Datum_t*>(
+                    hdql_context_alloc(context, argArrLenBytes));
+            bzero(state->argValuesPtrs, argArrLenBytes);
+        }
+        /* Allocate conversion target values, if any */
         size_t nArgs = 0;
         for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q, ++nArgs) {
-            #ifndef NDEBUG
             assert(nArgs <= sizeof...(ArgsT));
-            // TODO: check convertible with type nArgs
-            #endif
+            if(NULL == fInstArgs->converters[nArgs].func) continue;  // no conversion
+            assert(0x0 != fInstArgs->converters[nArgs].retTypeCode);
+            state->argValuesPtrs[nArgs] = hdql_create_value(fInstArgs->converters[nArgs].retTypeCode, context);
+            assert(state->argValuesPtrs[nArgs]);  // TODO: enomem otherwise
         }
-        state->argValuesPtrs = reinterpret_cast<hdql_Datum_t*>(
-                hdql_context_alloc(context, sizeof(hdql_Datum_t*)*nArgs));
-        bzero(state->argValuesPtrs, sizeof(hdql_Datum_t*)*nArgs);
         return reinterpret_cast<hdql_Datum_t>(state);
     }
 
@@ -129,12 +147,25 @@ struct AutoFunction {
                 reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
             size_t nArg = 0;
             for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q, ++nArg) {
-                state->argValuesPtrs[nArg] = hdql_query_get(*q, NULL, context);
-                if(NULL == fInstArgs->args[nArg]) {
+                // get value from query (may need a conversion)
+                hdql_Datum_t argValuePtr = hdql_query_get(*q, NULL, context);
+                if(NULL == argValuePtr) {
                     // at least one of the arguments did not provide a value;
                     // we consider result as empty
                     state->isExhausted = true;
                     return NULL;
+                }
+                // if value needs a conversion, do it, otherwise just set it
+                // as is.
+                if(fInstArgs->converters[nArg].func) {
+                    // converter syntax is: dest, src
+                    int rc = fInstArgs->converters[nArg].func(state->argValuesPtrs[nArg], argValuePtr);
+                    if(HDQL_ERR_CODE_OK != rc) {
+                        hdql_context_err_push(context, HDQL_ERR_CONVERSION
+                                , "Conversion failed with code %d", rc);  // TODO: elaborate
+                    }
+                } else {
+                    state->argValuesPtrs[nArg] = argValuePtr;
                 }
             }
             state->result = apply(fInstArgs->functionPointer, state->argValuesPtrs);
@@ -170,13 +201,39 @@ struct AutoFunction {
                 reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
         if(state_) {
             ScalarState * state = reinterpret_cast<ScalarState*>(state_);
-            if(state->argValuesPtrs) hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(state->argValuesPtrs));
+            if(state->argValuesPtrs) {
+                if(fInstArgs->converters) {
+                    for(size_t i = 0; i < sizeof...(ArgsT); ++i) {
+                        if( fInstArgs->converters[i].func
+                         && state->argValuesPtrs[i]
+                         && 0x0 != fInstArgs->converters[i].retTypeCode
+                         ) {
+                            hdql_destroy_value(fInstArgs->converters[i].retTypeCode
+                                    , state->argValuesPtrs[i]
+                                    , ctx );
+                        }
+                    }
+                }
+                hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(state->argValuesPtrs));
+            }
             hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(state));
         }
+        // TODO: it seems wrong to destroy def.args in state's desturctor
+        // perhaps one should anticipate this at the query's level
         if(fInstArgs_) {
             for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q) {
                 hdql_query_destroy(*q, ctx);
             }
+            if(fInstArgs->converters) {
+                //for(size_t i = 0; i < sizeof...(ArgsT); ++i) {
+                //    if(fInstArgs->converters[i].func) {
+                //        hdql_context_free(context, state->argValuesPtrs);
+                //    }
+                //}
+                hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->converters));
+            }
+            hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->args));
+            hdql_context_free(ctx, const_cast<hdql_Datum_t>(fInstArgs_));
         }
     }
 
@@ -193,8 +250,14 @@ struct AutoFunction {
              , size_t failureBufferSize
              , hdql_Context_t context
              ) {
+        hdql_Converters * cnvs = hdql_context_get_conversions(context);
         hdql_ValueTypes * vts = hdql_context_get_types(context);
-        assert(vts);
+        // allocate converters array beforehead
+        typename FunctionInstantiationArgs::ArgumentConverterEntry * converters
+            = reinterpret_cast<typename FunctionInstantiationArgs::ArgumentConverterEntry *>(
+                hdql_context_alloc(context
+                    , sizeof(typename FunctionInstantiationArgs::ArgumentConverterEntry)*(sizeof...(ArgsT)))
+                    );
         //
         // iterate over queries, checking that input signature match
         size_t nArg = 0;
@@ -209,6 +272,7 @@ struct AutoFunction {
                             , sizeof...(ArgsT)
                             );
                 }
+                hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
                 return NULL;
             }
             if(!hdql_query_is_fully_scalar(*q)) {
@@ -218,12 +282,17 @@ struct AutoFunction {
                             , nArg + 1
                             );
                 }
+                hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
                 return NULL;  // not a scalar arg
             }
 
             const hdql_AttrDef * argTQDef = hdql_query_top_attr(*q);
             if(hdql_attr_def_is_compound(argTQDef)) {
-                // TODO: support for compound arguments?
+                // TODO: support for compound arguments? If implemented using
+                // RTTI would requires forwarding of helpers::Compounds
+                // dictionary which makes this wrapper dependant on the API
+                // part that is somewhat optional (i.e. C++ compount type must
+                // be created via this helper to be resolved here)...
                 if(failureBuffer) {
                     const hdql_Compound * ct = hdql_attr_def_compound_type_info(argTQDef);
                     if(hdql_compound_is_virtual(ct)) {
@@ -241,6 +310,7 @@ struct AutoFunction {
                             );
                     }
                 }
+                hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
                 return NULL;
             } else {
                 char typeBf[64];
@@ -262,23 +332,33 @@ struct AutoFunction {
                                 , typeBf 
                                 );
                     }
+                    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
                     return NULL;
                 }
-                if(cfArgTCode != qArgTCode) {
-
-                    // TODO: support atomic type conversion
-                    if(failureBuffer) {
-                        snprintf( failureBuffer, failureBufferSize
-                                , "Can not convert argument #%lu of type <%s> to expected type <%s>"
-                                  " (C/C++ type `%s')"
-                                , nArg + 1
-                                , qArgTCode ? hdql_types_get_type(vts, qArgTCode)->name : "?"
-                                , cfArgTCode ? hdql_types_get_type(vts, cfArgTCode)->name : "?"
-                                , typeBf
-                                );
+                if(cfArgTCode != qArgTCode) {  // arithmetic type mismatch
+                    hdql_TypeConverter cnv = hdql_converters_get(cnvs, cfArgTCode, qArgTCode);
+                    if(NULL == cnv) {  // no value convertsion function -- error
+                        if(failureBuffer) {
+                            snprintf( failureBuffer, failureBufferSize
+                                    , "Can not convert argument #%lu of type <%s>"
+                                      " to type <%s> expected by function (C/C++ type `%s')"
+                                    , nArg + 1
+                                    , qArgTCode ? hdql_types_get_type(vts, qArgTCode)->name : "?"
+                                    , cfArgTCode ? hdql_types_get_type(vts, cfArgTCode)->name : "?"
+                                    , typeBf
+                                    );
+                        }
+                        hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
+                        return NULL;
                     }
-                    return NULL;
+                    // conversion function exists -- impose it to conversion
+                    // array
+                    converters[nArg].func = cnv;
+                    converters[nArg].retTypeCode = cfArgTCode;
+                    continue;
                 } else {
+                    converters[nArg].func = NULL;
+                    converters[nArg].retTypeCode = 0x0;
                     continue;  // atomic arg must be just forwarded to function
                 }
             }
@@ -302,6 +382,7 @@ struct AutoFunction {
                               " resolved to any of HDQL types"
                             , typeBf 
                             );
+                    hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(converters));
                     return NULL;
                 }
             }
@@ -310,6 +391,7 @@ struct AutoFunction {
         FunctionInstantiationArgs * fArgs = hdql_alloc(context, FunctionInstantiationArgs);
         fArgs->args = reinterpret_cast<hdql_Query **>(
                 hdql_context_alloc(context, sizeof(struct hdql_Query *)*(nArg+1)) );
+        fArgs->converters = converters;
         memcpy(fArgs->args, argQs, sizeof(struct hdql_Query *)*(nArg +1));
         fArgs->functionPointer=reinterpret_cast<FuncPtr>(func_);
 

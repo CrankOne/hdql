@@ -79,6 +79,11 @@ hdql_context_get_functions( hdql_Context_t ctx ) {
     return ctx->functions;
 }
 
+extern "C" struct hdql_Converters *
+hdql_context_get_conversions(hdql_Context_t ctx) {
+    return ctx->converters;
+}
+
 extern "C" hdql_Datum_t
 hdql_context_alloc( hdql_Context_t ctx
                   , size_t len

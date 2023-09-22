@@ -34,8 +34,6 @@ hdql_functions_define( struct hdql_Functions * functions
     if(*name == '\0') return -1;
     // TODO: other checks for function name validity
     if(!fdef) return -2;
-    struct hdql_FuncDef * fDef = (struct hdql_FuncDef *) malloc(sizeof(struct FuncDef));
-    bzero(fDef, sizeof(struct FuncDef));
     functions->emplace(name, FuncDef{userdata, fdef});
     return 0;
 }
@@ -96,6 +94,7 @@ _hdql_functions_create(struct hdql_Context * ctx) {
 // NOT exposed to public header
 extern "C" void
 _hdql_functions_destroy(struct hdql_Functions * funcDict, struct hdql_Context * ctx) {
+    if(NULL == funcDict || NULL == ctx) return;
     delete funcDict;
 }
 

@@ -39,6 +39,9 @@ hdql_converters_get( hdql_Converters *cnvs
     return NULL;
 }
 
+// For void hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts)
+// look at operations.cc
+
 //                                    _________________________________________
 // _________________________________/ Context-private converter routines mgmnt
 

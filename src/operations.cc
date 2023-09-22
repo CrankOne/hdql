@@ -107,15 +107,15 @@ extern "C" void
 hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts) {
     #define _M_add_conversion_implem(t1, t2) Converter<t1, t2>::add(vts, *cnvs);
     // NOTE: we do not add here bool -> int conversion to prevent unintended
-    // mistakes
+    // mistakes when boolean result is provided to a numerical function.
     _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_add_conversion_implem));
-
-    #define _M_add_num_to_int_conversion(_, t1) \
+    // Though inverse situation, when numerical result should be considered
+    // as logical one seem to be natural
+    #define _M_add_num_to_bool_conversion(_, t1) \
         _M_add_conversion_implem(bool, t1)
-
-    _M_for_each_numerical_type(_M_add_num_to_int_conversion)
-
+    _M_for_each_numerical_type(_M_add_num_to_bool_conversion)
     #undef _M_add_conversion_implem
+    
 }
 
 // -- implement binary arithmetic ---------------------------------------------

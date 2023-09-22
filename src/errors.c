@@ -41,6 +41,8 @@ hdql_err_str(hdql_Err_t code) {
         //    return "argument #N already has been set";
         //case HDQL_ERR_FUNC_REDEFINITION:
         //    return "function has been already defined";
+        case HDQL_ERR_CONVERSION:
+            return "value conversion failed";
 
         default:
             return "(unidentified error)";

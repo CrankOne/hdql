@@ -215,3 +215,50 @@ Boolean aggregate methods: ``any()``, ``every()``, ``none()``:
 Contrary to classic definition of aggregate methods, these functions operates
 on the entire query result set, rather than various grouped ones.
 
+Building and Install
+--------------------
+
+In general, building procedure follows standard CMake procedure
+
+.. code-block:: bash
+
+   $ mkdir build
+   $ cd build
+   $ cmake ..
+   $ make
+
+Most probably one would like to have local installation. That can be
+accomplished by standard CMake's ``-DCMAKE_INSTALL_PREFIX=/some/where``. There
+are also certain additional options in our ``CMakeLists.txt``, mostly for
+development purposes:
+
+ * ``BUILD_TESTS`` -- enables unit tests based on GTest (required dependency
+   if this option is given). Note, that it will slightly change library object
+   files with some additional testing routines compiled in.
+ * ``TYPES_DEBUG`` -- enables some sort of crude type checks for
+   context-allocated objects that can be of use for some complex debugging
+ * ``COVERAGE`` -- if turned on, an additional ``make`` target will be emitted
+   that can generate code coverage report using ``gcov`` (required dependency
+   if options is enabled).
+
+Shared or static lib can be controlled with usual CMake's ``BUILD_STATIC_LIBS``
+option.
+
+Thus, putting altogether, one would probably be interested in either realease
+build:
+
+.. code-block:: bash
+
+   $ cmake ../hdql/ -DCMAKE_BUILD_TYPE=Release
+
+or in debug build for development:
+
+.. code-block:: bash
+
+    $ cmake ../hdql/ -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTS=ON -DCOVERAGE=ON \
+            -DCMAKE_INSTALL_PREFIX=$(readlink -f ../hdql.install)
+
+In the former case libraries and executable will acquire a ``.dbg`` name
+suffix to facilitate user applications with switcheable version of the lib.
+

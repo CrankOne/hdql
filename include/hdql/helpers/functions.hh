@@ -225,11 +225,6 @@ struct AutoFunction {
                 hdql_query_destroy(*q, ctx);
             }
             if(fInstArgs->converters) {
-                //for(size_t i = 0; i < sizeof...(ArgsT); ++i) {
-                //    if(fInstArgs->converters[i].func) {
-                //        hdql_context_free(context, state->argValuesPtrs);
-                //    }
-                //}
                 hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->converters));
             }
             hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->args));

@@ -1,6 +1,11 @@
+# DISCLAIMER: this is a dev-only makefile, some sort of a draft to quickly
+# build the project with couple of testing assets. IT WILL BE DELETED at some
+# point in favour of more elaborated build system (CMake/autotools).
+
 # Makefile generating parser for domain-specific language detector selection
 # This will require you to have YACC/LEX installed.
 # The resulting sources may be used as is, however (without those dependencies)
+# Does NOT provide any kind of install target.
 
 YACC=bison
 LEX=flex

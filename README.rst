@@ -6,7 +6,7 @@ This is a readme file for *hierarchical data query language* (HDQL).
 HDQL is domain-specific language designed to be embeddable and reasonably
 performant add-on to C/C++ projects dealing with streamed data of complex
 object model. Typical applications are various scientific tasks, converters,
-etc.
+etc, when the data has well-defined schema.
 
 Usage niche is in between of low-level data processing applications usually
 done with FPGA and ASM-based low-level software and high level analyzis means
@@ -214,47 +214,4 @@ Boolean aggregate methods: ``any()``, ``every()``, ``none()``:
 
 Contrary to classic definition of aggregate methods, these functions operates
 on the entire query result set, rather than various grouped ones.
-
-TODO Lists
-==========
-
-Language Level
---------------
-
-#. (done) basic query syntax and static compounds C API
-#. (done) key selection (``[]`` operator)
-#. (done) virtual compounds and scope operator
-#. (done) scalar arithmetic
-#. (done) scalar arithmetic on static values
-#. (done) value filtering
-#. (in progress) collection-and-scalar arithmetic
-#. Constants (``pi``, ``exp``) and user-defined static values (external
-   variables for units, like ``cm``, ``GeV``, and calibration values etc)
-#. Support for scalar functions and implicit type casting (say, ``sin()`` is
-   defined for floating point type, but shall accept also integers)
-#. Support for aggregate functions (``sum()``, ``average()``, ``any()``, etc)
-#. Standard mathematical functions (``log()``, ``atan2()``, etc)
-#. Assignment and value modification operators
-#. Ternary operator (``?:``) and in-range comparison (``a < b <= c``)
-
-API Level
----------
-
-#. (done) Compounds C API
-#. (done) Query API
-#. (done) Flat collection key views
-#. (done) Basic type cast helpers
-#. Page-aligned and pool allocators
-#. C++ wrappers API
-   * Template-based interface implementation generators for structs
-   * Laconic query representation
-
-Project Level
--------------
-
-#. (done) Basic UTs (using gtest?)
-#. Build system (CMake, autotools, whatever)
-#. Sphinx documentation page
-
-...and more UTs!
 

@@ -20,6 +20,7 @@ Items done (changelog)
  - LNG6. [done] value filtering
  - LNG7. [done] collection-and-scalar arithmetic
  - LNG9. [done] Support for scalar functions and implicit type casting
+ - API2. [done] CMake/autotools-based build configuration system
 
 LNG11. Standard mathematical functions (``log()``, ``atan2()``, etc)
 ~~~~
@@ -116,11 +117,6 @@ DOC3. API doc
 
 Current doxygen-based comments are very crude, we should provide a better
 structure at some point.
-
-API2. CMake/autotools-based build configuration system
-~~~~
-
-A must for applications.
 
 LNG20. Key variables (``coll[foo:=bar]?``)
 ~~~~

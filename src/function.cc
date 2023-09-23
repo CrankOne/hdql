@@ -73,10 +73,30 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions) {
     #define _M_ADD_STD_MATH_FUNC(fname) \
         hdql_functions_define(functions, # fname, hdql::helpers::math_f_construct(:: fname), reinterpret_cast<void*>(&:: fname));
     _M_ADD_STD_MATH_FUNC(sin);
+    _M_ADD_STD_MATH_FUNC(asin);
+    _M_ADD_STD_MATH_FUNC(sinh);
+
     _M_ADD_STD_MATH_FUNC(cos);
-    _M_ADD_STD_MATH_FUNC(sqrt);
+    _M_ADD_STD_MATH_FUNC(acos);
+    _M_ADD_STD_MATH_FUNC(cosh);
+
+    _M_ADD_STD_MATH_FUNC(tan);
+    _M_ADD_STD_MATH_FUNC(tanh);
+    _M_ADD_STD_MATH_FUNC(atan);
     _M_ADD_STD_MATH_FUNC(atan2);
-    // ...
+    
+    _M_ADD_STD_MATH_FUNC(sqrt);
+    _M_ADD_STD_MATH_FUNC(pow);
+    _M_ADD_STD_MATH_FUNC(floor);
+    _M_ADD_STD_MATH_FUNC(ceil);
+    _M_ADD_STD_MATH_FUNC(fabs);
+    _M_ADD_STD_MATH_FUNC(fmod);
+
+    _M_ADD_STD_MATH_FUNC(log);
+    _M_ADD_STD_MATH_FUNC(exp);
+    _M_ADD_STD_MATH_FUNC(log10);
+
+    // ... other math functions?
     #undef _M_ADD_STD_MATH_FUNC
     return 0;
 }

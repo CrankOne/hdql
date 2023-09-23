@@ -130,7 +130,10 @@ target_sources (hdql PUBLIC FILE_SET HEADERS
           include/hdql/query-product.h
           include/hdql/query.h
           include/hdql/types.h
-          include/hdql/value.h)
+          include/hdql/value.h
+          include/hdql/helpers/compounds.hh
+          include/hdql/helpers/functions.hh
+          )
 include (GNUInstallDirs)
 install (TARGETS hdql
     EXPORT ${CMAKE_PROJECT_NAME}Targets

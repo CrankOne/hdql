@@ -9,6 +9,7 @@
 #include <typeinfo>
 #include <typeindex>
 #include <cstring>
+#include <map>
 
 #include <iostream>  // XXX, dev only
 
@@ -108,20 +109,6 @@ struct IndirectAccessTraits<T*, void> {  // todo: const, volatile, const volatil
     static inline T * get(T * ptr) { return ptr; }
 };
 
-#if 0
-template<typename T>
-struct IndirectAccessTraits<T
-        , typename std::enable_if<!( std::is_standard_layout<T>::value
-                                  && std::is_trivial<T>::value
-                                  && !std::is_pointer<T>::value
-                                   )>::type
-        > {  // todo: const, volatile, const volatile
-    static constexpr bool provides = true;
-    typedef T ReferencedType;
-    static inline T * get(T & obj) { return &obj; }
-};
-#endif
-
 template<typename T>
 struct IndirectAccessTraits<std::shared_ptr<T>, void> {  // todo: const, volatile, const volatile
     static constexpr bool provides = true;
@@ -135,14 +122,18 @@ template<typename T> struct STLContainerTraits {
     static constexpr bool isOfType = false;
 };
 
+
 //
 // Map of instances (TODO: not tested)
 template< typename KeyT
         , typename ValueT
+        , typename HashT
+        , typename KeyEqualT
+        , typename AllocatorT
         >
-struct STLContainerTraits< std::unordered_map<KeyT, ValueT> > {
+struct STLContainerTraits< std::unordered_map<KeyT, ValueT, HashT, KeyEqualT, AllocatorT> > {
     static constexpr bool isOfType = true;
-    typedef std::unordered_map<KeyT, ValueT> Type;
+    typedef std::unordered_map<KeyT, ValueT, HashT, KeyEqualT, AllocatorT> Type;
     typedef typename Type::iterator Iterator;
     typedef typename IndirectAccessTraits<ValueT>::ReferencedType ValueType;
     typedef KeyT Key;
@@ -165,10 +156,98 @@ struct STLContainerTraits< std::unordered_map<KeyT, ValueT> > {
 // Map of pointers to instances
 template< typename KeyT
         , typename ValueT
+        , typename HashT
+        , typename KeyEqualT
+        , typename AllocatorT
         >
-struct STLContainerTraits< std::unordered_map<KeyT, std::shared_ptr<ValueT>> > {
+struct STLContainerTraits< std::unordered_map<KeyT, std::shared_ptr<ValueT>, HashT, KeyEqualT, AllocatorT> > {
     static constexpr bool isOfType = true;
-    typedef std::unordered_map<KeyT, std::shared_ptr<ValueT>> Type;
+    typedef std::unordered_map<KeyT, std::shared_ptr<ValueT>, HashT, KeyEqualT, AllocatorT> Type;
+    typedef typename Type::iterator Iterator;
+    typedef ValueT ValueType;
+    typedef KeyT Key;
+
+    static ValueType * get(Iterator it) {
+        return IndirectAccessTraits<std::shared_ptr<ValueT>>::get(it->second);
+    }
+
+    static void get_key( const Type &
+                       , Iterator it
+                       , hdql_CollectionKey & key
+                       ) {
+        const auto v = it->first;
+        assert(key.pl.datum);
+        memcpy(key.pl.datum, &v, sizeof(KeyT));
+    }
+};
+
+//
+// Ordered map of pointers to instances (TODO: test)
+template< typename KeyT
+        , typename ValueT
+        , typename CompareT
+        , typename AllocatorT
+        >
+struct STLContainerTraits< std::map<KeyT, std::shared_ptr<ValueT>, CompareT, AllocatorT> > {
+    static constexpr bool isOfType = true;
+    typedef std::map<KeyT, std::shared_ptr<ValueT>, CompareT, AllocatorT> Type;
+    typedef typename Type::iterator Iterator;
+    typedef ValueT ValueType;
+    typedef KeyT Key;
+
+    static ValueType * get(Iterator it) {
+        return IndirectAccessTraits<std::shared_ptr<ValueT>>::get(it->second);
+    }
+
+    static void get_key( const Type &
+                       , Iterator it
+                       , hdql_CollectionKey & key
+                       ) {
+        const auto v = it->first;
+        assert(key.pl.datum);
+        memcpy(key.pl.datum, &v, sizeof(KeyT));
+    }
+};
+
+//
+// Ordered multimap of pointers to instances (TODO: test)
+template< typename KeyT
+        , typename ValueT
+        , typename CompareT
+        , typename AllocatorT
+        >
+struct STLContainerTraits< std::multimap<KeyT, std::shared_ptr<ValueT>, CompareT, AllocatorT> > {
+    static constexpr bool isOfType = true;
+    typedef std::multimap<KeyT, std::shared_ptr<ValueT>, CompareT, AllocatorT> Type;
+    typedef typename Type::iterator Iterator;
+    typedef ValueT ValueType;
+    typedef KeyT Key;
+
+    static ValueType * get(Iterator it) {
+        return IndirectAccessTraits<std::shared_ptr<ValueT>>::get(it->second);
+    }
+
+    static void get_key( const Type &
+                       , Iterator it
+                       , hdql_CollectionKey & key
+                       ) {
+        const auto v = it->first;
+        assert(key.pl.datum);
+        memcpy(key.pl.datum, &v, sizeof(KeyT));
+    }
+};
+
+//
+// Unordered map of pointers to instances
+template< typename KeyT
+        , typename ValueT
+        , typename HashT
+        , typename KeyEqualT
+        , typename AllocatorT
+        >
+struct STLContainerTraits< std::unordered_multimap<KeyT, std::shared_ptr<ValueT>, HashT, KeyEqualT, AllocatorT> > {
+    static constexpr bool isOfType = true;
+    typedef std::unordered_multimap<KeyT, std::shared_ptr<ValueT>, HashT, KeyEqualT, AllocatorT> Type;
     typedef typename Type::iterator Iterator;
     typedef ValueT ValueType;
     typedef KeyT Key;
@@ -282,8 +361,8 @@ struct TypeInfoMixin<T, typename std::enable_if<std::is_arithmetic<T>::value>::t
 };  // type info mixin for arithmetic types
 
 template< typename T>
-struct TypeInfoMixin<T, typename std::enable_if< std::is_standard_layout<T>::value
-                                              && (!detail::is_shared_ptr<T>::value)
+struct TypeInfoMixin<T, typename std::enable_if< /*std::is_standard_layout<T>::value
+                                              && */(!detail::is_shared_ptr<T>::value)
                                               && !std::is_arithmetic<T>::value>::type> {
     static constexpr bool isCompound = true;
     static hdql_Compound *
@@ -845,7 +924,10 @@ class CompoundTypes : public Compounds {
                 = hdql_types_get_type_code(vts
                         , detail::ArithTypeNames<typename helpers::IFace<ptr, SelectionT>::Key>::name );
             if(0x0 == keyTypeCode) {
-                throw std::runtime_error("Unknown key type.");  // TODO: elaborate
+                char errBf[128];
+                snprintf(errBf, sizeof(errBf), "Unknown key type: \"%s\"."
+                        , detail::ArithTypeNames<typename helpers::IFace<ptr, SelectionT>::Key>::name);
+                throw std::runtime_error(errBf);
             }
             hdql_AttrDef * ad = helpers::IFace<ptr, SelectionT>::create_attr_def(
                           &typeInfo

@@ -333,6 +333,36 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     #undef _M_add_std_type
     if(hadErrors) return hadErrors;
     // add aliases
+    
+    #define _M_add_alias(stdType, alias) { \
+        assert(sizeof(stdType) == sizeof(alias)); \
+        hdql_ValueTypeCode_t tc = hdql_types_get_type_code(vt, #stdType); \
+        assert(0x0 != tc); \
+        hadErrors = hdql_types_alias(vt, #alias, tc) > 0 ? 0 : 1; \
+        assert(0 == hadErrors); \
+    }
+
+    _M_add_alias(uint8_t, unsigned char);
+    _M_add_alias(int8_t, char);
+    _M_add_alias(uint16_t, unsigned short);
+    _M_add_alias(int16_t, short);
+    _M_add_alias(uint32_t, unsigned int);
+    _M_add_alias(int32_t, int);
+    _M_add_alias(uint64_t, unsigned long);
+    _M_add_alias(uint64_t, size_t);
+    _M_add_alias(int64_t, long);
+    _M_add_alias(int64_t, hdql_Int_t);
+    _M_add_alias(double, hdql_Flt_t);
+    _M_add_alias(bool, hdql_Bool_t);
+
+    #if 0
+    // TODO: derive it somehow, it can be wrong...
+    hdql_ValueTypeCode_t stdUCharTypeCode = hdql_types_get_type_code(vt, "uint8_t");
+    assert(0 != stdUCharTypeCode);
+    assert(sizeof(unsigned char) == sizeof(uint8_t));
+    hadErrors = hdql_types_alias(vt, "unsigned char", stdUCharTypeCode) > 0 ? 0 : 1;
+    assert(0 == hadErrors);
+
     // TODO: derive it somehow, it can be wrong...
     hdql_ValueTypeCode_t stdIntTypeCode = hdql_types_get_type_code(vt, "int32_t");
     assert(0 != stdIntTypeCode);
@@ -382,6 +412,7 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     assert(0 != hdqlBoolTypeCode);
     hadErrors = hdql_types_alias(vt, "hdql_Bool_t", hdqlBoolTypeCode) > 0 ? 0 : 1;
     assert(0 == hadErrors);
+    #endif
 
     return hadErrors;
 }

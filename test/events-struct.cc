@@ -970,8 +970,6 @@ namespace test {
 helpers::Compounds
 define_compound_types(hdql_Context_t context) {
     #if 1
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
     helpers::CompoundTypes types(context);
     types.new_compound<RawData>("RawData")
         .attr<&RawData::time>("time")

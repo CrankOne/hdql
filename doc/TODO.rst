@@ -21,9 +21,7 @@ Items done (changelog)
  - LNG7. [done] collection-and-scalar arithmetic
  - LNG9. [done] Support for scalar functions and implicit type casting
  - API2. [done] CMake/autotools-based build configuration system
-
-LNG11. Standard mathematical functions (``log()``, ``atan2()``, etc)
-~~~~
+ - LNG11. [done, 444d554] Standard mathematical functions (``log()``, ``atan2()``, etc)
 
 LNG12. Support for scalar arithmetics attribute
 ~~~~

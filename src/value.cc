@@ -399,8 +399,8 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.init = _str_init;
         vti.destroy = _str_destroy;
         vti.copy = _str_copy;
-        //int rc = hdql_types_define(vt, &vti);
-        //if(rc < 1) { hadErrors = 1; }
+        int rc = hdql_types_define(vt, &vti);
+        if(rc < 1) { hadErrors = 1; }
     }
 
     #if 0

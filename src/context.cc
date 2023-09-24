@@ -58,6 +58,8 @@ struct hdql_Context {
     std::list<std::pair<hdql_Err_t, std::string>> errors;
 
     std::unordered_map<hdql_Datum_t, VariadicDatumInfo> variadicDataSizes;
+
+    std::unordered_map<std::string, void *> customData;
 };
 
 extern "C" hdql_Context_t
@@ -270,5 +272,25 @@ hdql_context_destroy(hdql_Context_t ctx) {
     if(ctx->valueTypes)
         _hdql_value_types_table_destroy(ctx->valueTypes);
     delete ctx;
+}
+
+
+extern "C" int
+hdql_context_custom_data_add(
+          hdql_Context_t context
+        , const char * name
+        , void * ptr ) {
+    auto ir = context->customData.emplace(name, ptr);
+    if(!ir.second) return -1;
+    return 0;
+}
+
+void *
+hdql_context_custom_data_get( hdql_Context_t context
+                            , const char * name
+                            ) {
+    auto it = context->customData.find(name);
+    if(context->customData.end() == it) return NULL;
+    return it->second;
 }
 

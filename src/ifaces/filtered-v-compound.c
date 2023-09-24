@@ -11,6 +11,8 @@ struct FilteredVCompoundState {
     /* Ptr to query that should control the instances */
     struct hdql_Query * filterQuery;
     const struct hdql_ValueInterface * vi;
+    hdql_Bool_t logicResult;
+    hdql_TypeConverter toLogicConverter;
     // ...
 };
 
@@ -26,9 +28,16 @@ _filtered_compound_scalar_interface_instantiate(
     state->filterQuery = (struct hdql_Query *) defData_;
     const struct hdql_AttrDef * ad = hdql_query_top_attr(state->filterQuery);
     assert(ad);
+    hdql_ValueTypeCode_t valueTCode = hdql_attr_def_get_atomic_value_type_code(ad);
     state->vi = hdql_types_get_type( hdql_context_get_types(ctx)
-            , hdql_attr_def_get_atomic_value_type_code(ad));
-    assert(state->vi->get_as_logic);
+            , valueTCode);
+    /* allocate logic result */
+    struct hdql_ValueTypes * vts = hdql_context_get_types(ctx);
+    hdql_ValueTypeCode_t logicCode = hdql_types_get_type_code(vts, "hdql_Bool_t");
+    assert(0x0 != logicCode);
+    /* get converter */
+    struct hdql_Converters * cnvs = hdql_context_get_conversions(ctx);
+    state->toLogicConverter = hdql_converters_get(cnvs, logicCode, valueTCode);
     return (hdql_Datum_t) state;
 }
 
@@ -45,7 +54,10 @@ _filtered_compound_scalar_interface_dereference(
     if(NULL == r) return NULL;
     hdql_query_reset(s->filterQuery, root, ctx);
     assert(r);
-    if(s->vi->get_as_logic(r)) return root;
+    int rc = s->toLogicConverter(((hdql_Datum_t) &(s->logicResult)), r);
+    assert(0 == rc); /*todo: handle rc != 0*/
+    
+    if(s->logicResult) return root;
     return NULL;
 }
 

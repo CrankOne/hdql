@@ -101,14 +101,16 @@ hdql_types_get_type_code(const struct hdql_ValueTypes * vt, const char * name) {
 // NOT exposed to public header
 extern "C" struct hdql_ValueTypes *
 _hdql_value_types_table_create(hdql_Context_t ctx) {
-    // TODO: use ctx-based alloc
+    // todo: use ctx-based alloc? Seem to be used mostly during interpretation
+    // stage, and if it won't affect performance, there is no need to keep
+    // it in fast access area
     return new hdql_ValueTypes;
 }
 
 // NOT exposed to public header
 extern "C" void
 _hdql_value_types_table_destroy(struct hdql_ValueTypes * vt) {
-    // TODO: use ctx-based free
+    // todo: use ctx-based free, see note for _hdql_value_types_table_create()
     assert(vt);
     delete vt;
 }
@@ -121,20 +123,25 @@ hdql_create_value(hdql_ValueTypeCode_t tc, hdql_Context_t ctx) {
     const struct hdql_ValueInterface * vti = hdql_types_get_type(vtx, tc);
     assert(vti);
     if(NULL == vti) return NULL;
-    assert(vti->size > 0);
+    if(vti->size > 0) {
     if(vti->size <= 0) return NULL;
-    /* TODO: allocate in context, using pool allocator */
-    hdql_Datum_t r = (hdql_Datum_t) malloc(vti->size);
-    if(vti->init) {
-        int rc = vti->init(r, vti->size, ctx);
-        if(rc != 0) {
-            fprintf( stderr, "Failed to initialize HDQL type instance \"%s\": %d"
-                   , vti->name, rc );
-            free(r);  // TODO: free by ctx allocator
-            return NULL;
+        // const-size data type
+        hdql_Datum_t r = hdql_context_alloc(ctx, vti->size);
+        if(vti->init) {
+            int rc = vti->init(r, vti->size, ctx);
+            if(rc != 0) {
+                fprintf( stderr, "Failed to initialize HDQL type instance \"%s\": %d"
+                       , vti->name, rc );
+                hdql_context_free(ctx, r);
+                return NULL;
+            }
         }
+        return r;
+    } else {
+        // variadic size data type
+        assert(0);  // TODO
+        // ...
     }
-    return r;
 }
 
 extern "C" int
@@ -152,7 +159,7 @@ hdql_destroy_value(hdql_ValueTypeCode_t tc, hdql_Datum_t r, hdql_Context_t ctx) 
             return -4;
         }
     }
-    free(r);  // TODO: free by ctx allocator
+    hdql_context_free(ctx, r);
     return 0;
 }
 
@@ -254,6 +261,7 @@ struct StdArithInterface {
         { return StrTraits<T>::from_string(*reinterpret_cast<T*>(d_), strexpr); }
 };
 
+#if 1
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
 namespace test {
 TEST(CommonTypes, ShortIntegerParsingWorks) {
@@ -289,6 +297,7 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
 }
 }  // namespace
 #endif
+#endif
 }  // namespace hdql
 
 // TODO: whether or not current platform supports these types may change, we
@@ -307,6 +316,34 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
     m( "double",    double )                \
     // ... other standard types?
 
+
+namespace {
+int
+_str_init( hdql_Datum_t
+         , size_t
+         , hdql_Context_t
+         ) {
+    assert(0);  // TODO
+}
+
+int
+_str_destroy( hdql_Datum_t
+            , size_t
+            , hdql_Context_t
+            ) {
+    assert(0);  // TODO
+}
+
+int
+_str_copy( hdql_Datum_t dest
+          , const hdql_Datum_t src
+          , size_t
+          , hdql_Context_t
+          ) {
+    assert(0);  // TODO
+}
+}  // anonymous namespace
+
 extern "C" int
 hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     int hadErrors = 0;
@@ -317,13 +354,14 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.init = NULL; \
         vti.destroy = NULL; \
         vti.size = hdql::StdArithInterface<ctp>::size; \
+        vti.isVariadic = 0x0; \
         vti.copy = &hdql::StdArithInterface<ctp>::copy; \
-        vti.get_as_logic  = &hdql::StdArithInterface<ctp>::get_as_bool; \
-        vti.set_as_logic  = &hdql::StdArithInterface<ctp>::set_as_bool; \
-        vti.get_as_int    = &hdql::StdArithInterface<ctp>::get_as_int; \
-        vti.set_as_int    = &hdql::StdArithInterface<ctp>::set_as_int; \
-        vti.get_as_float  = &hdql::StdArithInterface<ctp>::get_as_float; \
-        vti.set_as_float  = &hdql::StdArithInterface<ctp>::set_as_float; \
+        vti.get_as_logic = &hdql::StdArithInterface<ctp>::get_as_bool; \
+        vti.set_as_logic = &hdql::StdArithInterface<ctp>::set_as_bool; \
+        vti.get_as_int = &hdql::StdArithInterface<ctp>::get_as_int; \
+        vti.set_as_int = &hdql::StdArithInterface<ctp>::set_as_int; \
+        vti.get_as_float = &hdql::StdArithInterface<ctp>::get_as_float; \
+        vti.set_as_float = &hdql::StdArithInterface<ctp>::set_as_float; \
         vti.get_as_string = &hdql::StdArithInterface<ctp>::get_as_string; \
         vti.set_from_string = &hdql::StdArithInterface<ctp>::set_from_string; \
         int rc = hdql_types_define(vt, &vti); \
@@ -354,6 +392,16 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     _M_add_alias(int64_t, hdql_Int_t);
     _M_add_alias(double, hdql_Flt_t);
     _M_add_alias(bool, hdql_Bool_t);
+    // string is variable-sized type
+    {
+        hdql_ValueInterface vti;
+        vti.name = "string";
+        vti.init = _str_init;
+        vti.destroy = _str_destroy;
+        vti.copy = _str_copy;
+        int rc = hdql_types_define(vt, &vti);
+        if(rc < 1) { hadErrors = 1; }
+    }
 
     #if 0
     // TODO: derive it somehow, it can be wrong...

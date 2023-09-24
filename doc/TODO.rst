@@ -98,6 +98,28 @@ compound types. To implement this one has to think on closer cooperation of
 this helper and ``hdql::helpers::Compounds`` which at the first look is bad
 decision as it makes two optional parts of the API dependant.
 
+API2. Additional data associated/retrieved within context
+~~~
+
+Context is an object shared between various user's routines. That *can* be
+useful for tagged user's data, like:
+
+.. code-block:: cpp
+
+    // in user code
+    hdql_context_associate("one", (void*) one);
+
+    // in iface code
+    int one = *((int *) hdql_get("one"));
+
+A flaw here is that it is user's responsibility to bother on type validity...
+
+API3. Support for variadic-sized types
+~~~~
+
+Types with variadic sizes should be of use in certain applications, e.g. a
+string key in collections.
+
 DOC1. Sphinx/Doxygen-based documentation pages
 ~~~~
 
@@ -116,7 +138,7 @@ DOC3. API doc
 Current doxygen-based comments are very crude, we should provide a better
 structure at some point.
 
-LNG20. Key variables (``coll[foo:=bar]?``)
+LNG20. Key variables (``coll[foo:=bar]``)
 ~~~~
 
 Required in apps. Probably will require additional lexical features.

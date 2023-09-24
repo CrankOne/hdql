@@ -1,5 +1,6 @@
 #include "hdql/context.h"
 #include "hdql/compound.h"
+#include "hdql/errors.h"
 #include "hdql/function.h"
 #include "hdql/operations.h"
 #include "hdql/types.h"
@@ -32,9 +33,13 @@ extern "C" void _hdql_converters_destroy(struct hdql_Converters *, struct hdql_C
 //extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Context *);
 //extern "C" void _hdql_functions_destroy(struct hdql_Context *, struct hdql_Functions *);
 
+struct VariadicDatumInfo {
+    uint32_t nUsedBytes, nAllocatedBytes;
+};
+
 struct hdql_Context {
-#ifdef HDQL_TYPES_DEBUG
-std::unordered_map<hdql_Datum_t, std::string> typesByPtr;
+    #ifdef HDQL_TYPES_DEBUG
+    std::unordered_map<hdql_Datum_t, std::string> typesByPtr;
     #endif
 
     struct hdql_ValueTypes * valueTypes;
@@ -50,6 +55,8 @@ std::unordered_map<hdql_Datum_t, std::string> typesByPtr;
     std::list<hdql_Compound *> virtualCompounds;
 
     std::list<std::pair<hdql_Err_t, std::string>> errors;
+
+    std::unordered_map<hdql_Datum_t, VariadicDatumInfo> variadicDataSizes;
 };
 
 extern "C" hdql_Context_t
@@ -91,6 +98,98 @@ hdql_context_alloc( hdql_Context_t ctx
     // TODO: page-aligned/pool allocation
     return reinterpret_cast<hdql_Datum_t>(malloc(len));
 }
+
+
+extern "C" hdql_Datum_t
+hdql_context_variadic_datum_alloc( hdql_Context_t context
+                                 , uint32_t usedSize
+                                 , uint32_t preallocSize
+                                 ) {
+    assert(context);
+    if(0 == preallocSize) {
+        hdql_context_err_push(context, HDQL_ERR_MEMORY
+                    , "Bad size for new variadic data block: %ub"
+                    , preallocSize );
+        return NULL;
+    }
+    hdql_Datum_t newBlock = reinterpret_cast<hdql_Datum_t>(malloc(preallocSize));
+    if(NULL == newBlock) {
+        hdql_context_err_push(context, HDQL_ERR_MEMORY
+                    , "Failed to allocate new variadic data block of size %ub (to use %ub)"
+                    , preallocSize
+                    , usedSize
+                    );
+        return NULL;
+    }
+    auto ir = context->variadicDataSizes.emplace(newBlock
+            , VariadicDatumInfo{.nUsedBytes=usedSize, .nAllocatedBytes=preallocSize});
+    if(!ir.second) {
+        hdql_context_err_push(context, HDQL_ERR_MEMORY
+                    , "Failed to emplace new allocated variadic data"
+                      " block %p of size %ub (to use %ub)"
+                    , newBlock
+                    , preallocSize
+                    , usedSize
+                    );
+        free(newBlock);
+        return NULL;
+    }
+    return ir.first->first;
+}
+
+extern "C" uint32_t
+hdql_context_variadic_datum_size(hdql_Context_t context, hdql_Datum_t datumPtr) {
+    auto it = context->variadicDataSizes.find(datumPtr);
+    if(context->variadicDataSizes.end() == it) return UINT32_MAX;
+    return it->second.nUsedBytes;
+}
+
+hdql_Datum_t
+hdql_context_variadic_datum_realloc(hdql_Context_t context, hdql_Datum_t datum, uint32_t size) {
+    assert(context);
+    assert(datum);
+    assert(size);
+    auto it = context->variadicDataSizes.find(datum);
+    assert(context->variadicDataSizes.end() != it);
+    if(it->second.nAllocatedBytes >= size) {
+        it->second.nUsedBytes = size;
+        return it->first;
+    } else {
+        void * newData = realloc(datum, size);
+        if(NULL == newData) {
+            hdql_context_err_push(context, HDQL_ERR_MEMORY
+                        , "Failed to reallocate variadic data block of size %ub"
+                        , size );
+            return NULL;
+        }
+        if(it->first == newData) {
+            it->second.nAllocatedBytes = size;
+            it->second.nUsedBytes = size;
+            return it->first;
+        } else {
+            context->variadicDataSizes.erase(it);
+            auto ir = context->variadicDataSizes.emplace(
+                      reinterpret_cast<hdql_Datum_t>(newData)
+                    , VariadicDatumInfo{.nUsedBytes=size, .nAllocatedBytes=size});
+            if(!ir.second) {
+                hdql_context_err_push(context, HDQL_ERR_MEMORY
+                        , "Failed to emplace new variadic data ptr %p", newData);
+                free(newData);
+                return NULL;
+            }
+            return ir.first->first;
+        }
+    }
+}
+
+extern "C" void
+hdql_context_variadic_datum_free(hdql_Context_t context, hdql_Datum_t datumPtr) {
+    auto it = context->variadicDataSizes.find(datumPtr);
+    if(context->variadicDataSizes.end() == it) return;
+    free(datumPtr);
+    context->variadicDataSizes.erase(it);
+}
+
 
 #ifdef HDQL_TYPES_DEBUG
 hdql_Datum_t

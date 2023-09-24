@@ -29,13 +29,32 @@ struct hdql_ValueTypes;
  *       support eponymous operation.
  * */
 struct hdql_ValueInterface {
+    /**\brief Human-readable type name, used to uniquely identify type in
+     *        various contexts
+     *
+     * This name most of the time matches C/C++ type name and is often used by
+     * user code and helpers to retrieve type code.
+     *
+     * \note Types can be aliased with `hdql_types_alias()`
+     * */
     const char * name;
 
-    size_t size;
+    /**\brief Static size of the datum of type
+     *
+     * May be set to zero for dynamically-sized types.
+     *
+     * \todo Dynamic-sized type definitions needs to be tested */
+    size_t size:48;
+    /**\brief If set, type is of variadic size */
+    size_t isVariadic:1;
+    /**\brief Type datum constructor */
     int (*init)(hdql_Datum_t, size_t, hdql_Context_t);
+    /**\brief Type datum destructor */
     int (*destroy)(hdql_Datum_t, size_t, hdql_Context_t);
+    /**\brief Type datum copy function */
     int (*copy)(hdql_Datum_t dest, const hdql_Datum_t src, size_t, hdql_Context_t);
 
+    #if 1
     /* todo: delete in favor of conversion funcs? */
     hdql_Bool_t (*get_as_logic)(const hdql_Datum_t);
     void (*set_as_logic)(hdql_Datum_t, hdql_Bool_t);
@@ -45,6 +64,7 @@ struct hdql_ValueInterface {
 
     hdql_Flt_t (*get_as_float)(const hdql_Datum_t);
     void (*set_as_float)(hdql_Datum_t, hdql_Flt_t);
+    #endif
 
     int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize);
     int (*set_from_string)(hdql_Datum_t, const char *);

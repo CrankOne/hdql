@@ -63,6 +63,29 @@ hdql_Datum_t hdql_context_check_type(hdql_Context_t, hdql_Datum_t, const char *)
 /**\brief Used to free C-type allocations */
 int hdql_context_free(hdql_Context_t, hdql_Datum_t);
 
+
+/**\brief Allocates "variadic datum"
+ *
+ * \returns NULL on allocation failure.
+ * */
+hdql_Datum_t hdql_context_variadic_datum_alloc(hdql_Context_t, uint32_t usedSize, uint32_t preallocSize);
+
+/**\brief Returns used size of "variadic datum" in bytes
+ *
+ * \returns `UINT32_MAX` on error
+ * */
+uint32_t hdql_context_variadic_datum_size(hdql_Context_t, hdql_Datum_t datumPtr);
+
+/**\brief Re-allocates variadic datum ptr
+ *
+ * \returns null pointer on error pushing error description in the context
+ * */
+hdql_Datum_t hdql_context_variadic_datum_realloc(hdql_Context_t, hdql_Datum_t, uint32_t);
+
+/**\brief Deletes variadic datum */
+void hdql_context_variadic_datum_free(hdql_Context_t, hdql_Datum_t);
+
+
 /**\brief Returns pointer to value types table */
 struct hdql_ValueTypes * hdql_context_get_types(hdql_Context_t ctx);
 

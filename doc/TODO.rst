@@ -22,6 +22,7 @@ Items done (changelog)
  - LNG9. [done] Support for scalar functions and implicit type casting
  - API2. [done] CMake/autotools-based build configuration system
  - LNG11. [done, 444d554] Standard mathematical functions (``log()``, ``atan2()``, etc)
+ - API2. [done, bdb18a6] Additional data associated/retrieved within context
 
 LNG12. Support for scalar arithmetics attribute
 ~~~~
@@ -56,8 +57,8 @@ LNG13. Implement standard functions/aggreagate methods
 LNG14. External constants
 ~~~~
 
-    Mathematical/physics/user defined constants as both dynamic and static
-    expressions: exp/pi/cm/mm/etc, connection with external dictionaries, etc.
+Mathematical/physics/user defined constants as both dynamic and static
+expressions: exp/pi/cm/mm/etc, connection with external dictionaries, etc.
 
 LNG15. Assignment/data modification operators
 ~~~~
@@ -98,22 +99,6 @@ compound types. To implement this one has to think on closer cooperation of
 this helper and ``hdql::helpers::Compounds`` which at the first look is bad
 decision as it makes two optional parts of the API dependant.
 
-API2. Additional data associated/retrieved within context
-~~~
-
-Context is an object shared between various user's routines. That *can* be
-useful for tagged user's data, like:
-
-.. code-block:: cpp
-
-    // in user code
-    hdql_context_associate("one", (void*) one);
-
-    // in iface code
-    int one = *((int *) hdql_get("one"));
-
-A flaw here is that it is user's responsibility to bother on type validity...
-
 API3. Support for variadic-sized types
 ~~~~
 
@@ -142,6 +127,17 @@ LNG20. Key variables (``coll[foo:=bar]``)
 ~~~~
 
 Required in apps. Probably will require additional lexical features.
+
+LNG21. UT for functions
+~~~~
+
+Functions lack unit test. Currently expressions like
+
+.. code-block:: bash
+
+   ./hdql data1 '.hits{s := sin(.x)}.s'
+
+seem to work, but careful testing is needed.
 
 Fixes
 -----

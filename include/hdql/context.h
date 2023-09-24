@@ -34,6 +34,15 @@ extern "C" {
 #   endif  /* __cplusplus */
 #endif /* HDQL_TYPES_DEBUG */
 
+/** When set, context duplicates every error push to stderr
+ *
+ * By default pushed errors get accumulated in context's queue. Normally, to
+ * reveal these messages, user code must retrieve them at some point, but that
+ * might be missed or just tedious. This flag enables printing of every pushed
+ * error to stderr (in addition to keeping messages pushed in queue). */
+#define HDQL_CTX_PRINT_PUSH_ERROR 0x1
+
+
 struct hdql_AttrDef;
 struct hdql_Compound;
 struct hdql_Operations;
@@ -50,7 +59,7 @@ struct hdql_Query;
  *       so one should anticipate copying of the types table to have some sort
  *       of reentrant constant types table.
  * */
-hdql_Context_t hdql_context_create();
+hdql_Context_t hdql_context_create(uint32_t flags);
 
 /**\brief Used for C-types allocations */
 hdql_Datum_t hdql_context_alloc(hdql_Context_t, size_t);

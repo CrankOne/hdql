@@ -2,6 +2,7 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/operations.h"
 #include "hdql/query-key.h"
 #include "hdql/query.h"
@@ -17,7 +18,7 @@ namespace test {
 
 void
 TestingEventStruct::SetUp() {
-    _context = hdql_context_create();
+    _context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
 
     // reentrant table with type interfaces
     _valueTypes = hdql_context_get_types(_context);
@@ -563,7 +564,8 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _context);
     
-    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _context);
+    int rc = hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _context);
+    ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
     while(NULL != (r = hdql_query_get(q, keys, _context))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;

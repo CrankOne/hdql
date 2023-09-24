@@ -53,7 +53,7 @@ hdql_query_get_subject( struct hdql_Query * );
 int
 hdql_query_str( const struct hdql_Query *
               , char * strbuf, size_t buflen
-              , struct hdql_ValueTypes *
+              , hdql_Context_t
               );
 
 /**\brief Queries within a query result
@@ -108,12 +108,12 @@ hdql_query_get( struct hdql_Query * query
               , hdql_Context_t ctx
               );
 
-void hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
+int hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
 
 void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */
-void hdql_query_dump(FILE *, struct hdql_Query *, struct hdql_ValueTypes *);
+void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
 
 #ifdef __cplusplus
 }  // extern "C"

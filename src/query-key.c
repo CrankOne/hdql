@@ -367,7 +367,7 @@ _hdql_key_str(
         return 0;
     }
     char bf[64];
-    vi->get_as_string(key->pl.datum, bf, sizeof(bf));
+    vi->get_as_string(key->pl.datum, bf, sizeof(bf), ctx);
     snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
             , " (%zu:%zu:%s:\"%s\")", queryLevel, queryNoInLevel, vi->name, bf );
     return 0;

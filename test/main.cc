@@ -1,5 +1,6 @@
 #include "events-struct.hh"
 #include "hdql/attr-def.h"
+#include "hdql/errors.h"
 #include "hdql/helpers/compounds.hh"
 #include "samples.hh"
 
@@ -24,7 +25,7 @@
 
 static int
 test_query_on_data( int nSample, const char * expression ) {
-    hdql_Context_t ctx = hdql_context_create();
+    hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
 
     // reentrant table with type interfaces
     hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
@@ -76,7 +77,7 @@ test_query_on_data( int nSample, const char * expression ) {
     }
     assert(q);
     puts("-- query composition:");
-    hdql_query_dump(stdout, q, hdql_context_get_types(ctx));
+    hdql_query_dump(stdout, q, ctx);
     const hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
     // iterate over query results
     size_t nResult = 0;
@@ -93,7 +94,11 @@ test_query_on_data( int nSample, const char * expression ) {
     char flKStr[1024] = "";
 
     bool hadResult = false;
-    hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), ctx);
+    rc = hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), ctx);
+    if(HDQL_ERR_CODE_OK != rc) {
+        fprintf(stderr, "Can't initialize query with data object.\n");
+        return -1;  // TODO: cleanup? details?
+    }
 
     //puts("-- uninit keys topology:");
     //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
@@ -113,7 +118,7 @@ test_query_on_data( int nSample, const char * expression ) {
             if(nFKV) strcat(flKStr, ", ");
             if(kv[nFKV].interface && kv[nFKV].interface->get_as_string) {
                 char fkvBf[64];
-                kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->pl.datum, fkvBf, sizeof(fkvBf));
+                kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->pl.datum, fkvBf, sizeof(fkvBf), ctx);
                 strcat(flKStr, fkvBf);
             } else {
                 strcat(flKStr, "(no str.method)");
@@ -139,7 +144,7 @@ test_query_on_data( int nSample, const char * expression ) {
                         = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
                     if(vi && vi->get_as_string) {
                         char bf[32];
-                        vi->get_as_string(r, bf, sizeof(bf));
+                        vi->get_as_string(r, bf, sizeof(bf), ctx);
                         printf( "value=\"%s\"", bf );
                     } else {
                         fputs(" (no value interface)", stdout);
@@ -164,7 +169,7 @@ test_query_on_data( int nSample, const char * expression ) {
                                 , r, vi->name );
                     } else {
                         char valueBf[32];
-                        vi->get_as_string(r, valueBf, sizeof(valueBf));
+                        vi->get_as_string(r, valueBf, sizeof(valueBf), ctx);
                         printf( "scalar instance %p of type <%s> with value \"%s\""
                                 , r, vi->name, valueBf );
                     }
@@ -174,7 +179,7 @@ test_query_on_data( int nSample, const char * expression ) {
                         = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
                     if(vi && vi->get_as_string) {
                         char bf[32];
-                        vi->get_as_string(r, bf, sizeof(bf));
+                        vi->get_as_string(r, bf, sizeof(bf), ctx);
                         printf( "value=\"%s\"", bf );
                     } else {
                         fputs(" (no value interface)", stdout);

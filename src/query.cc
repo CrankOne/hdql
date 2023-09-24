@@ -394,6 +394,7 @@ QueryState::get_value( hdql_Datum_t & value
         if(state.scalar.isVisited)
             return false;
         const hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(subject);
+        assert(iface->dereference);
         value = iface->dereference( owner
                 , state.scalar.dynamicSuppData
                 , keyPtr
@@ -467,6 +468,10 @@ QueryState::reset( hdql_Datum_t newOwner
                         , fwdQ ? fwdQ : iface->definitionData
                         , ctx
                         );
+                if(NULL == state.scalar.dynamicSuppData) {
+                    throw std::runtime_error("Failed to instantiate"
+                            " access state object for scalar attribute");
+                }
             }
             assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
             state.scalar.dynamicSuppData = iface->reset( newOwner
@@ -501,8 +506,9 @@ hdql_query_get_subject( struct hdql_Query * q ) {
 extern "C" int
 hdql_query_str( const struct hdql_Query * q
               , char * strbuf, size_t buflen
-              , hdql_ValueTypes * vts
+              , hdql_Context_t context
               ) {
+    struct hdql_ValueTypes * vts = hdql_context_get_types(context);
     if(NULL == q || 0 == buflen || NULL == strbuf)
         return HDQL_ERR_BAD_ARGUMENT;
     size_t nUsed = 0;
@@ -527,7 +533,7 @@ hdql_query_str( const struct hdql_Query * q
         // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
         _M_pr("%p which is ", hdql_attr_def_fwd_query(q->subject) );
         return hdql_query_str( hdql_attr_def_fwd_query(q->subject)
-                , strbuf + nUsed, buflen - nUsed, vts );
+                , strbuf + nUsed, buflen - nUsed, context );
     }
     if(hdql_attr_def_is_atomic(q->subject)) {
         // "[static ](collection|scalar) of atomic type <%s>"
@@ -546,7 +552,7 @@ hdql_query_str( const struct hdql_Query * q
                 if(vi->get_as_string) {
                     char vBf[64];
                     int rc = vi->get_as_string(hdql_attr_def_get_static_value(q->subject)
-                                , vBf, sizeof(vBf));
+                                , vBf, sizeof(vBf), context);
                     if(0 == rc) {
                         _M_pr(" =%s", vBf);
                     } else {
@@ -587,12 +593,18 @@ hdql_query_get( struct hdql_Query * query
     return current->result;
 }
 
-extern "C" void
+extern "C" int
 hdql_query_reset( struct hdql_Query * query
                 , hdql_Datum_t owner
                 , hdql_Context_t ctx
                 ) {
-    query->reset(owner, ctx);
+    try {
+        query->reset(owner, ctx);
+    } catch(std::runtime_error & e) {
+        hdql_context_err_push(ctx, HDQL_ERR_BAD_QUERY_STATE
+                , "Can't re-set the query: %s", e.what());
+    }
+    return HDQL_ERR_CODE_OK;
 }
 
 extern "C" void
@@ -655,12 +667,12 @@ hdql_query_attr(const struct hdql_Query * q) {
 extern "C" void
 hdql_query_dump( FILE * outf
                , struct hdql_Query * q
-               , hdql_ValueTypes * vts
+               , hdql_Context_t context
                ) {
     int rc;
     char buf[1024];
     for(; q; q = static_cast<hdql_Query *>(q->next)) {
-        rc = hdql_query_str(q, buf, sizeof(buf), vts);
+        rc = hdql_query_str(q, buf, sizeof(buf), context);
         if(0 != rc) return;
         fputs(" * ", outf);
         fputs(buf, outf);

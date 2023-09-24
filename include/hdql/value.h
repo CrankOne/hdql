@@ -54,7 +54,6 @@ struct hdql_ValueInterface {
     /**\brief Type datum copy function */
     int (*copy)(hdql_Datum_t dest, const hdql_Datum_t src, size_t, hdql_Context_t);
 
-    #if 1
     /* todo: delete in favor of conversion funcs? */
     hdql_Bool_t (*get_as_logic)(const hdql_Datum_t);
     void (*set_as_logic)(hdql_Datum_t, hdql_Bool_t);
@@ -64,10 +63,9 @@ struct hdql_ValueInterface {
 
     hdql_Flt_t (*get_as_float)(const hdql_Datum_t);
     void (*set_as_float)(hdql_Datum_t, hdql_Flt_t);
-    #endif
 
-    int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize);
-    int (*set_from_string)(hdql_Datum_t, const char *);
+    int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize, hdql_Context_t);
+    int (*set_from_string)(hdql_Datum_t, const char *, hdql_Context_t);
 };
 
 /**\brief Defines new data type

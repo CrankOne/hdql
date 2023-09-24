@@ -41,6 +41,7 @@ struct hdql_Context {
     #ifdef HDQL_TYPES_DEBUG
     std::unordered_map<hdql_Datum_t, std::string> typesByPtr;
     #endif
+    uint32_t flags;
 
     struct hdql_ValueTypes * valueTypes;
     struct hdql_Operations * operations;
@@ -60,9 +61,10 @@ struct hdql_Context {
 };
 
 extern "C" hdql_Context_t
-hdql_context_create() {
+hdql_context_create(uint32_t flags) {
     // ...
     auto ctx = new hdql_Context;
+    ctx->flags = flags;
     ctx->valueTypes = _hdql_value_types_table_create(ctx);
     ctx->converters = _hdql_converters_create(ctx);
     ctx->operations = _hdql_operations_create(ctx);
@@ -247,6 +249,10 @@ hdql_context_err_push( hdql_Context_t context
     va_start(argptr, format);
     vsnprintf(errBuf, sizeof(errBuf), format, argptr);
     va_end(argptr);
+    if(HDQL_CTX_PRINT_PUSH_ERROR & context->flags) {
+        fputs(errBuf, stderr);
+        fputc('\n', stderr);
+    }
     context->errors.push_back(std::pair<hdql_Err_t, std::string>(code, errBuf));
 }
 

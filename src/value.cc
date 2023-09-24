@@ -255,9 +255,9 @@ struct StdArithInterface {
     static void set_as_float(hdql_Datum_t d_, hdql_Flt_t newVal)
         { *reinterpret_cast<T*>(d_) = newVal; }
 
-    static int get_as_string( const hdql_Datum_t d_, char * buf, size_t bufSize)
+    static int get_as_string( const hdql_Datum_t d_, char * buf, size_t bufSize, hdql_Context_t)
         { return StrTraits<T>::to_string(*reinterpret_cast<const T*>(d_), buf, bufSize); }
-    static int set_from_string(hdql_Datum_t d_, const char * strexpr)
+    static int set_from_string(hdql_Datum_t d_, const char * strexpr, hdql_Context_t)
         { return StrTraits<T>::from_string(*reinterpret_cast<T*>(d_), strexpr); }
 };
 
@@ -268,19 +268,19 @@ TEST(CommonTypes, ShortIntegerParsingWorks) {
     // tests that basic parsing works and detects value boundaries (leving
     // original value intact)
     int16_t v;
-    int rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "32767");
+    int rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "32767", NULL);
     EXPECT_EQ(rc, 0);  // ok
     EXPECT_EQ(v, 32767);
-    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "32768");
+    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "32768", NULL);
     EXPECT_NE(rc, 0);  // overflow
     EXPECT_EQ(v, 32767);
-    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "-32768");
+    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "-32768", NULL);
     EXPECT_EQ(rc, 0);  // ok
     EXPECT_EQ(v, -32768);
-    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "-32769");
+    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "-32769", NULL);
     EXPECT_NE(rc, 0);  // underflow
     EXPECT_EQ(v, -32768);
-    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "345foo");
+    rc = StdArithInterface<int16_t>::set_from_string(reinterpret_cast<hdql_Datum_t>(&v), "345foo", NULL);
     EXPECT_NE(rc, 0);  // extra symbols on the tail (considered as error)
     EXPECT_EQ(v, -32768);
 }
@@ -291,7 +291,7 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
     int16_t v = std::numeric_limits<int16_t>::max();
     char bf[32];
     StdArithInterface<int16_t>::get_as_string(reinterpret_cast<hdql_Datum_t>(&v)
-            , bf, sizeof(bf));
+            , bf, sizeof(bf), NULL);
     EXPECT_STREQ(bf, "32767");
     // TODO: ... set as over-/underflow
 }
@@ -399,8 +399,8 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.init = _str_init;
         vti.destroy = _str_destroy;
         vti.copy = _str_copy;
-        int rc = hdql_types_define(vt, &vti);
-        if(rc < 1) { hadErrors = 1; }
+        //int rc = hdql_types_define(vt, &vti);
+        //if(rc < 1) { hadErrors = 1; }
     }
 
     #if 0

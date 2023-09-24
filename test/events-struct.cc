@@ -207,7 +207,7 @@ struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
 // Scalar attribute
 TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);
@@ -298,7 +298,7 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
 // Array of atomic values attribute, no selection
 TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);
@@ -415,7 +415,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
 // Array of atomic values attribute, no selection
 TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);
@@ -539,7 +539,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
 // Map of compound values attribute
 TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);
@@ -685,7 +685,7 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
 
 TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);
@@ -840,7 +840,7 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
 // Vector of compound values attribute
 TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     // Instantiate context
-    hdql_Context_t context = hdql_context_create();
+    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     hdql_ValueTypes * valTypes = hdql_context_get_types(context);
     assert(valTypes);
     hdql_value_types_table_add_std_types(valTypes);

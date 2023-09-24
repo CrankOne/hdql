@@ -1,5 +1,6 @@
 #include "hdql/attr-def.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
@@ -35,9 +36,20 @@ _filtered_compound_scalar_interface_instantiate(
     struct hdql_ValueTypes * vts = hdql_context_get_types(ctx);
     hdql_ValueTypeCode_t logicCode = hdql_types_get_type_code(vts, "hdql_Bool_t");
     assert(0x0 != logicCode);
-    /* get converter */
-    struct hdql_Converters * cnvs = hdql_context_get_conversions(ctx);
-    state->toLogicConverter = hdql_converters_get(cnvs, logicCode, valueTCode);
+    if(logicCode != valueTCode) {
+        /* get converter */
+        struct hdql_Converters * cnvs = hdql_context_get_conversions(ctx);
+        state->toLogicConverter = hdql_converters_get(cnvs, logicCode, valueTCode);
+        if(NULL == state->toLogicConverter) {
+            hdql_context_err_push( ctx, HDQL_ERR_CONVERSION
+                , "Type <%s> can't be converted to boolean value (to be used"
+                  " in filter expression).", state->vi->name );
+            hdql_context_free(ctx, (hdql_Datum_t) state);
+            return NULL;
+        }
+    } else {
+        state->toLogicConverter = NULL;
+    }
     return (hdql_Datum_t) state;
 }
 
@@ -52,10 +64,14 @@ _filtered_compound_scalar_interface_dereference(
     struct FilteredVCompoundState * s = hdql_cast(ctx, struct FilteredVCompoundState, s_);
     hdql_Datum_t r = hdql_query_get(s->filterQuery, NULL, ctx);
     if(NULL == r) return NULL;
-    hdql_query_reset(s->filterQuery, root, ctx);
+    hdql_query_reset(s->filterQuery, root, ctx);  // TODO: check why do we need this
     assert(r);
-    int rc = s->toLogicConverter(((hdql_Datum_t) &(s->logicResult)), r);
-    assert(0 == rc); /*todo: handle rc != 0*/
+    if(s->toLogicConverter) {
+        int rc = s->toLogicConverter(((hdql_Datum_t) &(s->logicResult)), r);
+        assert(0 == rc); /*todo: handle rc != 0*/
+    } else {
+        s->logicResult = *((hdql_Bool_t *) r);
+    }
     
     if(s->logicResult) return root;
     return NULL;

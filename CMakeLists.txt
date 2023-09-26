@@ -33,7 +33,8 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/fwd-query-as-scalar.c
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
-	              src/ifaces/filtered-v-compound.c)
+	              src/ifaces/filtered-v-compound.c
+                  src/funcs/generic-logic.c)
 
 add_compile_options(-Wall)
 

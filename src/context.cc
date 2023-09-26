@@ -74,7 +74,7 @@ hdql_context_create(uint32_t flags) {
 
 extern "C" hdql_Context_t
 hdql_context_create_descendant(hdql_Context_t parentContext) {
-    assert(0);  // TODO
+    assert(0);  // TODO: LNG19.
     return NULL;
 }
 

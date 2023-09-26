@@ -168,7 +168,7 @@ hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_
  * _________________________________________________/ External dynamic values
  */
 
-// ...
+// ... TODO: LNG23
 
 #ifdef __cplusplus
 }  // extern "C"

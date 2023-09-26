@@ -23,6 +23,7 @@ Items done (changelog)
  - API2. [done] CMake/autotools-based build configuration system
  - LNG11. [done, 444d554] Standard mathematical functions (``log()``, ``atan2()``, etc)
  - API2. [done, bdb18a6] Additional data associated/retrieved within context
+ - LNG14. [done, 7e64c17] External constants
 
 LNG12. Support for scalar arithmetics attribute
 ~~~~
@@ -53,9 +54,6 @@ LNG13. Implement standard functions/aggreagate methods
  - ``max()``/``min()``/``arb()`` -- element selection (augmented with support compounds
    with custom filters? sort()?)
  - ``mean()``/``stddev()``/``median()``/``standardize()``... -- statistics
-
-LNG14. External constants
-~~~~
 
 Mathematical/physics/user defined constants as both dynamic and static
 expressions: exp/pi/cm/mm/etc, connection with external dictionaries, etc.
@@ -140,6 +138,36 @@ Functions lack unit test. Currently expressions like
    ./hdql data1 '.hits{s := sin(.x)}.s'
 
 seem to work, but careful testing is needed.
+
+LNG22. UT for external constants
+~~~~
+
+Unit tests for external constants retrieval and substitution.
+
+
+LNG23. External dynamic values
+~~~~
+
+Support for external dynamic values that must be treated in situ (with special
+attribute definition iface) instead of statically defined constants currently
+acting as macro definition. One has to foresee arbitrary content as currently
+done for key selection expressions. Rationale:
+
+.. code-block:: hdql
+
+    .hits[:detID]{energyDepositionGeV := .rawEnergyDeposition * calibs[detID]}
+
+In the line above the calibration gets applied using hit's raw energy
+deposition using standard query, but to retrieve coefficient we refer to
+external dynamic calibration data and use memoized detector ID named
+as ``detID``. The ``calibs[detID]`` expression is the external constant.
+Particular grammar has to be understood, e.g.:
+
+.. code-block:: hdql
+
+    .hits[:detID]{energyDepositionGeV := .rawEnergyDeposition * $(CALIB:msadcCoeff[detID])}
+
+seems to be more explicit and readable (?) but less laconic...
 
 Fixes
 -----

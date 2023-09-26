@@ -54,7 +54,7 @@ struct hdql_ValueInterface {
     /**\brief Type datum copy function */
     int (*copy)(hdql_Datum_t dest, const hdql_Datum_t src, size_t, hdql_Context_t);
 
-    /* todo: delete in favor of conversion funcs? */
+    /* TODO: delete in favor of conversion funcs */
     hdql_Bool_t (*get_as_logic)(const hdql_Datum_t);
     void (*set_as_logic)(hdql_Datum_t, hdql_Bool_t);
 
@@ -106,6 +106,7 @@ int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
 
 hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
 int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
+
 
 /**\brief Callback type for value conversion
  *

@@ -127,6 +127,8 @@ LNG20. Key variables (``coll[foo:=bar]``)
 ~~~~
 
 Required in apps. Probably will require additional lexical features.
+Postponed. Apparently, it is better to let user's parser to manage this kind
+of stuff. Anyway, design is unclear, need more practical experience.
 
 LNG21. UT for functions
 ~~~~

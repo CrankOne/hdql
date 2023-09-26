@@ -107,6 +107,9 @@ int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
 hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
 int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
 
+/*                                                      ______________________
+ * ___________________________________________________/ Data type convertsion
+ */
 
 /**\brief Callback type for value conversion
  *
@@ -139,6 +142,33 @@ hdql_converters_get( struct hdql_Converters *cnvs
 /**\brief Adds standard conversion functions*/
 void
 hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts);
+
+/*                                                            ________________
+ * _________________________________________________________/ Constant values
+ */
+
+struct hdql_Constants;
+
+enum hdql_ExternValueType {
+    hdql_kExternValUndefined = 0,
+    hdql_kExternValIntType = 1,
+    hdql_kExternValFltType = 2,
+};
+
+int
+hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
+
+int
+hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
+
+enum hdql_ExternValueType
+hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
+
+/*                                                    ________________________
+ * _________________________________________________/ External dynamic values
+ */
+
+// ...
 
 #ifdef __cplusplus
 }  // extern "C"

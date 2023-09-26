@@ -15,6 +15,10 @@ project (hdql VERSION ${hdql_VERSION})
 option (BUILD_TESTS "Enable unit tests (affects object code being built)" OFF)
 option (TYPES_DEBUG "Enables some crude type checks" OFF)
 option (COVERAGE "Enables special compiler flags for coverage tests" OFF)
+# Forcing -fPIC option is useful when compiling static library that supposed to
+# be further linked in a share library. Still, users might want to disable this
+# option for their static libs, so we provide here option to suppress it
+option (FORCE_FPIC "Enables -fPIC for compiled code" ON)
 
 set (hdql_LIB hdql )
 set (hdql_SOURCES src/types.cc

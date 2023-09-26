@@ -10,6 +10,9 @@ hdql_err_str(hdql_Err_t code) {
         case HDQL_ERR_MEMORY:
             return "memory allocation error";
 
+        case HDQL_ERR_NAME_COLLISION:
+            return "an entry with such name already exists";
+
         case HDQL_ERR_TRANSLATION_FAILURE:
             return "general parser/lexer error";
         case HDQL_ERR_UNKNOWN_ATTRIBUTE:

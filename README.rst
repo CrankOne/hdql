@@ -262,3 +262,8 @@ or in debug build for development:
 In the former case libraries and executable will acquire a ``.dbg`` name
 suffix to facilitate user applications with switcheable version of the lib.
 
+Note for practical use: if one would like to build static lib to minimize
+shared lib dependencies in their project, but still be capable to link the
+resulting library in shared libs, consider speicfying cmake's
+``-DCMAKE_POSITION_INDEPENDENT_CODE=ON``.
+

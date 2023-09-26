@@ -1,5 +1,6 @@
 #include "hdql/value.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
 #include "hdql/query.h"
 
@@ -465,3 +466,98 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     return hadErrors;
 }
 
+/*                                                            ________________
+ * _________________________________________________________/ Constant values
+ */
+
+struct ConstValItem {
+    hdql_ExternValueType type;
+    union {
+        hdql_Int_t asInt;
+        hdql_Flt_t asFlt;
+    } value;
+
+    ConstValItem(hdql_Flt_t v) : type(hdql_kExternValFltType), value{.asFlt = v} {}
+    ConstValItem(hdql_Int_t v) : type(hdql_kExternValIntType), value{.asInt = v} {}
+};
+
+struct hdql_Constants {
+    hdql_Constants * parent;
+    std::unordered_map<std::string, ConstValItem> values;
+
+    hdql_Constants() : parent(nullptr) {}
+};
+
+extern "C" int
+hdql_constants_define_float( struct hdql_Constants * consts
+                           , const char * name
+                           , hdql_Flt_t value ) {
+    assert(consts);
+    if(!name || '\0' == *name) {  // TODO: check name for general validity
+        return HDQL_ERR_BAD_ARGUMENT;
+    }
+
+    auto ir = consts->values.emplace(name, ConstValItem(value));
+    if( ir.second ) return HDQL_ERR_CODE_OK;
+    if(ir.first->second.value.asFlt == value) return HDQL_ERR_CODE_OK;  // same value, not an error
+    return HDQL_ERR_NAME_COLLISION;
+}
+
+extern "C" int
+hdql_constants_define_int( struct hdql_Constants * consts
+                         , const char * name
+                         , hdql_Int_t value ) {
+    assert(consts);
+    if(!name || '\0' == *name) {  // TODO: check name for general validity
+        return HDQL_ERR_BAD_ARGUMENT;
+    }
+
+    auto ir = consts->values.emplace(name, ConstValItem(value));
+    if( ir.second ) return HDQL_ERR_CODE_OK;
+    if(ir.first->second.value.asInt == value) return HDQL_ERR_CODE_OK;  // same value, not an error
+    return HDQL_ERR_NAME_COLLISION;
+}
+
+
+extern "C" hdql_ExternValueType
+hdql_constants_get_value( struct hdql_Constants * consts
+                        , const char * name
+                        , hdql_Datum_t * destPtr
+                        ) {
+    assert(consts);
+    if(NULL == name || '\0' == *name) return hdql_kExternValUndefined;
+    assert(destPtr);
+
+    auto it = consts->values.find(name);
+    if(consts->values.end() == it) {
+        return consts->parent ? hdql_constants_get_value(consts->parent
+                , name, destPtr) : hdql_kExternValUndefined;
+    }
+    if(hdql_kExternValFltType == it->second.type) {
+        *destPtr = reinterpret_cast<hdql_Datum_t>(&(it->second.value.asFlt));
+    } else if(hdql_kExternValIntType == it->second.type) {
+        *destPtr = reinterpret_cast<hdql_Datum_t>(&(it->second.value.asInt));
+    }
+    #ifndef NDEBUG
+    else {
+        assert(0);  // unknown constant value type
+    }
+    #endif
+    return it->second.type;
+}
+
+//                                       _____________________________________
+// ____________________________________/ Context-private constants table mgmnt
+
+// NOT exposed to public header
+extern "C" struct hdql_Constants *
+_hdql_constants_create(struct hdql_Context * ctx) {
+    return new hdql_Constants;
+}
+
+// NOT exposed to public header
+extern "C" void
+_hdql_constants_destroy(struct hdql_Constants * consts, struct hdql_Context * ctx) {
+    if(NULL == consts || NULL == ctx) return;
+    delete consts;
+}

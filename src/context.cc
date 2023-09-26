@@ -30,8 +30,8 @@ extern "C" void _hdql_functions_destroy(struct hdql_Functions *, struct hdql_Con
 extern "C" struct hdql_Converters * _hdql_converters_create(struct hdql_Context *);
 extern "C" void _hdql_converters_destroy(struct hdql_Converters *, struct hdql_Context *);
 
-//extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Context *);
-//extern "C" void _hdql_functions_destroy(struct hdql_Context *, struct hdql_Functions *);
+extern "C" struct hdql_Constants * _hdql_constants_create(struct hdql_Context *);
+extern "C" void _hdql_constants_destroy(struct hdql_Constants *, struct hdql_Context *);
 
 struct VariadicDatumInfo {
     uint32_t nUsedBytes, nAllocatedBytes;
@@ -47,11 +47,7 @@ struct hdql_Context {
     struct hdql_Operations * operations;
     struct hdql_Functions  * functions;
     struct hdql_Converters * converters;
-    // temporary (virtual, usually sub-queries) attribute definitions that
-    // meant to compose "virtual compound" types. Pointers should remain valid
-    // during whole context lifecycle
-    // TODO: 
-    //std::list<hdql_AttrDef> virtualCompoundAttributes;
+    struct hdql_Constants  * constants;
 
     std::list<hdql_Compound *> virtualCompounds;
 
@@ -71,8 +67,15 @@ hdql_context_create(uint32_t flags) {
     ctx->converters = _hdql_converters_create(ctx);
     ctx->operations = _hdql_operations_create(ctx);
     ctx->functions  = _hdql_functions_create(ctx);
+    ctx->constants  = _hdql_constants_create(ctx);
     // ...
     return ctx;
+}
+
+extern "C" hdql_Context_t
+hdql_context_create_descendant(hdql_Context_t parentContext) {
+    assert(0);  // TODO
+    return NULL;
 }
 
 extern "C" struct hdql_ValueTypes *
@@ -94,6 +97,12 @@ extern "C" struct hdql_Converters *
 hdql_context_get_conversions(hdql_Context_t ctx) {
     return ctx->converters;
 }
+
+extern "C" struct hdql_Constants *
+hdql_context_get_constants(hdql_Context_t ctx) {
+    return ctx->constants;
+}
+
 
 extern "C" hdql_Datum_t
 hdql_context_alloc( hdql_Context_t ctx
@@ -271,6 +280,8 @@ hdql_context_destroy(hdql_Context_t ctx) {
         _hdql_converters_destroy(ctx->converters, ctx);
     if(ctx->valueTypes)
         _hdql_value_types_table_destroy(ctx->valueTypes);
+    if(ctx->constants)
+        _hdql_constants_destroy(ctx->constants, ctx);
     delete ctx;
 }
 

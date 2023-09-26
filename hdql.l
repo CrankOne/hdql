@@ -95,8 +95,19 @@ identifier  {L}({L}|{D})*
                     yylval->fltStaticValue = val;
                     return T_FLT_STATIC_VALUE;
                 }
-{identifier}    {   /* Lookup for name in "getters table" */
-                    /* TODO: look for math functions and possibly keywords */
+{identifier}    {   {   /* Lookup for name in constant values table and return
+                         * a const value if found */
+                        struct hdql_Constants * consts = hdql_context_get_constants(ws->context);
+                        hdql_Datum_t valuePtr;
+                        enum hdql_ExternValueType vt = hdql_constants_get_value(consts, yytext, &valuePtr);
+                        if(hdql_kExternValFltType == vt) {
+                            yylval->fltStaticValue = *((hdql_Flt_t *) valuePtr);
+                            return T_FLT_STATIC_VALUE;
+                        } else if(hdql_kExternValIntType == vt) {
+                            yylval->fltStaticValue = *((hdql_Int_t *) valuePtr);
+                            return T_INT_STATIC_VALUE;
+                        }
+                    }
                     yylval->strID = strdup(yytext);
                     return T_IDENTIFIER;
                 }

@@ -48,6 +48,7 @@ struct hdql_Compound;
 struct hdql_Operations;
 struct hdql_ValueTypes;
 struct hdql_Func;
+struct hdql_Constants;
 struct hdql_Query;
 
 /**\brief Creates new HDQL context
@@ -85,12 +86,9 @@ struct hdql_Functions * hdql_context_get_functions(hdql_Context_t ctx);
 /**\brief Returns table of atomic type conversions */
 struct hdql_Converters * hdql_context_get_conversions(hdql_Context_t ctx);
 
+/**\brief Returns constant values definitions table */
+struct hdql_Constants * hdql_context_get_constants(hdql_Context_t ctx);
 
-/**\brief Allocates "local attribute" */
-//struct hdql_AttrDef * hdql_context_local_attribute_create( hdql_Context_t ctx );
-
-/**\brief Deletes "local attribute" */
-void hdql_context_local_attribute_destroy( hdql_Context_t ctx, struct hdql_AttrDef * );  // TODO
 
 /**\brief Used by parser routines to create virtual compound types */
 void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );
@@ -100,6 +98,20 @@ void hdql_context_err_push(hdql_Context_t, hdql_Err_t, const char * format, ...)
 
 /**\brief Destroys HDQL expression evaluation context */
 void hdql_context_destroy(hdql_Context_t);
+
+/**\brief Creates descendant context
+ *
+ * Descendant context provides access to whatever its parent context instance
+ * provides (types, functions, constants, etc), plus its own entites. Destroyed
+ * children won't affect parents.
+ *
+ * Context inheritance model is useful for frameworks maintaining large
+ * contexts with common definitions along with smaller children short-lived
+ * ones, thus helping to avoid potentially expensive
+ * context creation/destruction. Child context should be destroyed with
+ * same `hdql_context_destroy()` function.
+ * */
+hdql_Context_t hdql_context_create_descendant(hdql_Context_t);
 
 /**\brief Creates new function operational instance using known definition
  *
@@ -111,6 +123,9 @@ hdql_context_new_function( struct hdql_Context * ctx
         , struct hdql_Func ** dest
         );
 
+/*                                                              ______________
+ * ___________________________________________________________/ Variadic data
+ */
 
 /**\brief Allocates "variadic datum"
  *
@@ -133,6 +148,9 @@ hdql_Datum_t hdql_context_variadic_datum_realloc(hdql_Context_t, hdql_Datum_t, u
 /**\brief Deletes variadic datum */
 void hdql_context_variadic_datum_free(hdql_Context_t, hdql_Datum_t);
 
+/*                                               _____________________________
+ * ____________________________________________/ Custom arbitrary user's data
+ */
 
 /**\brief Binds pointer with context instance
  *
@@ -145,6 +163,9 @@ int hdql_context_custom_data_add(hdql_Context_t, const char *, void *);
  *
  * Returns NULL if name not found. */
 void * hdql_context_custom_data_get(hdql_Context_t, const char *);
+
+
+
 
 #ifdef __cplusplus
 }  // extern "C"

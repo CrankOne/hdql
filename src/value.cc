@@ -7,6 +7,7 @@
 #include <cassert>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -17,104 +18,258 @@
 #   include <gtest/gtest.h>
 #endif
 
+#ifndef HDQL_TIER_BITSIZE
+/**\brief Defines number of bits used to store the type table's tier */
+#   define HDQL_TIER_BITSIZE 4
+#endif
+
+#if HDQL_VALUE_TYPEDEF_CODE_BITSIZE <= HDQL_TIER_BITSIZE
+/* One have to fix it either by increasing `HDQL_VALUE_TYPEDEF_CODE_BITSIZE`
+ * in the project's types.h, or by decreasing `HDQL_TIER_BITSIZE` specified
+ * for this file */
+#   error("Bit size of type table tier is greater than type code bitsize.")
+#endif
+
+static const hdql_ValueTypeCode_t gMaxTypeID = HDQL_VALUE_TYPE_CODE_MAX;
+static const hdql_ValueTypeCode_t gMaxTypeIDInTier
+        = ((0x1 << (HDQL_VALUE_TYPEDEF_CODE_BITSIZE - HDQL_TIER_BITSIZE)) - 1);
+static const hdql_ValueTypeCode_t gTierMask
+        = HDQL_VALUE_TYPE_CODE_MAX & (~gMaxTypeIDInTier);
+
+static uint8_t
+_get_tier_number(hdql_ValueTypeCode_t code) {
+    return (code & gTierMask) >> (HDQL_VALUE_TYPEDEF_CODE_BITSIZE - HDQL_TIER_BITSIZE);
+}
+
 struct hdql_ValueTypes {
-    std::vector<hdql_ValueInterface> types;
-    // Note: by-name index is not unique, it contains aliases
-    std::unordered_map<std::string, hdql_ValueTypeCode_t> idxByName;
+    // name-to-code index is not unique, it contains aliases
+    std::unordered_map<std::string, hdql_ValueTypeCode_t> _codeByName;
+    // code-to-item index, unique, does not account for tier
+    std::unordered_map<hdql_ValueTypeCode_t, hdql_ValueInterface> _itemByCode;
+    // tier code, max is 32 (4 bits)
+    const uint8_t _tier;
+    hdql_ValueTypes * _parent;
+public:
+    hdql_ValueTypes(hdql_ValueTypes * parent=nullptr)
+        : _tier(parent ? parent->_tier + 1 : 1)
+        , _parent(parent)
+        {
+        if((((hdql_ValueTypeCode_t) _tier) << 10) > gMaxTypeID) {
+            throw std::runtime_error("Can't create more"
+                    " children HDQL types tables" );
+        }
+    }
 
-    // TODO: to support parent one has to rewrite routines as code is no more
-    // just an index in vector...
-    hdql_ValueTypes * parent;
-    hdql_ValueTypes() : parent(nullptr) {}
-};
+    int define(const hdql_ValueInterface & iface) {
+        if(NULL == iface.name || *iface.name == '\0') {
+            return -1;  // bad name
+        }
+        size_t nItems = _itemByCode.size();
+        if(nItems >= gMaxTypeIDInTier) {
+            return -2;  // IDs exceed for tier
+        }
+        hdql_ValueTypeCode_t tCode = static_cast<hdql_ValueTypeCode_t>(nItems);
+        tCode |= ((hdql_ValueTypeCode_t) _tier) << (HDQL_VALUE_TYPEDEF_CODE_BITSIZE - HDQL_TIER_BITSIZE);
+        auto ir = _codeByName.emplace(iface.name, tCode);
+        if(!ir.second) return -3;  // duplicating name
+        auto iir = _itemByCode.emplace(tCode, iface);
+        if(!iir.second) {
+            _codeByName.erase(ir.first);
+            return -4;  // internal logic error
+        }
+        return 0;
+    }
 
-static const size_t gMaxTypeID = HDQL_VALUE_TYPE_CODE_MAX - 1;
+    int define_alias(hdql_ValueTypeCode_t tgtCode, const char * alias) {
+        assert(0 != tgtCode);  // we assume user code controlled it
+        uint8_t tierNo = _get_tier_number(tgtCode);
+        assert(tierNo);
+        if(tierNo > _tier) return -1;  // type is from children context
+        if(tierNo < _tier) {  // aliasing parent's type requested
+            assert(_parent);  // logic error (tierNo must be zero in case this assertion failed)
+            // assure type exist in parent tables
+            auto vti = _parent->get_by_code(tgtCode);
+            if(!vti) return -2;  // no target type
+            auto ir = _codeByName.emplace(alias, tgtCode);
+            if(ir.second) return HDQL_ERR_CODE_OK;
+            if(ir.first->second != tgtCode) return -3;  // collision
+            return 1;  // repeatative insertion
+        }
+        auto it = _itemByCode.find(tgtCode);
+        if(_itemByCode.end() == it) return -2;  // no type to alias
+        auto ir = _codeByName.emplace(alias, tgtCode);
+        if(!ir.second) {
+            return ir.second == tgtCode ? 1 : -3;  // repeatative / collision
+        }
+        return HDQL_ERR_CODE_OK;
+    }
+
+    hdql_ValueTypeCode_t get_code_by_name(const char * name) const {
+        auto it = _codeByName.find(name);
+        if(_codeByName.end() == it) {
+            if(!_parent) return 0x0;
+            return hdql_types_get_type_code(_parent, name);
+        }
+        return it->second;
+    }
+
+    const hdql_ValueInterface * get_by_name(const char * name) const {
+        auto it = _codeByName.find(name);
+        if(_codeByName.end() == it) {
+            if(!_parent) return NULL;
+            return hdql_types_get_type_by_name(_parent, name);
+        }
+        #ifndef NDEBUG
+        {
+            uint8_t tierNo = _get_tier_number(it->second);
+            assert(tierNo == _tier);
+        }
+        #endif
+        auto iit = _itemByCode.find(it->second);
+        assert(iit != _itemByCode.end());
+        return &(iit->second);
+    }
+
+    const hdql_ValueInterface * get_by_code(hdql_ValueTypeCode_t code) const {
+        uint8_t tierNo = _get_tier_number(code);
+        if(tierNo == _tier) {
+            auto it = _itemByCode.find(code);
+            if(_itemByCode.end() != it) return &(it->second);
+            return NULL;
+        }
+        // otherwise, do parent lookup
+        if(tierNo > _tier) {
+            throw std::runtime_error("Logic error: type of descendant context requested.");
+        }
+        return _parent->get_by_code(code);
+    }
+};  // struct hdql_ValueTypes
+
+#if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
+namespace test {
+TEST(CommonTypes, BasicTypeDifinitionWorks) {
+    hdql_ValueTypes vts;
+    hdql_ValueInterface iface1 = {.name = "TypeOne"}
+                      , iface2 = {.name = "TypeTwo"};
+    EXPECT_EQ(vts.define(iface1), 0);
+    EXPECT_EQ(vts.define(iface2), 0);
+    EXPECT_NE(vts.get_code_by_name("TypeOne"), 0x0);
+    EXPECT_NE(vts.get_code_by_name("TypeTwo"), 0x0);
+    EXPECT_EQ(vts.get_code_by_name("TypeThree"), 0x0);
+    EXPECT_STREQ(vts.get_by_name("TypeOne")->name, iface1.name);
+    EXPECT_STREQ(vts.get_by_name("TypeTwo")->name, iface2.name);
+    EXPECT_FALSE(vts.get_by_name("TypeThree"));
+}  // TEST(CommonTypes, BasicTypeDifinitionWorks)
+
+TEST(CommonTypes, AliasedTypeDifinitionWorks) {
+    hdql_ValueTypes vts;
+    hdql_ValueInterface iface1 = {.name = "TypeOne"}
+                      , iface2 = {.name = "TypeTwo"};
+    EXPECT_EQ(vts.define(iface1), 0);
+    EXPECT_EQ(vts.define(iface2), 0);
+    EXPECT_NE(vts.get_code_by_name("TypeOne"), 0x0);
+    EXPECT_NE(vts.get_code_by_name("TypeTwo"), 0x0);
+
+    EXPECT_EQ(vts.define_alias(vts.get_code_by_name("TypeOne"), "AliasOne"),  0);
+    EXPECT_EQ(vts.define_alias(vts.get_code_by_name("TypeOne"), "AliasOne2"), 0);
+    EXPECT_EQ(vts.define_alias(vts.get_code_by_name("TypeTwo"), "AliasTwo"),  0);
+
+    EXPECT_EQ(vts.get_code_by_name("TypeThree"), 0x0);
+    EXPECT_STREQ(vts.get_by_name("TypeOne")->name, iface1.name);
+    EXPECT_STREQ(vts.get_by_name("TypeTwo")->name, iface2.name);
+    EXPECT_FALSE(vts.get_by_name("TypeThree"));
+
+    EXPECT_STREQ(vts.get_by_name("AliasOne")->name,  iface1.name);
+    EXPECT_STREQ(vts.get_by_name("AliasOne2")->name, iface1.name);
+    EXPECT_STREQ(vts.get_by_name("AliasTwo")->name,  iface2.name);
+}  // TEST(CommonTypes, AliasedTypeDifinitionWorks)
+
+TEST(CommonTypes, AliasedTypeDifinitionWithParentWorks) {
+    hdql_ValueTypes vts;
+    hdql_ValueInterface iface1 = {.name = "TypeOne"}
+                      , iface2 = {.name = "TypeTwo"};
+    EXPECT_EQ(vts.define(iface1), 0);
+    EXPECT_EQ(vts.define(iface2), 0);
+    EXPECT_NE(vts.get_code_by_name("TypeOne"), 0x0);
+    EXPECT_NE(vts.get_code_by_name("TypeTwo"), 0x0);
+
+    hdql_ValueTypes vtsDesc(&vts);
+    hdql_ValueInterface iface3 = {.name = "TypeTwo"}  // overrides parent's
+                      , iface4 = {.name = "TypeThreeInDesc"};
+    EXPECT_EQ(vtsDesc.define(iface3), 0);
+    EXPECT_EQ(vtsDesc.define(iface4), 0);
+
+    // it is legal to define alias to parent's type in children
+    EXPECT_EQ(vtsDesc.define_alias(vts.get_code_by_name("TypeOne"), "AliasOne"),  0);
+    EXPECT_EQ(vtsDesc.define_alias(vtsDesc.get_code_by_name("TypeTwo"), "AliasTwo"),  0);
+    
+    EXPECT_NE(vts.get_by_name("TypeTwo"), vtsDesc.get_by_name("TypeTwo"));
+    EXPECT_STREQ(vtsDesc.get_by_name("TypeTwo")->name, vtsDesc.get_by_name("TypeTwo")->name);
+
+    EXPECT_NE(vtsDesc.get_code_by_name("TypeOne"), 0x0);
+    EXPECT_NE(vtsDesc.get_code_by_name("TypeTwo"), 0x0);
+    EXPECT_EQ(vtsDesc.get_code_by_name("TypeThree"), 0x0);
+    EXPECT_NE(vtsDesc.get_code_by_name("TypeTwo"), vts.get_code_by_name("TypeTwo"));
+}  // TEST(CommonTypes, BasicTypeDifinitionWorks)
+}  // namespace test
+#endif
+
 
 extern "C" int
 hdql_types_define( hdql_ValueTypes * vt
         , const hdql_ValueInterface * vti
         ) {
     assert(vt);
-    assert(vti);
-    if(!vti->name) return -1;
-    if('\0' == *(vti->name)) return -1;
-    // ... other checks for "name"?
-
-    //size_t cSize = 0;
-    //{
-    //    for(hdql_ValueTypes * cVTypes = vt; cVTypes; cVTypes = cVTypes->parent) {
-    //        cSize += vt->types.size();
-    //    }
-    //}
-    if(vt->types.size() == gMaxTypeID) return -3;
-
-    vt->types.push_back(*vti);
-    assert(vt->types.size() < gMaxTypeID);
-    assert(vt->types.size() <= std::numeric_limits<hdql_ValueTypeCode_t>::max());
-
-    hdql_ValueTypeCode_t tc = static_cast<hdql_ValueTypeCode_t>(vt->types.size());
-    auto ir = vt->idxByName.emplace(vti->name, tc);
-    if(!ir.second) {
-        vt->types.pop_back();
-        return -2;
-    }
-    vt->types.back().name = ir.first->first.c_str();
-
-    return tc;
+    return vt->define(*vti);
 }
 
-/**\brief Defines type alias */
 extern "C" int hdql_types_alias(
           struct hdql_ValueTypes * vt
         , const char * alias
         , hdql_ValueTypeCode_t code
         ) {
-    if(NULL == vt) return -1;  // null types table argument
-    if(NULL == alias || *alias == '\0') return -2;  // bad type alias name
-    if(0x0 == code) return -3;  // bad aliased type code
-    if(code > vt->types.size()) return -4;
-    auto ir = vt->idxByName.emplace(alias, code);
-    return ir.first->second;  // bad aliased type code
+    return vt->define_alias(code, alias);
 }
 
 extern "C" const struct hdql_ValueInterface *
 hdql_types_get_type_by_name(const struct hdql_ValueTypes * vt, const char * nm) {
-    auto it = vt->idxByName.find(nm);
-    if(vt->idxByName.end() == it) return NULL;
-    assert(it->second <= vt->types.size());
-    return &(vt->types.at(it->second - 1));
+    return vt->get_by_name(nm);
 }
 
 extern "C" const struct hdql_ValueInterface *
 hdql_types_get_type(const struct hdql_ValueTypes * vt, hdql_ValueTypeCode_t tc) {
-    if(0 == tc) return NULL;
-    if(tc > vt->types.size()) return NULL;
-    return &(vt->types.at(tc - 1));
+    assert(vt);
+    return vt->get_by_code(tc);
 }
 
 extern "C" hdql_ValueTypeCode_t
 hdql_types_get_type_code(const struct hdql_ValueTypes * vt, const char * name) {
-    auto it = vt->idxByName.find(name);
-    if(vt->idxByName.end() == it) return 0x0;
-    return it->second;
+    return vt->get_code_by_name(name);
 }
+
+
+//                                          __________________________________
+// _______________________________________/ Context-private types table mgmnt
 
 // NOT exposed to public header
 extern "C" struct hdql_ValueTypes *
-_hdql_value_types_table_create(hdql_Context_t ctx) {
+_hdql_value_types_table_create(struct hdql_ValueTypes * parent, hdql_Context_t ctx) {
     // todo: use ctx-based alloc? Seem to be used mostly during interpretation
     // stage, and if it won't affect performance, there is no need to keep
     // it in fast access area
-    return new hdql_ValueTypes;
+    return new hdql_ValueTypes(parent);
 }
 
 // NOT exposed to public header
 extern "C" void
-_hdql_value_types_table_destroy(struct hdql_ValueTypes * vt) {
+_hdql_value_types_table_destroy(struct hdql_ValueTypes * vt, hdql_Context_t ctx) {
     // todo: use ctx-based free, see note for _hdql_value_types_table_create()
     assert(vt);
     delete vt;
 }
+
+//                                              ______________________________
+// ___________________________________________/ Typed value creation/deletion
 
 extern "C"  hdql_Datum_t
 hdql_create_value(hdql_ValueTypeCode_t tc, hdql_Context_t ctx) {
@@ -164,8 +319,8 @@ hdql_destroy_value(hdql_ValueTypeCode_t tc, hdql_Datum_t r, hdql_Context_t ctx) 
     return 0;
 }
 
-//
-// Standard arithmetic types
+//                              ______________________________________________
+// ___________________________/ Standard arithmetic types (arithmetic, string)
 
 namespace hdql {
 
@@ -347,9 +502,9 @@ _str_copy( hdql_Datum_t dest
 
 extern "C" int
 hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
-    int hadErrors = 0;
+    int nItem = 0;
     #define _M_add_std_type(nm, ctp) \
-    { \
+    {   ++nItem; \
         hdql_ValueInterface vti; \
         vti.name = nm; \
         vti.init = NULL; \
@@ -366,19 +521,18 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.get_as_string = &hdql::StdArithInterface<ctp>::get_as_string; \
         vti.set_from_string = &hdql::StdArithInterface<ctp>::set_from_string; \
         int rc = hdql_types_define(vt, &vti); \
-        if(rc < 1) { hadErrors = 1; } \
+        if(rc != HDQL_ERR_CODE_OK) { return - nItem; } \
     }
     _M_hdql_for_each_std_type(_M_add_std_type);
     #undef _M_add_std_type
-    if(hadErrors) return hadErrors;
+
     // add aliases
-    
-    #define _M_add_alias(stdType, alias) { \
+    #define _M_add_alias(stdType, alias) { ++nItem; \
         assert(sizeof(stdType) == sizeof(alias)); \
         hdql_ValueTypeCode_t tc = hdql_types_get_type_code(vt, #stdType); \
         assert(0x0 != tc); \
-        hadErrors = hdql_types_alias(vt, #alias, tc) > 0 ? 0 : 1; \
-        assert(0 == hadErrors); \
+        int rc = hdql_types_alias(vt, #alias, tc) >= 0 ? 0 : 1; \
+        if(rc < HDQL_ERR_CODE_OK) return -nItem; \
     }
 
     _M_add_alias(uint8_t, unsigned char);
@@ -394,76 +548,17 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     _M_add_alias(double, hdql_Flt_t);
     _M_add_alias(bool, hdql_Bool_t);
     // string is variable-sized type
-    {
+    {   ++nItem;
         hdql_ValueInterface vti;
         vti.name = "string";
         vti.init = _str_init;
         vti.destroy = _str_destroy;
         vti.copy = _str_copy;
         int rc = hdql_types_define(vt, &vti);
-        if(rc < 1) { hadErrors = 1; }
+        if(rc < HDQL_ERR_CODE_OK) { return -nItem; }
     }
 
-    #if 0
-    // TODO: derive it somehow, it can be wrong...
-    hdql_ValueTypeCode_t stdUCharTypeCode = hdql_types_get_type_code(vt, "uint8_t");
-    assert(0 != stdUCharTypeCode);
-    assert(sizeof(unsigned char) == sizeof(uint8_t));
-    hadErrors = hdql_types_alias(vt, "unsigned char", stdUCharTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: derive it somehow, it can be wrong...
-    hdql_ValueTypeCode_t stdIntTypeCode = hdql_types_get_type_code(vt, "int32_t");
-    assert(0 != stdIntTypeCode);
-    assert(sizeof(int) == sizeof(int32_t));
-    hadErrors = hdql_types_alias(vt, "int", stdIntTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: derive it somehow, it can be wrong...
-    hdql_ValueTypeCode_t stdShortTypeCode = hdql_types_get_type_code(vt, "int16_t");
-    assert(0 != stdShortTypeCode);
-    assert(sizeof(short) == sizeof(int16_t));
-    hadErrors = hdql_types_alias(vt, "short", stdShortTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: derive it somehow, it can be wrong...
-    hdql_ValueTypeCode_t stdUIntTypeCode = hdql_types_get_type_code(vt, "uint32_t");
-    assert(0 != stdUIntTypeCode);
-    assert(sizeof(unsigned int) == sizeof(uint32_t));
-    hadErrors = hdql_types_alias(vt, "unsigned int", stdUIntTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: derive it somehow, it can be wrong...
-    hdql_ValueTypeCode_t stdULongIntTypeCode = hdql_types_get_type_code(vt, "uint64_t");
-    assert(0 != stdULongIntTypeCode);
-    assert(sizeof(size_t) == sizeof(uint64_t));
-    hadErrors = hdql_types_alias(vt, "unsigned long", stdULongIntTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-    hadErrors = hdql_types_alias(vt, "size_t",        stdULongIntTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: depends on macro definition
-    hdql_ValueTypeCode_t hdqlIntTypeCode = hdql_types_get_type_code(vt, "int64_t");
-    assert(0 != hdqlIntTypeCode);
-    assert(sizeof(hdql_Int_t) == sizeof(int64_t));
-    hadErrors = hdql_types_alias(vt, "hdql_Int_t", hdqlIntTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: depends on macro definition
-    hdql_ValueTypeCode_t hdqlFltTypeCode = hdql_types_get_type_code(vt, "double");
-    assert(0 != hdqlFltTypeCode);
-    assert(sizeof(hdql_Flt_t) == sizeof(double));
-    hadErrors = hdql_types_alias(vt, "hdql_Flt_t", hdqlFltTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-
-    // TODO: supported only starting from C99
-    hdql_ValueTypeCode_t hdqlBoolTypeCode = hdql_types_get_type_code(vt, "bool");
-    assert(0 != hdqlBoolTypeCode);
-    hadErrors = hdql_types_alias(vt, "hdql_Bool_t", hdqlBoolTypeCode) > 0 ? 0 : 1;
-    assert(0 == hadErrors);
-    #endif
-
-    return hadErrors;
+    return HDQL_ERR_CODE_OK;
 }
 
 /*                                                            ________________
@@ -485,7 +580,7 @@ struct hdql_Constants {
     hdql_Constants * parent;
     std::unordered_map<std::string, ConstValItem> values;
 
-    hdql_Constants() : parent(nullptr) {}
+    hdql_Constants(hdql_Constants * parent_) : parent(parent_) {}
 };
 
 extern "C" int
@@ -546,13 +641,15 @@ hdql_constants_get_value( struct hdql_Constants * consts
     return it->second.type;
 }
 
+// ... TODO: LNG22. Unit tests for const values 
+
 //                                       _____________________________________
 // ____________________________________/ Context-private constants table mgmnt
 
 // NOT exposed to public header
 extern "C" struct hdql_Constants *
-_hdql_constants_create(struct hdql_Context * ctx) {
-    return new hdql_Constants;
+_hdql_constants_create(struct hdql_Constants * parent, struct hdql_Context * ctx) {
+    return new hdql_Constants(parent);
 }
 
 // NOT exposed to public header

@@ -9,6 +9,10 @@
 extern "C" {
 #endif
 
+/*                                                             _______________
+ * __________________________________________________________/ Main API types
+ */
+
 typedef int hdql_Err_t;
 
 #ifndef HDQL_ARITH_BOOL_TYPE
@@ -23,48 +27,60 @@ typedef HDQL_ARITH_BOOL_TYPE hdql_Bool_t;
 /** default type for arithmetic operations with integer numbers */
 typedef HDQL_ARITH_INT_TYPE hdql_Int_t;
 
-
 #ifndef HDQL_ARITH_FLT_TYPE
 #   define HDQL_ARITH_FLT_TYPE double
 #endif
 /** default type for arithmetic operations with floating point numbers */
 typedef HDQL_ARITH_FLT_TYPE hdql_Flt_t;
 
-
-#ifndef HDQL_ATTR_INDEX_TYPE
-#   define HDQL_ATTR_INDEX_TYPE uint32_t
-#endif
-/** attribute index field type */
-typedef HDQL_ATTR_INDEX_TYPE hdql_AttrIdx_t;
-
+/*                                                           _________________
+ * ________________________________________________________/ Sizes (settings)
+ */
 
 #ifndef HDQL_SELEXPR_ERROR_BUFFER_SIZE
 /** static size of buffer for third-party error messages */
 #   define HDQL_SELEXPR_ERROR_BUFFER_SIZE 256
 #endif
 
-
+#ifndef HDQL_VALUE_TYPEDEF_CODE_BITSIZE
 /**\def HDQL_VALUE_TYPEDEF_CODE_BITSIZE
  * \brief Defines number of bits used in bitfield to identify value type
  *
  * Affects maximum number of permitted type definitions and structure packing.
+ * Important notes:
+ *  - to simplify indexing of the converter functions it is better to keep
+ *    the size of containing type at least twice lesser than largest largest
+ *    unsigned int number.
+ *  - to keep tiers in the containing type for type table, it is better to
+ *    foresee some bits at the beginning of containing type
+ *  - reserve at least one bit in the containing type to keep scalar features
+ *    flag (`hdql_AtomicTypeFeatures`) packed at the same area or at least two
+ *    bits for `hdql_CollectionKey` pack
+ * So for instance:
+ *  - containing type is unsigned short of length 16
+ *  - then conversion key is unsigned int of 2x16=32 bits
+ *  - within containing type:
+ *      - 2 bit is reserved for key's flags
+ *      - 4 bits is reserved for tier (letting up to 16 inherited type tables)
+ *      - 10 bits offers 1024 types per table of single tier
  * */
-#ifndef HDQL_VALUE_TYPEDEF_CODE_BITSIZE
-#   define HDQL_VALUE_TYPEDEF_CODE_BITSIZE 10
+#   define HDQL_VALUE_TYPEDEF_CODE_BITSIZE 14
 #endif
 
+/**\brief Max value of type code, derived from max bitlen */
 #define HDQL_VALUE_TYPE_CODE_MAX ((0x1 << HDQL_VALUE_TYPEDEF_CODE_BITSIZE)-1)
 
-#ifndef HDQL_SUBQUERY_DEPTH_BITSIZE
-#   define HDQL_SUBQUERY_DEPTH_BITSIZE 6
-#endif
-
-
 #ifndef HDQL_COMPOUNDS_STACK_MAX_DEPTH
-#   define HDQL_COMPOUNDS_STACK_MAX_DEPTH 64
+/**\brief Controls max depth of subquery stack
+ *
+ * In practice, the depth will doubtly exceed 2-3. */
+#   define HDQL_COMPOUNDS_STACK_MAX_DEPTH 8
 #endif
 
-/* Note: these types are never defined as real structs; their purpose is to
+
+/*                                              ______________________________
+ * ___________________________________________/ Common declaration-only types
+ * Note: these types are never defined as real structs; their purpose is to
  * exploit basic C compiler type constrol system as much as possible.
  * Internally these pointers are reinterpret_cast'ed to particular types. */
 

@@ -16,7 +16,6 @@ typedef struct Workspace {
     struct {
         const struct hdql_Compound * compoundPtr;
         char * newAttributeName;
-        hdql_AttrIdx_t vLastIdx;
     } compoundStack[HDQL_COMPOUNDS_STACK_MAX_DEPTH];
     unsigned char compoundStackTop;
     struct hdql_Context * context;
@@ -603,7 +602,6 @@ _push_cmpd(struct Workspace * ws, const struct hdql_Compound * cmpd) {
     //++(ws->compoundStackTop); // xxx?
     ws->compoundStack[++(ws->compoundStackTop)].compoundPtr = cmpd /*topAttrDef->typeInfo.compound*/;
     ws->compoundStack[   ws->compoundStackTop ].newAttributeName = NULL;
-    ws->compoundStack[   ws->compoundStackTop ].vLastIdx = 0;
     return 0;
 }
 
@@ -1142,7 +1140,6 @@ hdql_compile_query( const char * strexpr
     /* set data type lookup table */
     ws.compoundStack[0].compoundPtr = rootCompound;
     ws.compoundStack[0].newAttributeName = NULL;
-    ws.compoundStack[0].vLastIdx = 0;
     ws.compoundStackTop = 0;
     /* init result */
     ws.query = NULL;

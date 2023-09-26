@@ -18,20 +18,24 @@
 
 // These functions are not defined in public headers, but still implemented
 
-extern "C" struct hdql_ValueTypes * _hdql_value_types_table_create(hdql_Context_t);
-extern "C" void _hdql_value_types_table_destroy(struct hdql_ValueTypes *);
+// from src/values.cc:
+extern "C" struct hdql_ValueTypes * _hdql_value_types_table_create(hdql_ValueTypes *, hdql_Context_t);
+extern "C" void _hdql_value_types_table_destroy(struct hdql_ValueTypes *, hdql_Context_t);
 
-extern "C" struct hdql_Operations * _hdql_operations_create(struct hdql_Context *);
+extern "C" struct hdql_Constants * _hdql_constants_create(struct hdql_Constants *, struct hdql_Context *);
+extern "C" void _hdql_constants_destroy(struct hdql_Constants *, struct hdql_Context *);
+
+// from src/operations.cc:
+extern "C" struct hdql_Operations * _hdql_operations_create(struct hdql_Operations *, struct hdql_Context *);
 extern "C" void _hdql_operations_destroy(struct hdql_Operations *, struct hdql_Context *);
 
-extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Context *);
+// from src/functions.cc:
+extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Functions *, struct hdql_Context *);
 extern "C" void _hdql_functions_destroy(struct hdql_Functions *, struct hdql_Context *);
 
-extern "C" struct hdql_Converters * _hdql_converters_create(struct hdql_Context *);
+// from src/converters.cc
+extern "C" struct hdql_Converters * _hdql_converters_create(struct hdql_Converters *, struct hdql_Context *);
 extern "C" void _hdql_converters_destroy(struct hdql_Converters *, struct hdql_Context *);
-
-extern "C" struct hdql_Constants * _hdql_constants_create(struct hdql_Context *);
-extern "C" void _hdql_constants_destroy(struct hdql_Constants *, struct hdql_Context *);
 
 struct VariadicDatumInfo {
     uint32_t nUsedBytes, nAllocatedBytes;
@@ -63,20 +67,46 @@ hdql_context_create(uint32_t flags) {
     // ...
     auto ctx = new hdql_Context;
     ctx->flags = flags;
-    ctx->valueTypes = _hdql_value_types_table_create(ctx);
-    ctx->converters = _hdql_converters_create(ctx);
-    ctx->operations = _hdql_operations_create(ctx);
-    ctx->functions  = _hdql_functions_create(ctx);
-    ctx->constants  = _hdql_constants_create(ctx);
+    ctx->valueTypes = _hdql_value_types_table_create(NULL, ctx);
+    ctx->converters = _hdql_converters_create(NULL, ctx);
+    ctx->operations = _hdql_operations_create(NULL, ctx);
+    ctx->functions  = _hdql_functions_create(NULL, ctx);
+    ctx->constants  = _hdql_constants_create(NULL, ctx);
     // ...
     return ctx;
 }
 
 extern "C" hdql_Context_t
-hdql_context_create_descendant(hdql_Context_t parentContext) {
-    assert(0);  // TODO: LNG19.
-    return NULL;
+hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
+    auto ctx = new hdql_Context;
+    ctx->flags = flags;
+    ctx->valueTypes = _hdql_value_types_table_create(pCtx->valueTypes, ctx);
+    ctx->converters = _hdql_converters_create(pCtx->converters, ctx);
+    ctx->operations = _hdql_operations_create(pCtx->operations, ctx);
+    ctx->functions  = _hdql_functions_create(pCtx->functions, ctx);
+    ctx->constants  = _hdql_constants_create(pCtx->constants, ctx);
+    // ...
+    return ctx;
 }
+
+extern "C" void
+hdql_context_destroy(hdql_Context_t ctx) {
+    if(ctx->functions)
+        _hdql_functions_destroy(ctx->functions, ctx);
+    if(ctx->operations)
+        _hdql_operations_destroy(ctx->operations, ctx);
+    for(auto vCompoundPtr : ctx->virtualCompounds) {
+        hdql_virtual_compound_destroy(vCompoundPtr, ctx);
+    }
+    if(ctx->converters)
+        _hdql_converters_destroy(ctx->converters, ctx);
+    if(ctx->valueTypes)
+        _hdql_value_types_table_destroy(ctx->valueTypes, ctx);
+    if(ctx->constants)
+        _hdql_constants_destroy(ctx->constants, ctx);
+    delete ctx;
+}
+
 
 extern "C" struct hdql_ValueTypes *
 hdql_context_get_types( hdql_Context_t ctx ) {
@@ -265,24 +295,6 @@ hdql_context_err_push( hdql_Context_t context
         fputc('\n', stderr);
     }
     context->errors.push_back(std::pair<hdql_Err_t, std::string>(code, errBuf));
-}
-
-extern "C" void
-hdql_context_destroy(hdql_Context_t ctx) {
-    if(ctx->functions)
-        _hdql_functions_destroy(ctx->functions, ctx);
-    if(ctx->operations)
-        _hdql_operations_destroy(ctx->operations, ctx);
-    for(auto vCompoundPtr : ctx->virtualCompounds) {
-        hdql_virtual_compound_destroy(vCompoundPtr, ctx);
-    }
-    if(ctx->converters)
-        _hdql_converters_destroy(ctx->converters, ctx);
-    if(ctx->valueTypes)
-        _hdql_value_types_table_destroy(ctx->valueTypes);
-    if(ctx->constants)
-        _hdql_constants_destroy(ctx->constants, ctx);
-    delete ctx;
 }
 
 

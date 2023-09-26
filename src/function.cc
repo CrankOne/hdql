@@ -21,6 +21,8 @@ struct FuncDef {
 };
 
 struct hdql_Functions : public std::unordered_multimap<std::string, FuncDef> {
+    hdql_Functions * parent;
+    hdql_Functions(hdql_Functions * parent_=nullptr) : parent(parent_) {}
     // ...
 };
 
@@ -48,7 +50,8 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
     assert(r);
     auto eqRange = funcDict->equal_range(name);
     if(eqRange.first == eqRange.second) {
-        return HDQL_ERR_FUNC_UNKNOWN;
+        if(!funcDict->parent) return HDQL_ERR_FUNC_UNKNOWN;
+        return hdql_functions_resolve(funcDict, name, argsQueries, r, context);
     }
     *r = NULL;
     for(auto it = eqRange.first; it != eqRange.second; ++it) {
@@ -107,8 +110,8 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions) {
 
 // NOT exposed to public header
 extern "C" struct hdql_Functions *
-_hdql_functions_create(struct hdql_Context * ctx) {
-    return new hdql_Functions;
+_hdql_functions_create(struct hdql_Functions * parent, struct hdql_Context * ctx) {
+    return new hdql_Functions(parent);
 }
 
 // NOT exposed to public header

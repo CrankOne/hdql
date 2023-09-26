@@ -12,7 +12,7 @@ struct hdql_Converters
     : public std::unordered_map<uint32_t, hdql_TypeConverter> {
     struct hdql_Converters * parent;
 
-    hdql_Converters() : parent(nullptr) {}
+    hdql_Converters(hdql_Converters * parent_) : parent(parent_) {}
 };
 
 extern "C" int
@@ -46,8 +46,8 @@ hdql_converters_get( hdql_Converters *cnvs
 // _________________________________/ Context-private converter routines mgmnt
 
 extern "C" struct hdql_Converters *
-_hdql_converters_create(struct hdql_Context *) {
-    return new hdql_Converters;
+_hdql_converters_create(struct hdql_Converters * parent, struct hdql_Context *) {
+    return new hdql_Converters(parent);
 }
 
 extern "C" void

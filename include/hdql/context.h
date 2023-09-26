@@ -111,7 +111,7 @@ void hdql_context_destroy(hdql_Context_t);
  * context creation/destruction. Child context should be destroyed with
  * same `hdql_context_destroy()` function.
  * */
-hdql_Context_t hdql_context_create_descendant(hdql_Context_t);
+hdql_Context_t hdql_context_create_descendant(hdql_Context_t, uint32_t flags);
 
 /**\brief Creates new function operational instance using known definition
  *

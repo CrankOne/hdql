@@ -300,7 +300,7 @@ struct std::hash<hdql::OpKey> {
 
 struct hdql_Operations : public std::unordered_map<hdql::OpKey, hdql_OperationEvaluator> {
     hdql_Operations * parent;
-    hdql_Operations() : parent(nullptr) {}
+    hdql_Operations(hdql_Operations * parent_) : parent(parent_) {}
 };
 
 extern "C" {
@@ -535,8 +535,8 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
 
 // NOT exposed to public header
 struct hdql_Operations *
-_hdql_operations_create(hdql_Context_t ctx) {
-    return new hdql_Operations;
+_hdql_operations_create(struct hdql_Operations * parent, hdql_Context_t ctx) {
+    return new hdql_Operations(parent);
 }
 
 // NOT exposed to public header

@@ -24,6 +24,7 @@ Items done (changelog)
  - LNG11. [done, 444d554] Standard mathematical functions (``log()``, ``atan2()``, etc)
  - API2. [done, bdb18a6] Additional data associated/retrieved within context
  - LNG14. [done, 7e64c17] External constants
+ - LNG19. [done, 7c8d74e] Scope inheritance for types, functions, conversions, etc
 
 LNG12. Support for scalar arithmetics attribute
 ~~~~
@@ -82,13 +83,6 @@ LNG18. Page-alignmed memory allocator for context
 
 Should bring some benefits on performance.
 
-LNG19. Scope inheritance for types, functions, conversions, etc
-~~~~
-
-A must for applications: for certain package user code should be capable to
-inherit context with predefined assets to avoid frequent re-initialization and
-duplication of what is considered "standard" for their package.
-
 API1. Support for compounds in auto-function helper
 ~~~~
 
@@ -121,12 +115,12 @@ DOC3. API doc
 Current doxygen-based comments are very crude, we should provide a better
 structure at some point.
 
-LNG20. Key variables (``coll[foo:=bar]``)
+LNG20. Key variables (``coll[foo ->bar]``)
 ~~~~
 
 Required in apps. Probably will require additional lexical features.
-Postponed. Apparently, it is better to let user's parser to manage this kind
-of stuff. Anyway, design is unclear, need more practical experience.
+Postponed. It may be better to let user's parser to manage this kind
+of stuff, however scope-management is impossible in this case...
 
 LNG21. UT for functions
 ~~~~
@@ -155,7 +149,7 @@ done for key selection expressions. Rationale:
 
 .. code-block:: hdql
 
-    .hits[:detID]{energyDepositionGeV := .rawEnergyDeposition * calibs[detID]}
+    .hits[->detID]{energyDepositionGeV := .rawEnergyDeposition * calibs[detID]}
 
 In the line above the calibration gets applied using hit's raw energy
 deposition using standard query, but to retrieve coefficient we refer to
@@ -165,7 +159,7 @@ Particular grammar has to be understood, e.g.:
 
 .. code-block:: hdql
 
-    .hits[:detID]{energyDepositionGeV := .rawEnergyDeposition * $(CALIB:msadcCoeff[detID])}
+    .hits[->detID]{energyDepositionGeV := .rawEnergyDeposition * $(CALIB:msadcCoeff[detID])}
 
 seems to be more explicit and readable (?) but less laconic...
 

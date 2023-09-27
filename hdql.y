@@ -12,6 +12,12 @@ struct hdql_FuncArgList {
     struct hdql_FuncArgList * nextArgument;
 };
 
+struct hdql_AnnotatedSelection {
+    char * selectionExpression
+       , * identifiers
+       ;
+};
+
 typedef struct Workspace {
     struct {
         const struct hdql_Compound * compoundPtr;
@@ -127,13 +133,14 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
     struct { struct hdql_Compound * compoundPtr; struct hdql_Query * filter; } vCompound;
     struct hdql_Query * queryPtr;
     struct hdql_FuncArgList * funcArgsList;
+    struct hdql_AnnotatedSelection annotatedSelection;
     // ... function
 }
 
 %token T_PLUS "+" T_MINUS "-" T_ASTERISK "*" T_SLASH "/" T_PERC "%" T_RBSHIFT ">>" T_LBSHIFT "<<"
 %token T_DBL_ASTERISK "**" T_TILDE "~"
 %token T_DBL_CAP "^^" T_DBL_AMP "&&" T_DBL_PIPE "||"
-%token T_LBC "(" T_RBC ")" T_LSQBC "[" T_RSQBC "]" T_LCRLBC "{" T_RCRLBC "}"
+%token T_LBC "(" T_RBC ")" T_LCRLBC "{" T_RCRLBC "}"
 %token T_EXCLMM "!" T_QUESTIONMM "?" T_COLON ":"
 %token T_GT ">" T_GTE ">=" T_LT "<" T_LTE "<=" T_EQ "==" T_NE "!=" T_WALRUS ":="
 %token T_AMP "&" T_PIPE "|" T_CAP "^"
@@ -144,15 +151,14 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token T_INVALID_LITERAL "invalid literal"
 %token<strID> T_IDENTIFIER "identifier"
 %token<selexpr> T_SELECTION_EXPRESSION "selection expression"
+%token<selexpr> T_SELECTION_IDS "selection identifier(s)"
 %token<intStaticValue> T_INT_STATIC_VALUE "integer value"
 %token<fltStaticValue> T_FLT_STATIC_VALUE "floating point value"
 
 %type<queryPtr> queryExpr aOp aQExpr;
 %type<vCompound> vCompoundDef scopedDefs;
 %type<funcArgsList> argsList;
-//%type<cmpOpFunc> cmpOp;
-//%type<cmpExpr> ftCompExpr;
-//%type<selectionBinOp> selExpr;
+%type<annotatedSelection> selection;
 
 // > Operations with lowest precedence are listed first, and those with
 // > highest precedence are listed last. Operations with equal precedence
@@ -172,7 +178,6 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %left T_ASTERISK T_SLASH T_PERC
 %right T_TILDE T_EXCLMM
 %right UNARYMINUS
-%left T_RSQBC T_LSQBC
 %left T_LBC T_RBC
 %left T_COMMA
 %nonassoc T_WALRUS
@@ -299,6 +304,14 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             | queryExpr { $$ = $1; }
             ;
 
+  selection : T_SELECTION_EXPRESSION
+            { $$.selectionExpression = $1; $$.identifiers = NULL; }
+            | T_SELECTION_EXPRESSION T_SELECTION_IDS
+            { $$.selectionExpression = $1; $$.identifiers = $2; }
+            | T_SELECTION_IDS
+            { $$.selectionExpression = NULL; $$.identifiers = $1; }
+            ;
+
   queryExpr : T_PERIOD T_IDENTIFIER
             {
                 const struct hdql_AttrDef * attrDef = hdql_compound_get_attr(
@@ -321,7 +334,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 free($2);
                 assert($$);
             }
-            | T_PERIOD T_IDENTIFIER T_SELECTION_EXPRESSION
+            | T_PERIOD T_IDENTIFIER selection
             {   
                 const struct hdql_AttrDef * attrDef = hdql_compound_get_attr(
                     hdql_parser_top_compound(ws), $2 );
@@ -337,7 +350,8 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                             , hdql_compound_get_name(hdql_virtual_compound_get_parent(topCompound)), $2);
                     }
                     free($2);
-                    free($3);
+                    if($3.selectionExpression) free($3.selectionExpression);
+                    if($3.identifiers)         free($3.identifiers);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
                 if(is_scalar(attrDef)) {
@@ -346,7 +360,8 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                           " apply selection \"%s\")"
                         , $2, hdql_compound_get_name(hdql_parser_top_compound(ws)), $3);
                     free($2);
-                    free($3);
+                    if($3.selectionExpression) free($3.selectionExpression);
+                    if($3.identifiers)         free($3.identifiers);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
                 const struct hdql_CollectionAttrInterface * iface
@@ -357,10 +372,11 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                           " (can't compile selection expression \"%s\")"
                         , $2, hdql_compound_get_name(hdql_parser_top_compound(ws)), $3);
                     free($2);
-                    free($3);
+                    if($3.selectionExpression) free($3.selectionExpression);
+                    if($3.identifiers)         free($3.identifiers);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
-                hdql_SelectionArgs_t selection = iface->compile_selection($3
+                hdql_SelectionArgs_t selection = iface->compile_selection($3.selectionExpression
                             , iface->definitionData, ws->context );
                 if(NULL == selection) {
                     hdql_error(&yyloc, ws, yyscanner
@@ -368,11 +384,13 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                         " collection attribute %s::%s."
                         , $3, hdql_compound_get_name(hdql_parser_top_compound(ws)), $2);
                     free($2);
-                    free($3);
+                    if($3.selectionExpression) free($3.selectionExpression);
+                    if($3.identifiers)         free($3.identifiers);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
                 free($2);
-                free($3);
+                if($3.selectionExpression) free($3.selectionExpression);
+                if($3.identifiers)         free($3.identifiers);
                 $$ = hdql_query_create( attrDef, selection, ws->context);
                 assert($$);
             }
@@ -386,11 +404,16 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 free($3);
                 $$ = hdql_query_append($1, cq);
             }
-            | queryExpr T_PERIOD T_IDENTIFIER T_SELECTION_EXPRESSION
+            | queryExpr T_PERIOD T_IDENTIFIER selection
             {
                 const struct hdql_AttrDef * attrDef;
                 int rc = _resolve_query_top_as_compound($1, $3, &yyloc, ws, &attrDef);
-                if(0 != rc) { free($3); free($4); return rc; }
+                if(0 != rc) {
+                    free($3);
+                    if($4.selectionExpression) free($4.selectionExpression);
+                    if($4.identifiers)         free($4.identifiers);
+                    return rc;
+                }
 
                 if(is_scalar(attrDef)) {
                     hdql_error(&yyloc, ws, yyscanner
@@ -399,7 +422,8 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                         , hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef))
                         , $3, $4 );
                     free($3);
-                    free($4);
+                    if($4.selectionExpression) free($4.selectionExpression);
+                    if($4.identifiers)         free($4.identifiers);
                     return HDQL_ERR_ATTRIBUTE;
                 }
 
@@ -411,10 +435,11 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                           " (can't compile selection expression \"%s\")"
                         , $3, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $4);
                     free($3);
-                    free($4);
+                    if($4.selectionExpression) free($4.selectionExpression);
+                    if($4.identifiers)         free($4.identifiers);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
-                hdql_SelectionArgs_t selection = iface->compile_selection($4
+                hdql_SelectionArgs_t selection = iface->compile_selection($4.selectionExpression
                             , iface->definitionData, ws->context);
                 if(NULL == selection) {
                     hdql_error(&yyloc, ws, yyscanner
@@ -422,11 +447,13 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                         " collection attribute %s::%s."
                         , $4, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $3);
                     free($3);
-                    free($4);
+                    if($4.selectionExpression) free($4.selectionExpression);
+                    if($4.identifiers)         free($4.identifiers);
                     return HDQL_BAD_QUERY_EXPRESSION;
                 }
                 free($3);
-                free($4);
+                if($4.selectionExpression) free($4.selectionExpression);
+                if($4.identifiers)         free($4.identifiers);
 
                 struct hdql_Query * cq = hdql_query_create(attrDef, selection, ws->context);
                 assert(cq);
@@ -487,7 +514,6 @@ scopedDefs : vCompoundDef {
                 $$.filter = $2;
            }
            ;
-
 
 vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 /* _substitute_ compound with new virtual one */

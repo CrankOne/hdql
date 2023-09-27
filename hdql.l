@@ -1,6 +1,7 @@
 %option noyywrap reentrant 8bit yylineno
 %option bison-locations
 %option noinput nounput
+%x SELECTOR SELECTOR_IDS
 
 D           [0-9]
 L           [a-zA-Z_\\]
@@ -28,6 +29,9 @@ identifier  {L}({L}|{D})*
 
 %%
 
+        static char gVerbatimBuf[128];
+        static char * gVerbatimCur;
+
 [ \t\n]         ; // ignore all whitespaces
 "+"             {return T_PLUS;}
 "-"             {return T_MINUS;}
@@ -43,8 +47,6 @@ identifier  {L}({L}|{D})*
 "<="            {return T_LTE;}
 "=="            {return T_EQ;}
 ":="            {return T_WALRUS;}
-"["             {return T_LSQBC;}
-"]"             {return T_RSQBC;}
 "("             {return T_LBC;}
 ")"             {return T_RBC;}
 "{"             {return T_LCRLBC;}
@@ -111,16 +113,43 @@ identifier  {L}({L}|{D})*
                     yylval->strID = strdup(yytext);
                     return T_IDENTIFIER;
                 }
-"["([^\]]|"\\]")+"]" {
-                    /* Selector expression are forwarded to individual query
-                     * parsers */
-                    assert(*yytext == '[');
-                    assert(yytext[yyleng-1] == ']');
-                    yytext[yyleng-1] = '\0';
-                    yylval->selexpr = strdup(yytext+1);
+
+
+"["             gVerbatimCur = gVerbatimBuf; BEGIN(SELECTOR);
+
+<SELECTOR>"]"   {
+                    *gVerbatimCur = '\0';
+                    BEGIN(INITIAL);
+                    yylval->selexpr = strdup(gVerbatimBuf);
                     return T_SELECTION_EXPRESSION;
                 }
 
+<SELECTOR>\\->  {
+                    strncpy(gVerbatimCur, yytext+1, 2);
+                    gVerbatimCur += 2;
+                }
+
+<SELECTOR>->    {
+                    *gVerbatimCur = '\0';
+                    BEGIN(SELECTOR_IDS);
+                    yylval->selexpr = strdup(gVerbatimBuf);
+                    return T_SELECTION_EXPRESSION;
+                }
+
+<SELECTOR_IDS>"]"   {
+                    *gVerbatimCur = '\0';
+                    BEGIN(INITIAL);
+                    yylval->selexpr = strdup(gVerbatimBuf);
+                    return T_SELECTION_IDS;
+                }
+
+<SELECTOR,SELECTOR_IDS>\\]   { *gVerbatimCur++ = yytext[1]; }
+
+<SELECTOR,SELECTOR_IDS>([^\]-]|(\\->))+ {
+                    char *yptr = yytext;
+                    while ( *yptr )
+                        *gVerbatimCur++ = *yptr++;
+                }
 
 %%
 

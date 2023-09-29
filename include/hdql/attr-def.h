@@ -53,13 +53,6 @@ struct hdql_ScalarAttrInterface {
                    );
 };
 
-#if 0
-/**\brief Custom key interface, used when key is not of defined type */
-struct hdql_ScalarKeyInterface {
-    struct hdql_CollectionKey * (*reserve_keys)(const hdql_Datum_t defData, hdql_Context_t);
-    void (*destroy_keys)(struct hdql_CollectionKey *, const hdql_Datum_t defData, hdql_Context_t);
-};
-#else
 /**\brief Keys list allocation callback
  *
  * Although keys are explicitly typed, their length can depend on the
@@ -68,7 +61,6 @@ struct hdql_ScalarKeyInterface {
  * */
 typedef struct hdql_CollectionKey * (*hdql_ReserveKeysListCallback_t)(
             const hdql_Datum_t defData, hdql_Context_t );
-#endif
 
 /**\brief Interface to collection attribute (foreign column or array) */
 struct hdql_CollectionAttrInterface {
@@ -111,24 +103,6 @@ struct hdql_CollectionAttrInterface {
                           , hdql_Context_t ctx
                           );
 };  /* struct hdql_CollectionAttrInterface */
-
-#if 0
-/**\brief Custom key interface, used when key type code is not set
- *
- * This functions get called for collection entities when key
- * type can not be defined as atomic HDQL type and needs to be
- * composed from multiple items. */
-struct hdql_CollectionKeyInterface {
-    /** Custom key allocation function */
-    struct hdql_CollectionKey * (*reserve_keys)(
-              hdql_SelectionArgs_t
-            , const hdql_Datum_t defData
-            , hdql_Context_t
-            );
-    /** Custom key delete function */
-    int (*destroy_keys)( hdql_SelectionArgs_t, hdql_Datum_t   dest, hdql_Context_t);
-};
-#endif
 
 extern const struct hdql_CollectionAttrInterface gSubQueryInterface;
 

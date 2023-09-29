@@ -69,7 +69,7 @@ find_package (FLEX)
 
 bison_target (HDQL_PARSER hdql.y
               ${CMAKE_CURRENT_BINARY_DIR}/hdql.tab.c
-              COMPILE_FLAGS "-Wcounterexamples -d -p hdql_"
+              COMPILE_FLAGS "-d -p hdql_ -Wall"  # dev note: use -Wcounterexamples for newer versions
               DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/hdql.tab.h)
 flex_target (HDQL_LEXER hdql.l
              ${CMAKE_CURRENT_BINARY_DIR}/lex.yy.c

@@ -148,6 +148,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token T_PLUSE "+=" T_MINUSE "-=" T_RBSHIFTE ">>=" T_LBSHIFTE "<<="
 %token T_SEMICOLON T_COMMA "," T_PERIOD "."
 
+%token UNARYMINUS "unary minus (-)"
 %token T_INVALID_LITERAL "invalid literal"
 %token<strID> T_IDENTIFIER "identifier"
 %token<selexpr> T_SELECTION_EXPRESSION "selection expression"
@@ -159,13 +160,14 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %type<vCompound> vCompoundDef scopedDefs;
 %type<funcArgsList> argsList;
 %type<annotatedSelection> selection;
+//%type<selectionBinOp> selExpr;
 
 // > Operations with lowest precedence are listed first, and those with
 // > highest precedence are listed last. Operations with equal precedence
 // > are listed on the same line
 //%nonassoc T_LT T_LTE T_GT T_GTE
-%right T_RBSHIFTE T_LBSHIFTE
-%right T_QUESTIONMM
+//%right T_RBSHIFTE T_LBSHIFTE  // unused so far
+//%right T_QUESTIONMM  // unused so far
 %left T_DBL_PIPE
 %left T_DBL_AMP
 %left T_DBL_CAP
@@ -176,13 +178,13 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %left T_RBSHIFT T_LBSHIFT
 %left T_PLUS T_MINUS
 %left T_ASTERISK T_SLASH T_PERC
-%right T_TILDE T_EXCLMM
-%right UNARYMINUS
-%left T_LBC T_RBC
-%left T_COMMA
-%nonassoc T_WALRUS
-%left T_PERIOD
-%left T_LCRLBC T_RCRLBC /* highest priority */
+%precedence T_TILDE T_EXCLMM  // right
+%precedence UNARYMINUS
+//%precedence T_LBC T_RBC
+//%left T_COMMA  // not needed so far
+//%left T_WALRUS  // not needed so far
+//%left T_PERIOD  // not needed so far
+//%left T_LCRLBC T_RCRLBC /* highest priority */
 
 %start toplev
 

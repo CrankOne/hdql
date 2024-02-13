@@ -51,6 +51,8 @@ _HDQL_M_STD_TYPE(float);
 _HDQL_M_STD_TYPE(double);
 #undef _HDQL_M_STD_TYPE
 
+template<> struct ArithTypeNames<char*> { static constexpr const char * name = "string"; };
+
 //template<> struct ArithTypeNames<float>   { static constexpr const char * name = "float"; };
 //template<> struct ArithTypeNames<double>  { static constexpr const char * name = "double"; };
 //template<> struct ArithTypeNames<short>   { static constexpr const char * name = "short"; };

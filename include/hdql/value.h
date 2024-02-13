@@ -64,6 +64,7 @@ struct hdql_ValueInterface {
     hdql_Flt_t (*get_as_float)(const hdql_Datum_t);
     void (*set_as_float)(hdql_Datum_t, hdql_Flt_t);
 
+    /* TODO: re-consider this (seemed to be useful) */
     int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize, hdql_Context_t);
     int (*set_from_string)(hdql_Datum_t, const char *, hdql_Context_t);
 };

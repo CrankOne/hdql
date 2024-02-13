@@ -141,6 +141,7 @@ public:
         if(tierNo > _tier) {
             throw std::runtime_error("Logic error: type of descendant context requested.");
         }
+        assert(_parent);
         return _parent->get_by_code(code);
     }
 };  // struct hdql_ValueTypes

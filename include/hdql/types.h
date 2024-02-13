@@ -33,6 +33,11 @@ typedef HDQL_ARITH_INT_TYPE hdql_Int_t;
 /** default type for arithmetic operations with floating point numbers */
 typedef HDQL_ARITH_FLT_TYPE hdql_Flt_t;
 
+#ifndef HDQL_STRING_TYPE
+#   define HDQL_STRING_TYPE char*
+#endif
+typedef HDQL_STRING_TYPE hdql_StrPtr_t;
+
 /*                                                           _________________
  * ________________________________________________________/ Sizes (settings)
  */

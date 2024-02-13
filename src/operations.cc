@@ -1,5 +1,6 @@
 #include "hdql/operations.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
 #include "hdql/compound.h"
@@ -7,6 +8,7 @@
 
 #include "hdql/helpers/compounds.hh"
 
+#include <sstream>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
@@ -64,9 +66,13 @@ struct ArithmeticOpTraits< T1, T2
     m( __VA_ARGS__, float     ) \
     m( __VA_ARGS__, double    )
 
-#define _M_for_each_type(m, ...) \
+#define _M_for_each_atomic_type(m, ...) \
     _M_for_each_numerical_type(m, __VA_ARGS__) \
     m( __VA_ARGS__, hdql_Bool_t )
+
+#define _M_for_each_type(m, ...) \
+    _M_for_each_atomic_type(m, __VA_ARGS__) \
+    m( __VA_ARGS__, hdql_StrPtr_t )
 
 #define _M_EXPAND(M) M
 
@@ -75,6 +81,9 @@ struct ArithmeticOpTraits< T1, T2
 
 #define _M_for_each_numerical_type_() _M_for_each_numerical_type
 #define _M_for_each_numerical_type__(...) _M_for_each_numerical_type_ _M_EXPAND(()) (__VA_ARGS__)
+
+#define _M_for_each_atomic_type_() _M_for_each_atomic_type
+#define _M_for_each_atomic_type__(...) _M_for_each_atomic_type_ _M_EXPAND(()) (__VA_ARGS__)
 
 #define _M_for_each_type_() _M_for_each_type
 #define _M_for_each_type__(...) _M_for_each_type_ _M_EXPAND(()) (__VA_ARGS__)
@@ -101,6 +110,58 @@ struct Converter {
                                   , convert );
     }
 };  // struct Converter
+
+template<typename T2>
+struct Converter<hdql_StrPtr_t, T2> {
+    static int
+    convert( struct hdql_Datum * __restrict__ dest
+           , struct hdql_Datum * __restrict__ src ) {
+        // TODO: this is rather draft implementation, potentially dangerous
+        // because of leaks, inefficient, lack of formatting manipulators, etc
+        std::string strrepr;
+        {
+            std::ostringstream oss;
+            oss << *reinterpret_cast<T2 * __restrict__>(src);
+            strrepr = oss.str();
+        }
+        *reinterpret_cast<hdql_StrPtr_t * __restrict__>(dest) = strdup(strrepr.c_str());
+        return 0;
+    }
+    static int
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+        hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_StrPtr_t>::name)
+                           , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T2>::name)
+                           ;
+        return hdql_converters_add( &cnvs
+                                  , toVTC
+                                  , fromVTC
+                                  , convert );
+    }
+};  // struct Converter<hdql_StrPtr_t, ...>
+
+template<>
+struct Converter<hdql_StrPtr_t, hdql_Bool_t> {
+    static int
+    convert( struct hdql_Datum * __restrict__ dest
+           , struct hdql_Datum * __restrict__ src ) {
+        *reinterpret_cast<hdql_StrPtr_t * __restrict__>(dest)
+                = (*reinterpret_cast<hdql_Bool_t * __restrict__>(src))
+                ? strdup("true")
+                : strdup("false");
+        return 0;
+    }
+    static int
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+        hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_StrPtr_t>::name)
+                           , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_Bool_t>::name)
+                           ;
+        return hdql_converters_add( &cnvs
+                                  , toVTC
+                                  , fromVTC
+                                  , convert );
+    }
+};  // struct Converter<hdql_StrPtr_t, bool>
+
 }  // empty ns
 
 extern "C" void
@@ -109,13 +170,20 @@ hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts) {
     // NOTE: we do not add here bool -> int conversion to prevent unintended
     // mistakes when boolean result is provided to a numerical function.
     _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_add_conversion_implem));
-    // Though inverse situation, when numerical result should be considered
+    // ...while inverse situation, when numerical result should be considered
     // as logical one seem to be natural
     #define _M_add_num_to_bool_conversion(_, t1) \
         _M_add_conversion_implem(bool, t1)
     _M_for_each_numerical_type(_M_add_num_to_bool_conversion)
+    #undef _M_add_num_to_bool_conversion
+
+    // to-string conversions
+    #define _M_add_atomic_to_str_conversion(_, t1) \
+        _M_add_conversion_implem(hdql_StrPtr_t, t1)
+    _M_for_each_atomic_type(_M_add_atomic_to_str_conversion)
+    #undef _M_add_atomic_to_str_conversion
+
     #undef _M_add_conversion_implem
-    
 }
 
 // -- implement binary arithmetic ---------------------------------------------
@@ -139,7 +207,7 @@ hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts) {
 #define _M_implement_arith_ops(t1, t2) \
     _M_for_every_binary_arith_op(_M_implement_arith_op, t1, t2)
 
-_M_EXPAND(_M_for_each_numerical_type(_M_for_each_type__, _M_implement_arith_ops))
+_M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_implement_arith_ops))
 #undef _M_implement_arith_ops
 #undef _M_implement_arith_op
 
@@ -163,7 +231,7 @@ _M_EXPAND(_M_for_each_numerical_type(_M_for_each_type__, _M_implement_arith_ops)
 #define _M_implement_logic_ops(t1, t2) \
     _M_for_every_binary_logic_op(_M_implement_logic_op, t1, t2)
 
-_M_EXPAND(_M_for_each_type(_M_for_each_type__, _M_implement_logic_ops))
+_M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_logic_ops))
 #undef _M_implement_logic_ops
 #undef _M_implement_logic_op
 
@@ -188,7 +256,7 @@ _M_EXPAND(_M_for_each_type(_M_for_each_type__, _M_implement_logic_ops))
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
-_M_EXPAND(_M_for_each_numerical_type(_M_for_each_type__, _M_implement_comparison_ops))
+_M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_implement_comparison_ops))
 #pragma GCC diagnostic pop
 
 #undef _M_implement_comparison_ops
@@ -339,7 +407,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_get_type_code(unused, typeName) \
         hdql::DynamicTraits<typeName>::tCode = hdql_types_get_type_code(types, #typeName ); \
         assert(hdql::DynamicTraits<typeName>::tCode);
-    _M_for_each_type(_M_get_type_code);
+    _M_for_each_atomic_type(_M_get_type_code);
     #undef _M_get_type_code
 
     hdql::DynamicTraits<hdql_Bool_t>::tCode = hdql_types_get_type_code(types, "hdql_Bool_t");
@@ -360,7 +428,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_impose_std_arith_ops_of_types(t1, t2) \
         _M_for_every_binary_arith_op(_M_impose_std_arith_op_of_types, t1, t2)
 
-    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_type__, _M_impose_std_arith_ops_of_types));
+    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_impose_std_arith_ops_of_types));
     #undef _M_impose_std_arith_ops_of_types
     #undef _M_impose_std_arith_op_of_types
 
@@ -377,7 +445,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_impose_std_logic_ops_of_types(t1, t2) \
         _M_for_every_binary_logic_op(_M_impose_std_logic_of_types, t1, t2)
 
-    _M_EXPAND(_M_for_each_type(_M_for_each_type__, _M_impose_std_logic_ops_of_types));
+    _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_impose_std_logic_ops_of_types));
     #undef _M_impose_std_logic_ops_of_types
     #undef _M_impose_std_logic_of_types
 
@@ -394,7 +462,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_impose_std_cmp_ops_of_types(t1, t2) \
         _M_for_every_binary_comparison_op(_M_impose_std_cmp_op_of_types, t1, t2)
 
-    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_type__, _M_impose_std_cmp_ops_of_types));
+    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_impose_std_cmp_ops_of_types));
     #undef _M_impose_std_cmp_ops_of_types
     #undef _M_impose_std_cmp_op_of_types
 
@@ -444,7 +512,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
                                 , hdql_OperationEvaluator{ hdql::DynamicTraits<hdql_Bool_t>::tCode \
                                     , hdql::_T_unary_l_not<t1> });  \
         assert(ir.second);
-    _M_for_each_type(_M_impose_logic_unary_not);
+    _M_for_each_atomic_type(_M_impose_logic_unary_not);
     #undef _M_impose_logic_unary_not
 
     return ir.second ? 0 : -1;

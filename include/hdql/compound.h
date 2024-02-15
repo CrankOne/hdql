@@ -56,6 +56,20 @@ const char * hdql_compound_get_name(const struct hdql_Compound *);
 /**\brief Deletes compound type */
 void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
 
+/**\brief Returns number of compound attributes
+ *
+ * \note Returned is the only number of current attributes, not including
+ *       parent's, if any */
+size_t hdql_compound_get_nattrs(const struct hdql_Compound *);
+
+/**\brief Retrieves names list of compound attributes 
+ *
+ * Array of pounters \p dest must be at least of `hdql_compound_get_nattrs()`
+ * length. Pointers to attribute name strings are managed by compound (i.e.
+ * user code is not responsible for freeing them).
+ * */
+void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest);
+
 #if 0
 typedef unsigned int hdql_AttrFlags_t;
 

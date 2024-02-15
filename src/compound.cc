@@ -122,6 +122,22 @@ hdql_compound_get_attr( const hdql_Compound * instance, const char * name ) {
     return it->second;
 }
 
+extern "C" size_t
+hdql_compound_get_nattrs(const struct hdql_Compound * c) {
+    assert(c);
+    return c->attrsByName.size();
+}
+
+extern "C" void
+hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest) {
+    assert(c);
+    assert(dest);
+    size_t n = 0;
+    for(auto & p : c->attrsByName) {
+        dest[n++] = p.first.c_str();
+    }
+}
+
 extern "C" void
 hdql_compound_destroy(hdql_Compound * compound, hdql_Context_t context) {
     for(auto & attrDef : compound->attrsByName ) {

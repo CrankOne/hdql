@@ -71,8 +71,44 @@ identifier  {L}({L}|{D})*
 "<<="           {return T_LBSHIFTE;}
 ","             {return T_COMMA;}
 "."             {return T_PERIOD;}
-{D}+            {   char * endptr;
+([[:digit:]]{-}[0])[[:digit:]]*       {   char * endptr;
                     long val = strtol( yytext, &endptr, 0 );
+                    int ec = errno;
+                    if( *endptr != '\0' || (ec == ERANGE && (val == LONG_MIN || val == LONG_MAX)) ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid integer"
+                            " literal \"%s\": %s", yytext, strerror(ec) );
+                        return T_INVALID_LITERAL;
+                    }
+                    yylval->intStaticValue = val;
+                    return T_INT_STATIC_VALUE;
+                }
+0[01234567]*    {   char * endptr;
+                    unsigned long val = strtoul( yytext, &endptr, 8 );
+                    /*TODO: currently we do not really support full range of
+                     * unsigned int values... */
+                    if( val >= LONG_MAX ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid integer"
+                            " literal \"%s\": value is too large", yytext );
+                        return T_INVALID_LITERAL;
+                    }
+                    int ec = errno;
+                    if( *endptr != '\0' || (ec == ERANGE && (val == LONG_MIN || val == LONG_MAX)) ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid integer"
+                            " literal \"%s\": %s", yytext, strerror(ec) );
+                        return T_INVALID_LITERAL;
+                    }
+                    yylval->intStaticValue = val;
+                    return T_INT_STATIC_VALUE;
+                }
+0[xX][[:xdigit:]]+  {   char * endptr;
+                    unsigned long val = strtoul( yytext, &endptr, 16 );
+                    /*TODO: currently we do not really support full range of
+                     * unsigned int values... */
+                    if( val >= LONG_MAX ) {
+                        hdql_error(yylloc, ws, yyscanner, "invalid integer"
+                            " literal \"%s\": value is too large", yytext );
+                        return T_INVALID_LITERAL;
+                    }
                     int ec = errno;
                     if( *endptr != '\0' || (ec == ERANGE && (val == LONG_MIN || val == LONG_MAX)) ) {
                         hdql_error(yylloc, ws, yyscanner, "invalid integer"

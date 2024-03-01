@@ -75,13 +75,19 @@ typedef HDQL_STRING_TYPE hdql_StrPtr_t;
 /**\brief Max value of type code, derived from max bitlen */
 #define HDQL_VALUE_TYPE_CODE_MAX ((0x1 << HDQL_VALUE_TYPEDEF_CODE_BITSIZE)-1)
 
+/**\brief Numeric type used to identify value type 
+ *
+ * Note that upper limit for type code is defined not by this type size, but
+ * rather by macro `HDQL_VALUE_TYPEDEF_CODE_BITSIZE` */
+typedef uint16_t hdql_ValueTypeCode_t;
+
+
 #ifndef HDQL_COMPOUNDS_STACK_MAX_DEPTH
 /**\brief Controls max depth of subquery stack
  *
  * In practice, the depth will doubtly exceed 2-3. */
 #   define HDQL_COMPOUNDS_STACK_MAX_DEPTH 8
 #endif
-
 
 /*                                              ______________________________
  * ___________________________________________/ Common declaration-only types

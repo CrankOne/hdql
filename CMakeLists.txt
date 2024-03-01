@@ -38,7 +38,9 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
-                  src/funcs/generic-logic.c)
+                  src/funcs/generic-logic.c
+                  src/helpers/query.cc
+                  )
 
 add_compile_options(-Wall)
 
@@ -108,7 +110,9 @@ if (BUILD_TESTS)
     set (hdqlTest_SOURCES test/main.cc
                           test/events-struct.cc
                           test/samples.cc
-                          test/iteration-tests.cc)
+                          test/iteration-tests.cc
+                          test/cpp-api.cc
+                          )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)
     set_target_properties (hdql-test PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})

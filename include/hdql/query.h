@@ -30,7 +30,7 @@ struct hdql_Query;
  * */
 struct hdql_Query *
 hdql_compile_query( const char * strexpr
-                  , struct hdql_Compound * rootCompound
+                  , const struct hdql_Compound * rootCompound
                   , struct hdql_Context * ctx
                   , char * errBuf, unsigned int errBufLength
                   , int * errDetails

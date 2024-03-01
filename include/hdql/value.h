@@ -9,12 +9,6 @@ extern "C" {
 
 struct hdql_CollectionKey;  /* fwd */
 
-/**\brief Numeric type used to identify value type 
- *
- * Note that upper limit for type code is defined not by this type size, but
- * rather by macro `HDQL_VALUE_TYPEDEF_CODE_BITSIZE` */
-typedef uint16_t hdql_ValueTypeCode_t;
-
 /**\brief Type table
  *
  * Collects information about defined types. */

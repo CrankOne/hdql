@@ -1,16 +1,24 @@
-HDQL
-====
+HDQLang
+=======
 
-This is a readme file for *hierarchical data query language* (HDQL).
+This is a readme file for *hierarchical data query language* (HDQLang).
 
-HDQL is domain-specific language designed to be embeddable and reasonably
+HDQLang is domain-specific language designed to be embeddable and reasonably
 performant add-on to C/C++ projects dealing with streamed data of complex
-object model. Typical applications are various scientific tasks, converters,
-etc, when the data has well-defined schema.
+object model. It can be affiliated to so-called *information retrieval* family
+of languages.
 
-Usage niche is in between of low-level data processing applications usually
+Though its simplistic grammar provides rather rudimentary capabilities
+comparing to DB query languages and languages designed for data manipulation,
+its primary domain is to evaluate runtime-defined expressions at
+performance-critical places. Typical applications are various scientific tasks,
+converters, etc, when the data has well-defined schema.
+
+Usage niche mainly lies in between of low-level data processing applications usually
 done with FPGA and ASM-based low-level software and high level analyzis means
-like R, or Python ecosystem. For instance, in high energy physics (HEP) experiments
+like R, or Python ecosystem.
+
+For instance, in high energy physics (HEP) experiments
 before analyzing a physical event one has to *reconstruct* it based on data
 recorded from detectors. Detector digits corresponding to a single event are
 low-level, raw measurements that need to be calibrated and explored before
@@ -21,7 +29,7 @@ that this kind applications must be performant ones even on modern computers.
 
 HDQL provides a flexible and extensible tool to construct queries for
 hierarchical data in a laconic manner (way more laconic than imperative
-languages and even more expressive in its niche than SQL or GraphQL).
+languages and sometimes even more expressive in its niche than SQL or GraphQL).
 
 Disclaimer
 ----------

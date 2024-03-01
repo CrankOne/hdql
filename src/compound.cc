@@ -83,6 +83,13 @@ hdql_compound_is_virtual(const hdql_Compound * compound) {
     return NULL == compound->parent ? 0x0 : INT_MAX;
 }
 
+extern "C" bool
+hdql_compound_is_same(const struct hdql_Compound * compoundA
+        , const struct hdql_Compound * compoundB) {
+    /* todo: reserved for further (possible) elaboration */
+    return compoundA == compoundB;
+}
+
 extern "C" const struct hdql_Compound *
 hdql_virtual_compound_get_parent(const struct hdql_Compound * self) {
     return self->parent;

@@ -1,31 +1,26 @@
 #pragma once
 
+/**\file
+ * \brief C++ helpers for fast creation of compound definitions based on
+ *        structure definitions
+ * */
+
+#include "hdql/types.h"
+#include "hdql/attr-def.h"
+#include "hdql/query-key.h"
+#include "hdql/errors.h"
+
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
-#include <cassert>
-#include <cstdlib>
+#include <map>
 #include <typeinfo>
 #include <typeindex>
+
+#include <cassert>
+#include <cstdlib>
 #include <cstring>
-#include <map>
-
-#include <iostream>  // XXX, dev only
-
-#include "hdql/errors.h"
-#include "hdql/attr-def.h"
-#include "hdql/compound.h"
-#include "hdql/context.h"
-#include "hdql/query-key.h"
-#include "hdql/query.h"
-#include "hdql/types.h"
-#include "hdql/value.h"
-
-/**\file
- * \brief Optional helpers for fast creation of compound definitions based on
- *        C++ structure definitions 
- * */
 
 namespace hdql {
 namespace helpers {
@@ -1015,6 +1010,15 @@ public:
         assert(newCompound);
         this->emplace(typeid(T), newCompound);
         return AttributeInsertionProxy<T>(*newCompound, *this, *_contextPtr);
+    }
+
+    template<typename T> hdql_Compound *
+    get_compound_ptr() {
+        auto it = this->find(typeid(T));
+        if(this->end() == it) {
+            throw std::runtime_error("Type is not registered as compound");  // TODO: dedicated exception
+        }
+        return it->second;
     }
 };  // CompoundTypes
 

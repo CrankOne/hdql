@@ -114,7 +114,12 @@ private:
 protected:
     BaseQueryCursor();
     ~BaseQueryCursor();
-    void _bind(QueryAccessCache & qac) { qac._lock_by(*this); _qPtr = &qac; }
+    void _bind(QueryAccessCache & qac) {
+        assert(!_is_bound());
+        qac._lock_by(*this);
+        _qPtr = &qac;
+        assert(_is_bound());
+    }
     void _unbind();
     bool _is_bound() const { return _qPtr; }
     Query & _query_instance();
@@ -192,9 +197,13 @@ class QueryCursor : protected detail::BaseQueryCursor {
 private:
     detail::QueryAccessCache::Converter _converter;
 protected:
+    /// For deferred bind()
     QueryCursor(detail::QueryAccessCache::Converter);
+    /// Immediately binds
+    QueryCursor(detail::QueryAccessCache::Converter, Query &);
 public:
     QueryCursor() = delete;
+    QueryCursor(const QueryCursor<T> &) = delete;
     ~QueryCursor();
 
     void bind(Query & q);
@@ -386,7 +395,7 @@ Query::generic_cursor_on(RootT & rootObject) {
 template<typename T, typename RootT> QueryCursor<T>
 Query::cursor_on(RootT & rootObject) {
     _reset_subject_instance(_verify_root_compound_type(rootObject));
-    return QueryCursor<T>(_get_converter_to(typeid(T)));
+    return QueryCursor<T>(_get_converter_to(typeid(T)), *this);
 }
 
 
@@ -418,7 +427,14 @@ GenericQueryCursor::get() {
 // Query cursor (template deferred implem)
 
 template<typename T>
-QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv) : _converter(cnv) {
+QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv)
+        : _converter(cnv) {
+}
+
+template<typename T>
+QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv, Query & q)
+        : _converter(cnv) {
+    bind(q);
 }
 
 template<typename T>

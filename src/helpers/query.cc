@@ -58,7 +58,7 @@ QueryAccessCache::_unlock(BaseQueryCursor & c) {
 //
 // Base query sursor
 
-BaseQueryCursor::BaseQueryCursor() {
+BaseQueryCursor::BaseQueryCursor() : _qPtr(nullptr) {
 }
 
 BaseQueryCursor::~BaseQueryCursor() {
@@ -67,12 +67,14 @@ BaseQueryCursor::~BaseQueryCursor() {
 void
 BaseQueryCursor::_unbind() {
     _qPtr->_unlock(*this);
+    _qPtr = nullptr;
 }
 
 
 Query &
 BaseQueryCursor::_query_instance() {
     assert(_is_bound());
+    assert(_qPtr);
     return *static_cast<Query*>(_qPtr);
 }
 

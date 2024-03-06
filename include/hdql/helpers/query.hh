@@ -32,6 +32,15 @@ public:
     HDQLError(const char * reason) throw() : std::runtime_error(reason) {}
 };  // class HDQLError
 
+///\brief No subject instance bound to query
+///
+/// Indicates missing `Query::reset()` call -- query instance has no object
+/// bound (which is done via curesor interface)
+class NoQueryTarget : public HDQLError {
+public:
+    NoQueryTarget() : HDQLError("Query instance has no subject instance set") {}
+};
+
 /// HDQL expression error
 class HDQLExpressionError : public HDQLError {
 public:
@@ -124,6 +133,8 @@ protected:
     bool _is_bound() const { return _qPtr; }
     Query & _query_instance();
     const Query & _query_instance() const;
+public:
+    template<typename T> void reset(T &);
 };
 
 }  // namespace ::hdql::helpers::detail
@@ -175,6 +186,9 @@ protected:
 class GenericQueryCursor : protected detail::BaseQueryCursor {
 protected:
     GenericQueryCursor(Query & q);
+
+    template<typename RootT>
+    GenericQueryCursor(Query & q, RootT &);
 public:
     ~GenericQueryCursor();
     /// Forwards to `Query::_is_available()`
@@ -193,13 +207,18 @@ public:
  * faster data retreival as has conversion function cached in this instance.
  * */
 template<typename T>
-class QueryCursor : protected detail::BaseQueryCursor {
+class QueryCursor : public detail::BaseQueryCursor {
 private:
     detail::QueryAccessCache::Converter _converter;
 protected:
-    /// For deferred bind()
-    QueryCursor(detail::QueryAccessCache::Converter);
-    /// Immediately binds
+    ///\brief Constructs bound instance
+    ///
+    /// For immediate `bind()` usage scenario
+    template<typename RootT>
+    QueryCursor(detail::QueryAccessCache::Converter, Query &, RootT & rootObject);
+    ///\brief Constructs unbound cursor for reentrant usage
+    ///
+    /// For deferred `bind()` usage scenario
     QueryCursor(detail::QueryAccessCache::Converter, Query &);
 public:
     QueryCursor() = delete;
@@ -242,13 +261,14 @@ public:
  * */
 class Query : protected detail::QueryAccessCache {
 protected:
+    bool _isSet;
     /// Sub-context (descendant to root one provided in ctr)
     hdql_Context * _ownContext;
     ///\brief Root compound ptr specified in ctr
     ///
     /// Used only to verify compound type at cursor creation.
     ///
-    /// \note HDQL C query instance does not keep this pointer)
+    /// \note HDQL C query instance does not keep this pointer
     const hdql_Compound * _rootCompound;
     /// Pointer to C query instance which class wraps
     hdql_Query * _query;
@@ -359,16 +379,20 @@ public:
     /// Cursor locks the query, `RootT` must match the compound given ot
     /// construction (TODO: or be convertible to it)
     template<typename RootT> GenericQueryCursor generic_cursor_on(RootT &);
-    /// Returns statically typed cursor instance
+    /// Returns statically typed bound cursor instance
     ///
     /// Cursor locks the query, `RootT` must match the compound given ot
     /// construction (TODO: or be convertible to it)
     template<typename T, typename RootT> QueryCursor<T> cursor_on(RootT &);
+    /// Returns statically typed unbound cursor instance
+    ///
+    /// Cursor does not lock the query
+    template<typename T> QueryCursor<T> cursor();
 
     friend class detail::BaseQueryCursor;
     friend class GenericQueryCursor;
     template<typename T> friend class QueryCursor;
-};  // class Expression
+};  // class Query
 
 template<typename RootT> hdql_Datum *
 Query::_verify_root_compound_type(RootT & rootObject) {
@@ -388,16 +412,21 @@ Query::_verify_root_compound_type(RootT & rootObject) {
 
 template<typename RootT> GenericQueryCursor
 Query::generic_cursor_on(RootT & rootObject) {
-    _reset_subject_instance(_verify_root_compound_type(rootObject));
-    return GenericQueryCursor(*this);
+    //_reset_subject_instance(_verify_root_compound_type(rootObject));
+    return GenericQueryCursor(*this, rootObject);
 }
 
 template<typename T, typename RootT> QueryCursor<T>
 Query::cursor_on(RootT & rootObject) {
-    _reset_subject_instance(_verify_root_compound_type(rootObject));
-    return QueryCursor<T>(_get_converter_to(typeid(T)), *this);
+    //_reset_subject_instance(_verify_root_compound_type(rootObject));
+    return QueryCursor<T>(_get_converter_to(typeid(T)), *this, rootObject);
 }
 
+template<typename T> QueryCursor<T>
+Query::cursor() {
+    //_reset_subject_instance(_verify_root_compound_type(rootObject));
+    return QueryCursor<T>(_get_converter_to(typeid(T)), *this);
+}
 
 template<typename T> const T &
 Query::_get_as() const {
@@ -416,7 +445,22 @@ Query::_get_as() const {
 }
 
 //
+//
+
+template<typename T> void
+detail::BaseQueryCursor::reset(T & rootObject) {
+    this->_query_instance()._reset_subject_instance(
+            this->_query_instance()._verify_root_compound_type(rootObject));
+}
+
+//
 // Generic query cursor getter (deferred implementation of template method)
+
+template<typename RootT>
+GenericQueryCursor::GenericQueryCursor(Query & q, RootT & rootObject)
+        : GenericQueryCursor(q) {
+    reset(rootObject);
+}
 
 template<typename T> const T &
 GenericQueryCursor::get() {
@@ -427,19 +471,21 @@ GenericQueryCursor::get() {
 // Query cursor (template deferred implem)
 
 template<typename T>
-QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv)
-        : _converter(cnv) {
-}
-
-template<typename T>
 QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv, Query & q)
         : _converter(cnv) {
     bind(q);
 }
 
+template<typename T> template<typename RootT>
+QueryCursor<T>::QueryCursor(detail::QueryAccessCache::Converter cnv, Query & q, RootT & rootObject)
+        : QueryCursor<T>(cnv, q) {
+    detail::BaseQueryCursor::reset(rootObject);
+}
+
 template<typename T>
 QueryCursor<T>::~QueryCursor() {
-    if(_is_bound()) _unbind();
+    if(_is_bound())
+        _unbind();
     assert(!_is_bound());
 }
 
@@ -461,18 +507,26 @@ QueryCursor<T>::unbind() {
 
 template<typename T>
 QueryCursor<T>::operator bool() const {
+    if(!_is_bound()) return false;
     return _query_instance()._is_available();
 }
 
 template<typename T> QueryCursor<T> &
 QueryCursor<T>::operator++() {
+    if(!_is_bound()) {
+        throw std::runtime_error("Can't advance statically typed"
+                " cursor instance because it is not bound to a query.");
+    }
     _query_instance()._next();
     return *this;
 }
 
 template<typename T> const T &
 QueryCursor<T>::get() const {
-    assert(_is_bound());
+    if(!_is_bound()) {
+        throw std::runtime_error("Can't obtain data from statically typed"
+                " cursor instance because it is not bound to a query.");
+    }
     if(_converter) {
         int rc 
             = _converter->second.first( reinterpret_cast<hdql_Datum *>(_converter->second.second)
@@ -480,9 +534,9 @@ QueryCursor<T>::get() const {
         if(!rc) {
             throw std::runtime_error("value conversion failed");  // TODO: dedicated exception
         }
-        return reinterpret_cast<T*>(_converter->second.second);
+        return *reinterpret_cast<const T*>(_converter->second.second);
     } else {
-        return *reinterpret_cast<T *>(_query_instance()._r);
+        return *reinterpret_cast<const T *>(_query_instance()._r);
     }
 }
 

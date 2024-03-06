@@ -53,6 +53,7 @@ void
 QueryAccessCache::_unlock(BaseQueryCursor & c) {
     assert(_cCursor);
     assert(_cCursor == &c);
+    _cCursor = nullptr;
 }
 
 //
@@ -90,7 +91,6 @@ BaseQueryCursor::_query_instance() const {
 
 GenericQueryCursor::GenericQueryCursor(Query & q) {
     BaseQueryCursor::_bind(q);
-    //_query_instance()._next(); ?
 }
 
 GenericQueryCursor::~GenericQueryCursor() {
@@ -115,7 +115,8 @@ Query::Query( const char * expression
          , hdql_Context * rootContext
          , const std::unordered_map<std::type_index, hdql_Compound *> & compounds
          , bool keysNeeded )
-                : _ownContext(hdql_context_create_descendant(rootContext, HDQL_CTX_PRINT_PUSH_ERROR))
+                : _isSet(false)
+                , _ownContext(hdql_context_create_descendant(rootContext, HDQL_CTX_PRINT_PUSH_ERROR))
                 , _rootCompound(rootCompound)
                 , _query(nullptr)
                 , _keys(nullptr)
@@ -189,12 +190,15 @@ Query::Query( const char * expression
 
 bool
 Query::_is_available() const {
-    return _r != nullptr;
+    return _isSet && _r != nullptr;
 }
 
 void
 Query::_next() {
     assert(_query);
+    if(!_isSet) {
+        throw errors::NoQueryTarget();
+    }
     _r = hdql_query_get(_query, _keys, _ownContext);
 }
 
@@ -333,8 +337,10 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
 
 void
 Query::_reset_subject_instance(hdql_Datum_t item) {
+    assert(item);
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(item), _ownContext);
     _r = hdql_query_get(_query, _keys, _ownContext);
+    _isSet = true;
 }
 
 bool

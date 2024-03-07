@@ -26,17 +26,18 @@ namespace test {
 
 void
 TestingEventStruct::SetUp() {
-    _context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
+    hdql_Context_t ctx = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
 
     // reentrant table with type interfaces
-    _valueTypes = hdql_context_get_types(_context);
+    _valueTypes = hdql_context_get_types(ctx);
     // add standard (int, float, etc) types
     hdql_value_types_table_add_std_types(_valueTypes);
     // reentrant table with operations
-    _operations = hdql_context_get_operations(_context);
+    _operations = hdql_context_get_operations(ctx);
     hdql_op_define_std_arith(_operations, _valueTypes);
     // this is the compound types definitions
-    _compounds = hdql::test::define_compound_types(_context);
+    _compounds = hdql::test::define_compound_types(ctx);
+    //_compounds = hdql::helpers::CompoundTypes(ctx);
     if(_compounds.empty()) throw std::runtime_error("failed to initialize type tables");
     {
         auto it = _compounds.find(typeid(hdql::test::Event));
@@ -52,9 +53,9 @@ TestingEventStruct::TearDown() {
     // sic! in this order: non-virtual compounds get destroyed AFTER context as
     // they are used to resolve attribute definitions in queries while cleaning
     // up queries
-    hdql_context_destroy(_context);
+    hdql_context_destroy(_compounds.context_ptr());
     for(auto & ce : _compounds) {
-        hdql_compound_destroy(ce.second, _context);
+        hdql_compound_destroy(ce.second, _compounds.context_ptr());
     }
 }
 
@@ -1008,7 +1009,7 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
 namespace hdql {
 namespace test {
 
-helpers::Compounds
+helpers::CompoundTypes
 define_compound_types(hdql_Context_t context) {
     #if 1
     helpers::CompoundTypes types(context);

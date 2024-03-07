@@ -44,7 +44,7 @@ struct Event {
 };
 
 // Register testing types
-helpers::Compounds define_compound_types(hdql_Context_t);
+helpers::CompoundTypes define_compound_types(hdql_Context_t);
 
 //
 // G-Test testing fixture
@@ -52,10 +52,21 @@ class TestingEventStruct : public ::testing::Test {
 protected:
     hdql_ValueTypes * _valueTypes;
     hdql_Operations * _operations;
-    hdql::helpers::Compounds _compounds;
-    hdql_Context_t _context;
+    hdql::helpers::CompoundTypes _compounds;
     hdql_Compound * _eventCompound;
 protected:
+    TestingEventStruct()
+            : _valueTypes(nullptr)
+            , _operations(nullptr)
+            , _compounds(nullptr)
+            , _eventCompound(nullptr)
+            {}
+    TestingEventStruct(const TestingEventStruct & orig)
+            : _valueTypes(orig._valueTypes)
+            , _operations(orig._operations)
+            , _compounds(orig._compounds)
+            , _eventCompound(orig._eventCompound)
+            {}
     void SetUp() override;
     void TearDown() override;
 };  // class TestingEventStruct

@@ -22,7 +22,7 @@ public:
         TestingEventStruct::SetUp();
         // create child context
         _thisContext
-            = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+            = hdql_context_create_descendant(_compounds.context_ptr(), HDQL_CTX_PRINT_PUSH_ERROR);
 
         // create and fill event to operate
         fill_data_sample_1(_ev);
@@ -204,7 +204,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
-    helpers::Query q(".tracks.hits.x", _eventCompound, _thisContext, _compounds, true);
+    helpers::Query q = _compounds.query<hdql::test::Event>(".tracks.hits.x");
     
     // make sure the query has been result deduced properly
     // - is of atomic type

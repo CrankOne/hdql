@@ -10,6 +10,8 @@
 #include "hdql/query-key.h"
 #include "hdql/errors.h"
 
+#include "hdql/helpers/query.hh"
+
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -889,7 +891,12 @@ struct IFace< ptr
 
 /**\brief Helper class providing compound type definition interface
  *
- * Used to collect compound type info based on C++ RTTI.
+ * Used to collect compound type info based on C++ RTTI. While
+ * `hdql::Compounds` class benefits from C++ RTTI, it has to be logically
+ * associated with context instance provided by C API. This class represents
+ * an integration layer by combining `hdql::Compounds` and corresponding
+ * context instance. It laso exposes a query-creation method assuring type
+ * compatibility.
  * */
 class CompoundTypes : public Compounds {
     template<typename CompoundT>
@@ -1000,9 +1007,13 @@ class CompoundTypes : public Compounds {
         friend class CompoundTypes;
     };
 private:
+    /// Pointer to context specified in ctr (not owned)
     hdql_Context_t _contextPtr;
 public:
+    CompoundTypes(const CompoundTypes &) = default;
     CompoundTypes(hdql_Context_t context) : _contextPtr(context) {}
+
+    hdql_Context_t context_ptr() { return _contextPtr; }
 
     template<typename T> AttributeInsertionProxy<T>
     new_compound(const char * name) {
@@ -1019,6 +1030,21 @@ public:
             throw std::runtime_error("Type is not registered as compound");  // TODO: dedicated exception
         }
         return it->second;
+    }
+
+    template<typename RootT> helpers::Query
+    query(const char * expression, bool keysNeeded=true) {
+        auto rootCompoundIt = find(typeid(RootT));
+        if(end() == rootCompoundIt) {
+            throw std::runtime_error("Type is not registered as compound");  // TODO: dedicated exception
+        }
+        return Query( expression
+            , rootCompoundIt->second
+            , _contextPtr
+            , *this
+            , keysNeeded
+            //, const std::vector<std::string> & attrsOrder={}
+            );
     }
 };  // CompoundTypes
 

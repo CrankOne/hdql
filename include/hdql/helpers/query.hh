@@ -276,9 +276,7 @@ protected:
     hdql_CollectionKey * _keys;
     /// Query result type ptr (managed by context)
     const hdql_AttrDef * _topAttrDef;
-    /// Flat key view (must be accessed by `_current_key()`
-    /// within `_handle_hdql_query_result()`. Can be NULL if keys disabled
-    /// by ctr
+    /// Flat key view; can be NULL if keys disabled by ctr
     hdql_KeyView * _kv;
     /// Reference to compounds dictionary
     const std::unordered_map<std::type_index, hdql_Compound *> & _compounds;
@@ -531,8 +529,11 @@ QueryCursor<T>::get() const {
         int rc 
             = _converter->second.first( reinterpret_cast<hdql_Datum *>(_converter->second.second)
                     , _query_instance()._r );
-        if(!rc) {
-            throw std::runtime_error("value conversion failed");  // TODO: dedicated exception
+        if(rc) {
+            char errbf[128];
+            snprintf(errbf, sizeof(errbf), "Value conversion failed with error"
+                    " code %d", rc);
+            throw std::runtime_error(errbf);  // TODO: dedicated exception
         }
         return *reinterpret_cast<const T*>(_converter->second.second);
     } else {

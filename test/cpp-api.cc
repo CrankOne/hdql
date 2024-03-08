@@ -123,6 +123,10 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
 
 TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
     
+    //_thisContext;
+    // add standard type conversions
+    hdql_converters_add_std(hdql_context_get_conversions(_thisContext), hdql_context_get_types(_thisContext));
+
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
     helpers::Query q(".tracks.hits.x", _eventCompound, _thisContext, _compounds, true);
@@ -158,7 +162,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
     };
     for(int i = 0; i < 2; ++i) {
         // inline test case
-        for(helpers::QueryCursor<float> qc = q.cursor_on<float>(_ev); qc; ++qc) {
+        for(helpers::QueryCursor<double> qc = q.cursor_on<double>(_ev); qc; ++qc) {
             int kk[3];  // key to control
             for(size_t lvl = 0; lvl < q.keys_depth(); ++lvl) {
                 if(0x0 == q.keys()[lvl].code) {
@@ -204,6 +208,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
+    //   (this time using thin template method to instantiate the query)
     helpers::Query q = _compounds.query<hdql::test::Event>(".tracks.hits.x");
     
     // make sure the query has been result deduced properly

@@ -318,7 +318,7 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
             }  // if conversion not found
             // conversion found -- allocate buffer in own context
             cnvFAndBuf.second = reinterpret_cast<uint8_t*>(hdql_context_alloc(_ownContext
-                    , hdql_types_get_type(vts, destTypeCode)->size));  // LABEL:CONVERSION-DEST_BUF:ALLOC
+                    , hdql_types_get_type(vts, destTypeCode)->size ));  // LABEL:CONVERSION-DEST_BUF:ALLOC
             if(!cnvFAndBuf.second) {
                 char errbf[128];
                 snprintf( errbf, sizeof(errbf)
@@ -329,6 +329,8 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
                         );
                 throw std::runtime_error(errbf);
             }
+            cnvIt = _converters().emplace(destTypeInfo, cnvFAndBuf).first;
+            return &(*cnvIt);
         }  //  if conversion needed
         return nullptr;
     }  // if of atomic type

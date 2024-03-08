@@ -142,6 +142,7 @@ target_sources (hdql PUBLIC FILE_SET HEADERS
           include/hdql/value.h
           include/hdql/helpers/compounds.hh
           include/hdql/helpers/functions.hh
+          include/hdql/helpers/query.hh
           )
 include (GNUInstallDirs)
 install (TARGETS hdql

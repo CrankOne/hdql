@@ -126,29 +126,48 @@ endif (BUILD_TESTS)
 
 #
 # (Un)install
-target_sources (hdql PUBLIC FILE_SET HEADERS
-    BASE_DIRS include
-    FILES include/hdql/attr-def.h
-          include/hdql/compound.h
-          include/hdql/context.h
-          include/hdql/errors.h
-          include/hdql/function.h
-          include/hdql/internal-ifaces.h
-          include/hdql/operations.h
-          include/hdql/query-key.h
-          include/hdql/query-product.h
-          include/hdql/query.h
-          include/hdql/types.h
-          include/hdql/value.h
-          include/hdql/helpers/compounds.hh
-          include/hdql/helpers/functions.hh
-          include/hdql/helpers/query.hh
-          )
+set( hdql_HEADERS
+        include/hdql/attr-def.h
+        include/hdql/compound.h
+        include/hdql/context.h
+        include/hdql/errors.h
+        include/hdql/function.h
+        include/hdql/internal-ifaces.h
+        include/hdql/operations.h
+        include/hdql/query-key.h
+        include/hdql/query-product.h
+        include/hdql/query.h
+        include/hdql/types.h
+        include/hdql/value.h
+        include/hdql/helpers/compounds.hh
+        include/hdql/helpers/functions.hh
+        include/hdql/helpers/query.hh
+        )
+set_target_properties(hdql PROPERTIES PUBLIC_HEADER "${hdql_HEADERS}")
+message(WARNING "XXX ${hdql_HEADERS}")
+#target_sources (hdql PUBLIC FILE_SET HEADERS
+#    BASE_DIRS include
+#    FILES include/hdql/attr-def.h
+#          include/hdql/compound.h
+#          include/hdql/context.h
+#          include/hdql/errors.h
+#          include/hdql/function.h
+#          include/hdql/internal-ifaces.h
+#          include/hdql/operations.h
+#          include/hdql/query-key.h
+#          include/hdql/query-product.h
+#          include/hdql/query.h
+#          include/hdql/types.h
+#          include/hdql/value.h
+#          include/hdql/helpers/compounds.hh
+#          include/hdql/helpers/functions.hh
+#          include/hdql/helpers/query.hh
+#          )
 include (GNUInstallDirs)
 install (TARGETS hdql
     EXPORT ${CMAKE_PROJECT_NAME}Targets
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILE_SET HEADERS
+    #FILE_SET HEADERS
     )
        
 #

@@ -952,7 +952,9 @@ class CompoundTypes : public Compounds {
         }
 
         template<auto ptr>
-        typename std::enable_if<!helpers::IFace<ptr, void>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        typename std::enable_if< !helpers::IFace<ptr, void>::isCollection
+                               , AttributeInsertionProxy<CompoundT>
+                               >::type &
         attr(const char * name) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
@@ -977,7 +979,9 @@ class CompoundTypes : public Compounds {
         }
 
         template<auto ptr, typename SelectionT=void>
-        typename std::enable_if<helpers::IFace<ptr, SelectionT>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        typename std::enable_if< helpers::IFace<ptr, SelectionT>::isCollection
+                               , AttributeInsertionProxy<CompoundT>
+                               >::type &
         attr(const char * name, hdql_ReserveKeysListCallback_t keyListReserveCallback) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);

@@ -126,49 +126,66 @@ endif (BUILD_TESTS)
 
 #
 # (Un)install
-set( hdql_HEADERS
-        include/hdql/attr-def.h
-        include/hdql/compound.h
-        include/hdql/context.h
-        include/hdql/errors.h
-        include/hdql/function.h
-        include/hdql/internal-ifaces.h
-        include/hdql/operations.h
-        include/hdql/query-key.h
-        include/hdql/query-product.h
-        include/hdql/query.h
-        include/hdql/types.h
-        include/hdql/value.h
-        include/hdql/helpers/compounds.hh
-        include/hdql/helpers/functions.hh
-        include/hdql/helpers/query.hh
-        )
-set_target_properties(hdql PROPERTIES PUBLIC_HEADER "${hdql_HEADERS}")
-message(WARNING "XXX ${hdql_HEADERS}")
-#target_sources (hdql PUBLIC FILE_SET HEADERS
-#    BASE_DIRS include
-#    FILES include/hdql/attr-def.h
-#          include/hdql/compound.h
-#          include/hdql/context.h
-#          include/hdql/errors.h
-#          include/hdql/function.h
-#          include/hdql/internal-ifaces.h
-#          include/hdql/operations.h
-#          include/hdql/query-key.h
-#          include/hdql/query-product.h
-#          include/hdql/query.h
-#          include/hdql/types.h
-#          include/hdql/value.h
-#          include/hdql/helpers/compounds.hh
-#          include/hdql/helpers/functions.hh
-#          include/hdql/helpers/query.hh
-#          )
 include (GNUInstallDirs)
-install (TARGETS hdql
-    EXPORT ${CMAKE_PROJECT_NAME}Targets
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    #FILE_SET HEADERS
-    )
+# Use FILES_SET as it seems more native to CMake generated modules (although
+# available only starting from CMake 3.23)
+if(CMAKE_VERSION VERSION_GREATER "3.23")
+    target_sources (hdql PUBLIC FILE_SET HEADERS
+        BASE_DIRS include
+        FILES include/hdql/attr-def.h
+              include/hdql/compound.h
+              include/hdql/context.h
+              include/hdql/errors.h
+              include/hdql/function.h
+              include/hdql/internal-ifaces.h
+              include/hdql/operations.h
+              include/hdql/query-key.h
+              include/hdql/query-product.h
+              include/hdql/query.h
+              include/hdql/types.h
+              include/hdql/value.h
+              include/hdql/helpers/compounds.hh
+              include/hdql/helpers/functions.hh
+              include/hdql/helpers/query.hh
+              )
+    install (TARGETS hdql
+        EXPORT ${CMAKE_PROJECT_NAME}Targets
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILE_SET HEADERS
+        )
+else()
+    #set( hdql_HEADERS
+    #        include/hdql/attr-def.h
+    #        include/hdql/compound.h
+    #        include/hdql/context.h
+    #        include/hdql/errors.h
+    #        include/hdql/function.h
+    #        include/hdql/internal-ifaces.h
+    #        include/hdql/operations.h
+    #        include/hdql/query-key.h
+    #        include/hdql/query-product.h
+    #        include/hdql/query.h
+    #        include/hdql/types.h
+    #        include/hdql/value.h
+    #        include/hdql/helpers/compounds.hh
+    #        include/hdql/helpers/functions.hh
+    #        include/hdql/helpers/query.hh
+    #        )
+    #set_target_properties(hdql PROPERTIES PUBLIC_HEADER "${hdql_HEADERS}")
+    # ^^^ XXX -- does not preserve "helpers/" subdir, use instead glob
+    #     discovery
+    # Caveat: not well tested
+    install( DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
+             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} # target directory
+             FILES_MATCHING
+             REGEX "^.*\.h.?$"
+            )
+    install (TARGETS hdql
+        EXPORT ${CMAKE_PROJECT_NAME}Targets
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILE_SET HEADERS
+        )
+endif()
        
 #
 # Uninstall target (caveat: leaves empty dirs and broken symlinks)

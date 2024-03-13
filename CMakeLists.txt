@@ -154,27 +154,7 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
         FILE_SET HEADERS
         )
 else()
-    #set( hdql_HEADERS
-    #        include/hdql/attr-def.h
-    #        include/hdql/compound.h
-    #        include/hdql/context.h
-    #        include/hdql/errors.h
-    #        include/hdql/function.h
-    #        include/hdql/internal-ifaces.h
-    #        include/hdql/operations.h
-    #        include/hdql/query-key.h
-    #        include/hdql/query-product.h
-    #        include/hdql/query.h
-    #        include/hdql/types.h
-    #        include/hdql/value.h
-    #        include/hdql/helpers/compounds.hh
-    #        include/hdql/helpers/functions.hh
-    #        include/hdql/helpers/query.hh
-    #        )
-    #set_target_properties(hdql PROPERTIES PUBLIC_HEADER "${hdql_HEADERS}")
-    # ^^^ XXX -- does not preserve "helpers/" subdir, use instead glob
-    #     discovery
-    # Caveat: not well tested
+    # Caveat: to be tested
     install( DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
              DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} # target directory
              FILES_MATCHING
@@ -183,7 +163,6 @@ else()
     install (TARGETS hdql
         EXPORT ${CMAKE_PROJECT_NAME}Targets
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILE_SET HEADERS
         )
 endif()
        

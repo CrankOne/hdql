@@ -603,6 +603,7 @@ hdql_query_reset( struct hdql_Query * query
     } catch(std::runtime_error & e) {
         hdql_context_err_push(ctx, HDQL_ERR_BAD_QUERY_STATE
                 , "Can't re-set the query: %s", e.what());
+        return HDQL_ERR_BAD_QUERY_STATE;
     }
     return HDQL_ERR_CODE_OK;
 }

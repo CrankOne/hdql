@@ -164,6 +164,15 @@ int hdql_context_custom_data_add(hdql_Context_t, const char *, void *);
  * Returns NULL if name not found. */
 void * hdql_context_custom_data_get(hdql_Context_t, const char *);
 
+/**\brief Erases custom data entry from context
+ *
+ * Caveat: erasing is performed only within current context ancestry level. If
+ * custom data item was added to parent context, this function will not erase
+ * it (and returns -1).
+ *
+ * Return 0 on success, -1 if no custom data found for such name.
+ * */
+int hdql_context_custom_data_erase(hdql_Context_t, const char *);
 
 
 

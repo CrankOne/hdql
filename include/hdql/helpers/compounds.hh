@@ -889,6 +889,7 @@ struct IFace< ptr
                          , true>::create_attr_def;
 };  // STL container collection, with selection
 
+
 /**\brief Helper class providing compound type definition interface
  *
  * Used to collect compound type info based on C++ RTTI. While

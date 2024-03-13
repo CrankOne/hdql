@@ -59,7 +59,7 @@ struct hdql_Context {
 
     std::unordered_map<hdql_Datum_t, VariadicDatumInfo> variadicDataSizes;
 
-    std::unordered_map<std::string, void *> customData;
+    std::pair<hdql_Context *, std::unordered_map<std::string, void *>> customData;
 };
 
 extern "C" hdql_Context_t
@@ -72,6 +72,7 @@ hdql_context_create(uint32_t flags) {
     ctx->operations = _hdql_operations_create(NULL, ctx);
     ctx->functions  = _hdql_functions_create(NULL, ctx);
     ctx->constants  = _hdql_constants_create(NULL, ctx);
+    ctx->customData.first = nullptr;
     // ...
     return ctx;
 }
@@ -85,6 +86,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
     ctx->operations = _hdql_operations_create(pCtx->operations, ctx);
     ctx->functions  = _hdql_functions_create(pCtx->functions, ctx);
     ctx->constants  = _hdql_constants_create(pCtx->constants, ctx);
+    ctx->customData.first = pCtx;
     // ...
     return ctx;
 }
@@ -303,17 +305,33 @@ hdql_context_custom_data_add(
           hdql_Context_t context
         , const char * name
         , void * ptr ) {
-    auto ir = context->customData.emplace(name, ptr);
+    auto ir = context->customData.second.emplace(name, ptr);
     if(!ir.second) return -1;
     return 0;
 }
 
-void *
+extern "C" void *
 hdql_context_custom_data_get( hdql_Context_t context
                             , const char * name
                             ) {
-    auto it = context->customData.find(name);
-    if(context->customData.end() == it) return NULL;
+    auto it = context->customData.second.find(name);
+    if(context->customData.second.end() == it) {
+        if(context->customData.first)
+            return hdql_context_custom_data_get(context->customData.first, name);
+        return NULL;
+    }
     return it->second;
+}
+
+extern "C" int
+hdql_context_custom_data_erase( hdql_Context_t context
+                              , const char * name
+                              ) {
+    auto it = context->customData.second.find(name);
+    if(context->customData.second.end() == it) {
+        return -1;
+    }
+    context->customData.second.erase(it);
+    return 0;
 }
 

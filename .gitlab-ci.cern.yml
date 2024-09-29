@@ -62,7 +62,8 @@ variables:
           -DCPACK_GENERATOR=TGZ \
           -DCPACK_PACKAGE_VENDOR="NA64 Collaboration (CERN), GitLab CI" \
           -DCMAKE_INSTALL_PREFIX=/cvmfs/na64.cern.ch/sft/$PLATFORM/${CI_PROJECT_NAME}/tmp \
-          -DCMAKE_INSTALL_LIBDIR=lib
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON
     # Get version string
     - export PACKAGE_VERSION=$(cat version.txt)-$BUILD_CFG_SUFFIX
     - export PKG_PREFIX=/cvmfs/na64.cern.ch/sft/${PLATFORM}/${CI_PROJECT_NAME}/$PACKAGE_VERSION

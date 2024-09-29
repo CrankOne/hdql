@@ -1,7 +1,9 @@
 ---
 # CI script for CERN GitLab
 
-image: gitlab-registry.cern.ch/p348/na64sw/na64sw-ci-alma9
+image: gitlab-registry.cern.ch/p348/na64sw/na64sw-ci-native-alma9
+# ^^^ need "native" to be a basic image for LCG builds as well, as M4 (from
+#     within flex) seems not work otherwise
 
 variables:
   # this steers how deep the commits history should be fetched. Setting it to

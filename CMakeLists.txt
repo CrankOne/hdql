@@ -6,9 +6,9 @@ cmake_minimum_required (VERSION 3.9.4)
 #  - exports install configuration
 #  - packaging via CPack
 
-set (hdql_VERSION_MAJOR 0)
-set (hdql_VERSION_MINOR 1)
-set (hdql_VERSION ${hdql_VERSION_MAJOR}.${hdql_VERSION_MINOR})
+include (cmake/version.cmake)
+get_pkg_version (hdql)
+set (hdql_VERSION ${hdql_VERSION_MAJOR}.${hdql_VERSION_MINOR}.${hdql_VERSION_TWEAK})
 
 project (hdql VERSION ${hdql_VERSION})
 

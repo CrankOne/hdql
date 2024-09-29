@@ -66,8 +66,8 @@ endif (BUILD_TESTS)
 
 #
 # Generate parser
-find_package (BISON)
-find_package (FLEX)
+find_package (BISON REQUIRED)
+find_package (FLEX REQUIRED)
 
 bison_target (HDQL_PARSER hdql.y
               ${CMAKE_CURRENT_BINARY_DIR}/hdql.tab.c

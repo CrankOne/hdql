@@ -1,6 +1,15 @@
 #ifndef HDQL_HASH_TABLE_H
 #define HDQL_HASH_TABLE_H
 
+/*\brief HDQL internal hash table implementation
+ *
+ * \todo Currently STL containers outperforms this implementation till <30
+ *       elements on records. Try to use linear scan/bijection on sorted array
+ *       for some reasonably small number of elements (<8 for LS, <30 for
+ *       sorted) instead of hash table, switch to HT when number of entries
+ *       becomes larger than 30.
+ */
+
 #include "hdql/allocator.h"
 
 #include <stddef.h>

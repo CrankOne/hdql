@@ -30,6 +30,7 @@ struct hdql_ht {
 };
 
 #if 0
+// A little slower than murmur (!)
 static uint32_t djb2_hash(const char *str) {
     uint32_t hash = 5381;
     int c;
@@ -48,9 +49,9 @@ static uint32_t murmur3_32(const uint8_t *key, size_t len, uint32_t seed) {
     const uint32_t c1 = 0xcc9e2d51;
     const uint32_t c2 = 0x1b873593;
 
-    const int nblocks = len / 4;
+    const int nblocks = len >> 2;
     const uint32_t *blocks = (const uint32_t *)(key);
-    for (int i = 0; i < nblocks; i++) {
+    for (int i = 0; i < nblocks; ++i) {
         uint32_t k = blocks[i];
         k *= c1;
         k = (k << 15) | (k >> 17);
@@ -61,7 +62,7 @@ static uint32_t murmur3_32(const uint8_t *key, size_t len, uint32_t seed) {
         h = h * 5 + 0xe6546b64;
     }
 
-    const uint8_t *tail = (const uint8_t *)(key + (nblocks * 4));
+    const uint8_t *tail = (const uint8_t *)(key + (nblocks << 2));
     uint32_t k1 = 0;
     switch (len & 3) {
         case 3: k1 ^= tail[2] << 16;  // fallthrough
@@ -242,7 +243,6 @@ hdql_ht_iter( const hdql_ht * ht
 int
 hdql_ht_rebuild( hdql_ht * ht ) {
     size_t newCap = ht->capacity ? ht->capacity + 1 : 5;
-    //printf("XXX rebuilding from %zu to %zu\n", ht->capacity, newCap);  // XXX
     hdql_ht_entry ** newBuckets =
         (hdql_ht_entry **) ht->allocator.alloc(
                 (1u << newCap) * sizeof(void *), ht->allocator.userdata);

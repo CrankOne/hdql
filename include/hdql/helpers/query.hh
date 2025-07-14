@@ -372,6 +372,14 @@ public:
     size_t keys_depth() const;
     const hdql_CollectionKey * keys() const;
 
+    ///\brief Returns list of field names from the compound query result
+    ///
+    /// Only valid when `is_compound()` is true, throws `HDQLError` otherwise.
+    /// If `recurseDelimiter` is set, will expand compound entries as well.
+    std::vector<std::string> names(char recurseDelimiter='\0') const;
+
+    std::vector<std::string> key_names() const;
+
     /// Returns generic (polymorphic) cursor instance
     ///
     /// Cursor locks the query, `RootT` must match the compound given ot

@@ -241,7 +241,9 @@ _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_logic_
     m( GT,    >,  __VA_ARGS__ ) \
     m( GTE,   >=, __VA_ARGS__ ) \
     m( LT,    <,  __VA_ARGS__ ) \
-    m( LTE,   <=, __VA_ARGS__ )
+    m( LTE,   <=, __VA_ARGS__ ) \
+    m( Eq,    ==, __VA_ARGS__ ) \
+    m( NEq,   !=, __VA_ARGS__ )
 
 #define _M_implement_comparison_op(op, sign, t1, t2) \
     static int _ ## t1 ## _ ## op ## _ ## t2 (const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \

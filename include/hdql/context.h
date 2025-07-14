@@ -2,7 +2,6 @@
 #define H_HDQL_CONTEXT_H
 
 #include "hdql/types.h"
-#include "hdql/query-key.h"
 
 #ifdef __cplusplus
 extern "C" {

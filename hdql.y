@@ -168,6 +168,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 //%nonassoc T_LT T_LTE T_GT T_GTE
 //%right T_RBSHIFTE T_LBSHIFTE  // unused so far
 //%right T_QUESTIONMM  // unused so far
+%left T_NE T_EQ
 %left T_DBL_PIPE
 %left T_DBL_AMP
 %left T_DBL_CAP
@@ -231,6 +232,10 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             { M_OP( $1, OpGT,       $3, "greater-than binary", $$ ); }
             | aQExpr T_GTE aQExpr
             { M_OP( $1, OpGTE,      $3, "greater-than-or-equal binary", $$ ); }
+            | aQExpr T_EQ aQExpr
+            { M_OP( $1, OpEq,       $3, "equals binary", $$ ); }
+            | aQExpr T_NE aQExpr
+            { M_OP( $1, OpNEq,       $3, "not equals binary", $$ ); }
             | T_EXCLMM aQExpr
             { M_OP( $2, UOpNot,   NULL, "logic negate unary", $$ ); }
             | T_TILDE aQExpr

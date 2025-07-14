@@ -2,6 +2,7 @@
 #include "hdql/attr-def.h"
 #include "hdql/errors.h"
 #include "hdql/helpers/compounds.hh"
+#include "hdql/helpers/query-results-table.h"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -18,7 +19,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
-#include <iostream>
 
 //
 // Example of event structs
@@ -104,6 +104,22 @@ test_query_on_data( int nSample, const char * expression ) {
     //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
     //puts(keyStrBf);
 
+    puts("-- query columns:"); {
+        char * colNames[256];
+        size_t nColumns = 256;
+        hdql_stream_column_names(q, colNames, &nColumns, '/');
+        if(nColumns) {
+            fflush(stdout);  // XXX
+            for(size_t i = 0; i < nColumns; ++i) {
+                if(i) fputs(", ", stdout);
+                fputs(colNames[i], stdout);
+            }
+            fputs("\n", stdout);
+        } else {
+            puts("(no columns)");
+        }
+    }
+
     puts("-- query results:");
     while(NULL != (r = hdql_query_get(q, keys, ctx))) {
         hadResult = true;
@@ -132,9 +148,10 @@ test_query_on_data( int nSample, const char * expression ) {
 
         if(!topAttrDef) {
             fputs("??? (query did not provide attribute definition)", stdout);
-        } else {
+        } else {  // valid result
             fputs(flKStr, stdout);  // flat keys
-            if(hdql_attr_def_is_static_value(topAttrDef)) {
+            if(hdql_attr_def_is_static_value(topAttrDef)) {  // returns static value
+                // xxx, example: `2 + 3'
                 printf( "static value %p of type %d"
                       ,  hdql_attr_def_get_static_value(topAttrDef)
                       , (int) hdql_attr_def_get_atomic_value_type_code(topAttrDef)
@@ -150,16 +167,18 @@ test_query_on_data( int nSample, const char * expression ) {
                         fputs(" (no value interface)", stdout);
                     }
                 }
-            } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {
+            } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {  // forwarding query
                 printf("subquery %p", hdql_attr_def_fwd_query(topAttrDef));
-            } else if(!hdql_attr_def_is_atomic(topAttrDef)) {
+            } else if(!hdql_attr_def_is_atomic(topAttrDef)) {  // compound instance(s) of certain type
+                // xxx, example `.hits', `.tracks', `sin(0.23)'
                 printf( "compound %s instance %p of type `%s'"
                       , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
                       , r
                       , hdql_compound_get_name(hdql_attr_def_compound_type_info(topAttrDef))
                       );
-            } else {
-                if(!hdql_attr_def_is_collection(topAttrDef)) {
+            } else {  // atomic item
+                if(!hdql_attr_def_is_collection(topAttrDef)) {  // scalar compound attribute
+                    // xxx, example: `.eventID', `.hits.x'
                     const hdql_ValueInterface * vi = hdql_types_get_type(valTypes
                             , hdql_attr_def_get_atomic_value_type_code(topAttrDef) );
                     if(!vi) {
@@ -173,7 +192,8 @@ test_query_on_data( int nSample, const char * expression ) {
                         printf( "scalar instance %p of type <%s> with value \"%s\""
                                 , r, vi->name, valueBf );
                     }
-                } else {
+                } else {  // item from collection of atomic scalars (1d list or array)
+                    // xxx, example: `.hits.rawData.samples'
                     #if 1
                     const hdql_ValueInterface * vi
                         = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
@@ -196,7 +216,7 @@ test_query_on_data( int nSample, const char * expression ) {
                 }
             }
             puts(".");
-        }
+        }  // end of valid result handling
 
         #if 0
         printf("#%zu: %s[%s] => ", nResult++, flKStr, keyStrBf);

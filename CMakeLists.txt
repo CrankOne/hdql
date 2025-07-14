@@ -33,6 +33,8 @@ set (hdql_SOURCES src/types.cc
 	              src/value.cc
 	              src/function.cc
                   src/converters.cc
+                  src/hash-table.c
+                  src/allocator.c
 	              src/ifaces/fwd-query-as-collection.c
 	              src/ifaces/fwd-query-as-scalar.c
 	              src/ifaces/arith-op-as-scalar.c
@@ -40,6 +42,7 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/filtered-v-compound.c
                   src/funcs/generic-logic.c
                   src/helpers/query.cc
+                  src/helpers/query-results-table.c
                   )
 
 add_compile_options(-Wall)
@@ -108,6 +111,7 @@ if (BUILD_TESTS)
     target_link_libraries (hdql PUBLIC ${GTEST_BOTH_LIBRARIES} Threads::Threads)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES test/main.cc
+                          test/ht.test.cc
                           test/events-struct.cc
                           test/samples.cc
                           test/iteration-tests.cc
@@ -122,6 +126,9 @@ if (BUILD_TESTS)
                                               BASE_DIRECTORY "${PROJECT_SOURCE_DIR}"
                                               EXCLUDE "obj/*;build/*;doc/*;templates/*")
     endif (COVERAGE)
+    add_executable(hdql-ht-benchmark test/benchmark-ht-test.main.cc )
+    target_link_libraries(hdql-ht-benchmark PUBLIC hdql)
+    set_target_properties(hdql-ht-benchmark PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
 endif (BUILD_TESTS)
 
 #
@@ -144,6 +151,9 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
               include/hdql/query.h
               include/hdql/types.h
               include/hdql/value.h
+              include/hdql/hash-table.h
+              include/hdql/allocator.h
+              include/hdql/helpers/query-results-table.h
               include/hdql/helpers/compounds.hh
               include/hdql/helpers/functions.hh
               include/hdql/helpers/query.hh

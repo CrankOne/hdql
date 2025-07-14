@@ -47,6 +47,8 @@ typedef enum hdql_OperationCode {
     hdql_kOpLTE,
     hdql_kOpGT,
     hdql_kOpGTE,
+    hdql_kOpEq,
+    hdql_kOpNEq,
     hdql_kUOpNot,
     hdql_kUOpBNot,  // todo: rename to b-invert
     hdql_kUOpMinus

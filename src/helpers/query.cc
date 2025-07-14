@@ -12,7 +12,6 @@
 #include <cassert>
 #include <cstddef>
 #include <stdexcept>
-#include <string>
 #include <typeinfo>
 #include <utility>
 
@@ -232,6 +231,82 @@ Query::keys_depth() const {
 const hdql_CollectionKey *
 Query::keys() const {
     return _keys;
+}
+
+namespace {
+static void
+_collect_names_recursive(
+        std::vector<std::string> & result,
+        const std::string & prefix,
+        const hdql_Compound * compound,
+        char recurseDelimiter) {
+    const size_t nAttrs = hdql_compound_get_nattrs(compound);
+    const char ** attrNames = reinterpret_cast<const char **>(alloca(sizeof(const char*)*nAttrs));
+    assert(attrNames);
+    hdql_compound_get_attr_names(compound, attrNames);
+
+    for (size_t i = 0; attrNames[i]; ++i) {
+        const char * attrName = attrNames[i];
+        if (!attrName || !*attrName)
+            continue;
+
+        const hdql_AttrDef * attr = hdql_compound_get_attr(compound, attrName);
+        assert(attr);
+        std::string fullName = prefix.empty() ? attrName : (prefix + recurseDelimiter + attrName);
+
+        if (hdql_attr_def_is_compound(attr)) {
+            if (!recurseDelimiter) {
+                throw errors::HDQLError("Nested compound found in"
+                        " disabled recusion mode.");
+            }
+            const hdql_Compound * subcompound = hdql_attr_def_compound_type_info(attr);
+            if (!subcompound)
+                throw errors::HDQLError((std::string("Failed to get nested compound info for: ")
+                            + attrName).c_str());
+            _collect_names_recursive(result, fullName, subcompound, recurseDelimiter);
+        } else {
+            result.emplace_back(std::move(fullName));
+        }
+    }
+}
+} // anonymous namespace
+
+std::vector<std::string>
+hdql::helpers::Query::names(char recurseDelimiter) const {
+    if (!is_compound())
+        throw errors::HDQLError("Query result is not of compound type.");
+    assert(_topAttrDef);
+    const hdql_Compound * compound = hdql_attr_def_compound_type_info(_topAttrDef);
+    assert(compound);
+    std::vector<std::string> result;
+    _collect_names_recursive(result, "", compound, recurseDelimiter);
+    return result;
+}
+
+std::vector<std::string>
+hdql::helpers::Query::key_names() const {
+    if (!_keys) {
+        throw errors::HDQLError("Query does not expose keys (perhaps keysNeeded=false)");
+    }
+
+    hdql_Context * ctx = _ownContext;
+    size_t nKeys = hdql_keys_flat_view_size(_query, _keys, ctx);
+    std::vector<std::string> names;
+    names.reserve(nKeys);
+
+    std::vector<hdql_KeyView> kv(nKeys);
+    hdql_keys_flat_view_update(_query, _keys, kv.data(), ctx);
+
+    for (const auto & view : kv) {
+        //const char * name = view.interface->get_name(view.keyPtr);
+        const char * name = view.interface->name;
+        if (!name) {
+            throw errors::HDQLError("Key name retrieval failed (null name returned)");
+        }
+        names.emplace_back(name);
+    }
+
+    return names;
 }
 
 detail::QueryAccessCache::Converter

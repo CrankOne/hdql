@@ -43,6 +43,7 @@ set (hdql_SOURCES src/types.cc
                   src/funcs/generic-logic.c
                   src/helpers/query.cc
                   src/helpers/query-results-table.c
+                  src/helpers/fancy-print-err.c
                   )
 
 add_compile_options(-Wall)

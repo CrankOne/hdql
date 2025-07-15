@@ -57,9 +57,9 @@ _recursive_call_on_attrs( const struct hdql_AttrDef * def
     return 0;
 }
 
+/**\brief Visitor userdata collecting available column names */
 struct ColumnNamesCollectionState {
-    size_t nMaxColumns;
-    size_t count;
+    size_t nMaxColumns, count;
     char ** namesPtr;
 };
 
@@ -97,6 +97,93 @@ hdql_stream_column_names( struct hdql_Query * q
     _recursive_call_on_attrs(topAttrDef, ""
             , delimiter
             , _push_column_name, &cs
+            );
+    return 0;
+}
+
+/*
+ * Data
+ */
+
+struct TableRecordCollectionState {
+    // these attributes duplicates ones from `ColumnNamesCollectionState` and
+    // are used for debug purposes
+    size_t nMaxColumns, count;
+    char ** namesPtr;
+    struct iQueryResultsTable * t;
+};
+
+static int
+_recursive_call_on_values( const struct hdql_AttrDef * def
+            , hdql_Datum_t datum
+            , const char * prefix, char delimiter
+            , int (*func)(const char*, void *), void * userdata
+            ) {
+    int rc = 0;
+    if(hdql_attr_def_is_compound(def)) {
+        /* Compound appends column names with choosen delimiter */
+        const struct hdql_Compound * compound = hdql_attr_def_compound_type_info(def);
+        do {
+            size_t nAttrs = hdql_compound_get_nattrs(compound);
+            const char ** attrNames = (const char **) alloca(sizeof(char*) * nAttrs);
+            hdql_compound_get_attr_names(compound, attrNames);
+            for (size_t i = 0; i < nAttrs; ++i) {
+                const char * aName = attrNames[i];
+                const struct hdql_AttrDef * subDef = hdql_compound_get_attr(compound, aName);
+                char buf[256];
+                if(*prefix != '\0') {
+                    snprintf(buf, sizeof(buf), "%s%c%s", prefix, delimiter, aName);
+                } else {
+                    strcpy(buf, aName);
+                }
+                rc = _recursive_call_on_attrs(subDef, buf, delimiter
+                        , func, userdata);
+                if(rc != 0) {
+                    /* Should never happen */
+                    fputs("Exit from recursive call"
+                          " on query attributes due to previous error."
+                          , stderr
+                          );
+                    return rc;
+                }
+            }
+            if(hdql_compound_is_virtual(compound))
+                compound = hdql_virtual_compound_get_parent(compound);
+            else
+                compound = NULL;
+        } while(compound);
+        return rc;
+    }
+    if(0 != (rc = func(prefix, userdata))) {
+        fprintf(stderr, "Recursive callback for query attribute returned"
+                " %d, exit.\n", rc);
+    }
+    return 0;
+}
+
+int
+hdql_stream_entry( struct hdql_Query * q
+            , struct iQueryResultsTable * rt
+            , struct hdql_CollectionKey * keys
+            , char ** names, size_t * nColumns  // ???
+            , char delimiter  // ???
+            , struct hdql_Context * ctx
+            ) {
+    hdql_Datum_t r = hdql_query_get(q, keys, ctx);
+    if(NULL == r) return 1;  /* Query depleted (TODO: dedicated code?) */
+    //if(keys) rt->new_row();  // TODO: initializes new row with flat keys updated
+
+    const struct hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
+    assert(topAttrDef);
+
+    struct TableRecordCollectionState trs;
+    trs.nMaxColumns = *nColumns;
+    trs.count = 0;
+    trs.namesPtr = names;
+
+    _recursive_call_on_values(topAttrDef, r, ""
+            , delimiter
+            , _push_column_name, &trs
             );
     return 0;
 }

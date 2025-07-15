@@ -3,6 +3,7 @@
 #include "hdql/errors.h"
 #include "hdql/helpers/compounds.hh"
 #include "hdql/helpers/query-results-table.h"
+#include "hdql/helpers/fancy-print-err.h"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -59,8 +60,9 @@ test_query_on_data( int nSample, const char * expression ) {
     
     int rc = 0;
     hdql_Query * q; {
+        char * expCpy = strdup(expression);
         char errBuf[256] = "";
-        int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first column, first line, last column, last line
+        int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first line, first column, last line, last column
         q = hdql_compile_query( expression
                               , eventCompound
                               , ctx
@@ -69,11 +71,24 @@ test_query_on_data( int nSample, const char * expression ) {
                               );
         rc = errDetails[0];
         if(rc) {
+            #if 0
+            fputs(expression, stderr);
             fprintf( stderr, "Expression error (%d,%d-%d,%d): %s\n"
                    , errDetails[1], errDetails[2], errDetails[3], errDetails[4]
                    , errBuf);
+            #else
+            char fancyprintbuf[1024];
+            rc = hdql_fancy_error_print(fancyprintbuf, sizeof(fancyprintbuf)
+                    , expCpy, errDetails, errBuf, 0x1);
+            fputs(fancyprintbuf, stderr);
+            if(rc) {
+                fputs("(truncated)\n", stderr);
+            }
+            #endif
+            free(expCpy);
             return 1;
         }
+        free(expCpy);
     }
     assert(q);
     puts("-- query composition:");
@@ -104,6 +119,7 @@ test_query_on_data( int nSample, const char * expression ) {
     //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
     //puts(keyStrBf);
 
+    #if 0
     puts("-- query columns:"); {
         char * colNames[256];
         size_t nColumns = 256;
@@ -112,13 +128,17 @@ test_query_on_data( int nSample, const char * expression ) {
             fflush(stdout);  // XXX
             for(size_t i = 0; i < nColumns; ++i) {
                 if(i) fputs(", ", stdout);
-                fputs(colNames[i], stdout);
+                if(colNames[i])
+                    fputs(colNames[i], stdout);
+                else
+                    fputs("(NULL)", stdout);
             }
             fputs("\n", stdout);
         } else {
             puts("(no columns)");
         }
     }
+    #endif
 
     puts("-- query results:");
     while(NULL != (r = hdql_query_get(q, keys, ctx))) {

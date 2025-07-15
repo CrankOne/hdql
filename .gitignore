@@ -1,6 +1,8 @@
 obj/*
+.cache/*
 spec.txt
 hdql.tab.c
 hdql.tab.h
 lex.yy.c
 lex.yy.h
+compile_commands.json

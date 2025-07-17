@@ -106,7 +106,7 @@ struct hdql_CollectionAttrInterface {
 
 extern const struct hdql_CollectionAttrInterface gSubQueryInterface;
 
-struct hdql_AttrDef;
+struct hdql_AttrDef;  /* opaque type */
 
 typedef const struct hdql_AttrDef * hdql_AttrDef_t;
 

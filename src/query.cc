@@ -694,4 +694,49 @@ hdql_query_top_attr(const struct hdql_Query * q_) {
     return q->subject;
 }
 
+#if 0
+extern "C" int
+hdql_query_interpret_subordiantes( struct hdql_Compound * topCompound
+        , const char ** subStrQueries
+        , struct hdql_Query ** dest
+        , struct hdql_Context * ctx
+        /* introspection callbacks, may be null */
+        , int (*icb)(size_t nSQ, struct hdql_Query *, void *)
+        /* diagnostics */
+        , char * errBuf, size_t errBufSize
+        , void (*err_cb)(size_t nErrSQ, const int *, void *)
+        /* userdata to provide to callbacks */
+        , void * userdata
+        ) {
+    struct hdql_Query ** bgn = dest;
+    int errDetails[5] = {0, -1, -1, -1, -1};
+    for( const char ** sqs = subStrQueries
+       ; *sqs
+       ; ++sqs, ++dest ) {
+        *dest = hdql_compile_query( *sqs
+                              , topCompound
+                              , ctx
+                              , errBuf, errBufSize
+                              , errDetails
+                              );
+        if(errDetails[0]) {
+            if(err_cb) err_cb(dest - bgn, errDetails, userdata);
+            return errDetails[0];
+        }
+        /* communicate this sub-query's top attr definition, if need */
+        if(icb) {
+            int rc;
+            if(HDQL_ERR_CODE_OK != (rc = icb(dest - bgn, *dest, userdata))) {
+                /* error reported in return of the sub-query top
+                 * attribute; invoke error handler with special NULL as error
+                 * details and forward error code down by stack (to caller) */
+                if(err_cb) err_cb(dest - bgn, NULL, userdata);
+                return rc;
+            }
+        }
+    }
+    return HDQL_ERR_CODE_OK;
+}
+#endif
+
 

@@ -1,3 +1,49 @@
+#include "hdql/attr-def.h"
+#include "hdql/query-key.h"
+#ifndef H_HDQL_QUERY_RESULTS_TABLE_H
+#define H_HDQL_QUERY_RESULTS_TABLE_H 1
+
+#include "hdql/types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**\brief Query results receiver assuming tabular logic
+ *
+ * This helper interface is meant to simplify integration with query object
+ * defining a rule to populate table with query results. The query always
+ * evaluates to scalar instance, producing a series
+ * of ((key1, key22, ...), value) pair every time it is advanced. In the
+ * simplest case the value is atomic scalar value (of arithmetic or string
+ * type). More elaborated and very important scenario is when the value is
+ * of (virtual) compound type to which user would like to apply sub-queries.
+ * For instance, populating 2D histogram would require obtaining two random
+ * joint variables --- which is the subject of two (possibly, very simple)
+ * sub-queries to root query result.
+ *
+ * */
+
+struct hdql_iQueryResultsTable {
+    /** Arbitrary user pointer forwarded into all interface's calls */
+    void * userdata;
+
+    int (*handle_column_definition)(const char *, const struct hdql_AttrDef *, void *);
+    int (*columns_defined)(void * userdata);
+
+    int (*handle_new_record)(struct hdql_KeyView * kv, void *);
+    int (*handle_record_value)(hdql_Datum_t datum, void *);
+};
+
+
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+#endif  /* H_HDQL_QUERY_RESULTS_TABLE_H */
+
+#if 0
 #ifndef H_HDQL_RESULTS_STREAMER_H
 #define H_HDQL_RESULTS_STREAMER_H 1
 
@@ -68,3 +114,4 @@ hdql_stream_query_results( struct hdql_Query * q
 #endif
 
 #endif  /*H_HDQL_RESULTS_STREAMER_H*/
+#endif

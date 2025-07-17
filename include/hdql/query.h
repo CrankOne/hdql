@@ -19,8 +19,9 @@ struct hdql_CollectionKey;  /* fwd, query-key.h */
 /**\brief Represents a query instance of HDQL
  *
  * A query in HDQL is a stateful object combining functions of data traversing,
- * selection and inspection. It can be examined for a return type before
- * applied to a certain instance.
+ * selection and inspection. It can be examined for a return type and list
+ * of keys within collections being iterated before applied to a certain
+ * data instance.
  * */
 struct hdql_Query;
 
@@ -114,6 +115,39 @@ void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */
 void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
+
+#if 0
+/**\brief Interprets expression into sub-queries with respect to given
+ *        compound type
+ *
+ * With given compund type \p topCompound, sequentially interprets
+ * strings gven in null-terminated list \p subStrQueries placing
+ * resulting query instances into \p dest and optionally calling \p icb
+ * after every sucessfully interpreted item.
+ *
+ * Uses \p errBuf buffer of length
+ * \p errBufSize during interpretation procudure. On  error, calls \p err_cb
+ * (if not null) with number of faulty query, error details and \p userdata
+ * and returns last exit code of `hdql_compile_query()`
+ *
+ * \note \p dest is not obliged to be null-terminated. If you plan to use
+ *       it further with `hdql_query_tree_tier_advance()`, user code should
+ *       terminate it with null explicetly.
+ */
+int
+hdql_query_interpret_subordiantes( struct hdql_Compound * topCompound
+        , const char ** subStrQueries
+        , struct hdql_Query ** dest
+        , struct hdql_Context * ctx
+        /* introspection callbacks, may be null */
+        , int (*icb)(size_t nSQ, struct hdql_Query *, void *)
+        /* diagnostics */
+        , char * errBuf, size_t errBufSize
+        , void (*err_cb)(size_t nErrSQ, const int *, void *)
+        /* userdata to provide to callbacks */
+        , void * userdata
+        );
+#endif
 
 #ifdef __cplusplus
 }  // extern "C"

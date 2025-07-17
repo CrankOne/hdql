@@ -55,6 +55,10 @@ const struct hdql_AttrDef *
 hdql_compound_get_attr( const struct hdql_Compound *, const char * name );
 /**\brief Returns (type) name of the compound object */
 const char * hdql_compound_get_name(const struct hdql_Compound *);
+/**\brief Prints full compound type string */
+size_t hdql_compound_get_full_type_str( const struct hdql_Compound * c
+        , char * buf, size_t bufSize
+        );
 /**\brief Deletes compound type */
 void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
 

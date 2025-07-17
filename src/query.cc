@@ -566,12 +566,15 @@ hdql_query_str( const struct hdql_Query * q
             _M_pr("?%p?", q->subject);
         }
     } else {
+        char buf[256];
+        hdql_compound_get_full_type_str(hdql_attr_def_compound_type_info(q->subject), buf, sizeof(buf));
         // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"
-        _M_pr("%s<%s>"
-                , hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
-                ? "based on "
-                : ""
-                , hdql_compound_get_name(hdql_attr_def_compound_type_info(q->subject)));
+        _M_pr("<%s>", buf
+                //, hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
+                //? "based on "
+                //: ""
+                //, hdql_compound_get_name(hdql_attr_def_compound_type_info(q->subject))
+            );
     }
     #undef _M_pr
     return 0;

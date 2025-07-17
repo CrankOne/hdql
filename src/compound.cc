@@ -103,6 +103,57 @@ hdql_compound_get_name(const struct hdql_Compound * c) {
     return c->name.c_str();
 }
 
+extern "C" size_t
+hdql_compound_get_full_type_str( const struct hdql_Compound * c
+        , char * buf, size_t bufSize
+        ) {
+    assert(c);
+    assert(buf);
+    assert(bufSize > 0);
+
+    // First, calculate the length in reverse to determine full depth
+    const struct hdql_Compound * stack[64]; // Reasonable nesting limit
+    size_t depth = 0;
+
+    const struct hdql_Compound * cur = c;
+    while (cur && depth < 64) {
+        stack[depth++] = cur;
+        cur = cur->parent;
+    }
+
+    size_t len = 0;
+    buf[0] = '\0';
+
+    while (depth > 0) {
+        --depth;
+        cur = stack[depth];
+
+        size_t nAttrs = hdql_compound_get_nattrs(cur);
+        const char ** attrNames = (const char **) alloca(nAttrs*sizeof(char*));
+        assert(attrNames);
+        hdql_compound_get_attr_names(cur, attrNames);
+
+
+        // Print attribute list if it exists
+        if (attrNames && attrNames[0]) {
+            len += snprintf(buf + len, bufSize - len, "{");
+            for (size_t i = 0; i < nAttrs; ++i) {
+                if (i > 0) len += snprintf(buf + len, bufSize - len, ", ");
+                len += snprintf(buf + len, bufSize - len, "%s", attrNames[i]);
+            }
+            len += snprintf(buf + len, bufSize - len, "}->");
+        }
+
+        // Print name
+        len += snprintf(buf + len, bufSize - len, "%s", cur->name.c_str());
+        if (depth > 0)
+            len += snprintf(buf + len, bufSize - len, "->");
+    }
+
+    return len;
+}
+
+
 extern "C" int
 hdql_compound_add_attr( hdql_Compound * instance
                       , const char * attrName

@@ -25,7 +25,8 @@ set (hdql_SOURCES src/types.cc
 	              src/errors.c
 	              src/attr-def.c
 	              src/compound.cc
-	              src/query.cc
+                  src/query.cc
+                  #src/query.c
 	              src/query-key.c
 	              src/query-product.c
 	              src/context.cc

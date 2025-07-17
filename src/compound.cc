@@ -103,54 +103,44 @@ hdql_compound_get_name(const struct hdql_Compound * c) {
     return c->name.c_str();
 }
 
-extern "C" size_t
-hdql_compound_get_full_type_str( const struct hdql_Compound * c
+extern "C" char *
+hdql_compound_get_full_type_str(
+          const struct hdql_Compound * c
         , char * buf, size_t bufSize
         ) {
     assert(c);
     assert(buf);
     assert(bufSize > 0);
+    *buf = '\0';
+    char * bufEnd = buf + bufSize, * cb;
 
-    // First, calculate the length in reverse to determine full depth
-    const struct hdql_Compound * stack[64]; // Reasonable nesting limit
-    size_t depth = 0;
-
-    const struct hdql_Compound * cur = c;
-    while (cur && depth < 64) {
-        stack[depth++] = cur;
-        cur = cur->parent;
-    }
-
-    size_t len = 0;
-    buf[0] = '\0';
-
-    while (depth > 0) {
-        --depth;
-        cur = stack[depth];
-
-        size_t nAttrs = hdql_compound_get_nattrs(cur);
-        const char ** attrNames = (const char **) alloca(nAttrs*sizeof(char*));
-        assert(attrNames);
-        hdql_compound_get_attr_names(cur, attrNames);
-
-
-        // Print attribute list if it exists
-        if (attrNames && attrNames[0]) {
-            len += snprintf(buf + len, bufSize - len, "{");
-            for (size_t i = 0; i < nAttrs; ++i) {
-                if (i > 0) len += snprintf(buf + len, bufSize - len, ", ");
-                len += snprintf(buf + len, bufSize - len, "%s", attrNames[i]);
+    #define _M_apps(t) \
+    cb = strncat(buf, t, bufSize); \
+    if(buf == bufEnd) {return buf;} \
+    assert(buf < bufEnd); \
+    bufSize -= cb - buf; \
+    buf = cb;
+    do {
+        if(hdql_compound_is_virtual(c)) {
+            /* append string with {attrs, list}-> */
+            _M_apps("{");
+            const size_t nAttrs = hdql_compound_get_nattrs(c);
+            const char ** attrNames = (const char **) alloca(sizeof(char*)*nAttrs);
+            hdql_compound_get_attr_names(c, attrNames);
+            for(size_t i = 0; i < nAttrs; ++i) {
+                if(i) {
+                    _M_apps(", ")
+                }
+                _M_apps(attrNames[i]);
             }
-            len += snprintf(buf + len, bufSize - len, "}->");
+            _M_apps("}->");
+        } else {
+            buf = strncat(buf, c->name.c_str(), bufSize);
         }
+    } while(NULL != (c = c->parent));
+    #undef _M_apps
 
-        // Print name
-        len += snprintf(buf + len, bufSize - len, "%s", cur->name.c_str());
-        if (depth > 0)
-            len += snprintf(buf + len, bufSize - len, "->");
-    }
-
-    return len;
+    return buf;
 }
 
 

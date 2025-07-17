@@ -190,12 +190,23 @@ test_query_on_data( int nSample, const char * expression ) {
             } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {  // forwarding query
                 printf("subquery %p", hdql_attr_def_fwd_query(topAttrDef));
             } else if(!hdql_attr_def_is_atomic(topAttrDef)) {  // compound instance(s) of certain type
-                // xxx, example `.hits', `.tracks', `sin(0.23)'
-                printf( "compound %s instance %p of type `%s'"
-                      , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
-                      , r
-                      , hdql_compound_get_name(hdql_attr_def_compound_type_info(topAttrDef))
-                      );
+                assert(hdql_attr_def_is_compound(topAttrDef));
+                const struct hdql_Compound * ct = hdql_attr_def_compound_type_info(topAttrDef);
+                if(!hdql_compound_is_virtual(ct)) {
+                    printf( "compound %s instance %p of type `%s'"
+                          , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
+                          , r
+                          , hdql_compound_get_name(hdql_attr_def_compound_type_info(topAttrDef))
+                          );
+                } else {
+                    char buf[128];
+                    hdql_compound_get_full_type_str(ct, buf, sizeof(buf));
+                    printf( "compound %s instance %p of type `%s'"
+                          , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
+                          , r
+                          , buf
+                          );
+                }
             } else {  // atomic item
                 if(!hdql_attr_def_is_collection(topAttrDef)) {  // scalar compound attribute
                     // xxx, example: `.eventID', `.hits.x'

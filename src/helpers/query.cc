@@ -179,7 +179,7 @@ Query::Query( const char * expression
             throw errors::HDQLExpressionError(expression, errBuf);
         }
         // reserve flat keys view
-        size_t flatKeyViewLength = hdql_keys_flat_view_size(_query, _keys, _ownContext);
+        size_t flatKeyViewLength = hdql_keys_flat_view_size(_keys, _ownContext);
         _kv = flatKeyViewLength
                       ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*flatKeyViewLength)
                       : NULL;
@@ -290,7 +290,7 @@ hdql::helpers::Query::key_names() const {
     }
 
     hdql_Context * ctx = _ownContext;
-    size_t nKeys = hdql_keys_flat_view_size(_query, _keys, ctx);
+    size_t nKeys = hdql_keys_flat_view_size(_keys, ctx);
     std::vector<std::string> names;
     names.reserve(nKeys);
 

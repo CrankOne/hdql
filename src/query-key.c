@@ -402,8 +402,7 @@ static int _count_flat_keys(
 }
 
 size_t
-hdql_keys_flat_view_size( const struct hdql_Query * q
-                        , const struct hdql_CollectionKey * keys
+hdql_keys_flat_view_size( const struct hdql_CollectionKey * keys
                         , hdql_Context_t ctx
                         ) {
     size_t count = 0;

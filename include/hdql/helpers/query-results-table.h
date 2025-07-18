@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+struct hdql_QueryResultsWorkspace;  /* opaque */
+
 /**\brief Query results receiver assuming tabular logic
  *
  * This helper interface is meant to simplify integration with query object
@@ -23,19 +25,58 @@ extern "C" {
  * sub-queries to root query result.
  *
  * */
-
-struct hdql_iQueryResultsTable {
+struct hdql_iQueryResultsHandler {
     /** Arbitrary user pointer forwarded into all interface's calls */
     void * userdata;
 
-    int (*handle_column_definition)(const char *, const struct hdql_AttrDef *, void *);
-    int (*columns_defined)(void * userdata);
+    /**\brief Callback to handle attribute definition in query result
+     *
+     * Interface implementation may benefit from these calls in order to
+     * prepare streaming schema.
+     *
+     * Called in `hdql_query_result_table_init()`. */
+    int (*handle_attr_def)(const char *, const struct hdql_AttrDef *, void *);
 
-    int (*handle_new_record)(struct hdql_KeyView * kv, void *);
-    int (*handle_record_value)(hdql_Datum_t datum, void *);
+    /**\brief Callback to handle keys definition
+     *
+     * Called in `hdql_query_result_table_init()`.
+     * */
+    int (*handle_keys)(struct hdql_CollectionKey * keys
+            , struct hdql_KeyView * flatKeyViews
+            , size_t nKeys
+            , void *
+            );
+
+    /**\brief Optional callback finalizing definition of keys and attributes
+     *
+     * May be used by implementing object to finalize caches related to
+     * attributes and keys definition.
+     *
+     * Called in `hdql_query_result_table_init()` when not null. */
+    int (*finalize_schema)(void * userdata);
+
+    int (*handle_record)(hdql_Datum_t, void *);
 };
 
+struct hdql_QueryResultsWorkspace *
+hdql_query_results_init(
+          struct hdql_Query * q
+        , const char ** attrs
+        , struct iQueryResultsTable * iqr
+        , struct hdql_Context * ctx
+        );
 
+int hdql_query_results_reset( struct hdql_Datum *, struct hdql_QueryResultsWorkspace * );
+
+int hdql_query_results_advance( struct hdql_QueryResultsWorkspace * );
+
+int hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * );
+
+/*
+ * Implems
+ */
+
+struct hdql_CSVHandler;
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -2,8 +2,8 @@
 #include "hdql/compound.h"
 #include "hdql/context.h"
 #include "hdql/errors.h"
-#include "hdql/query-tree.h"
 #include "hdql/attr-def.h"
+#include "hdql/query.h"
 #include "hdql/types.h"
 
 #include <stdint.h>
@@ -11,24 +11,36 @@
 #include <stdlib.h>
 #include <assert.h>
 
-struct {
-    // ...
+struct hdql_QueryResultsWorkspace {
+    struct hdql_Query * q;
+    struct hdql_Context * ctx;
+    struct hdql_iQueryResultsHandler * iqr;
+
+    /* Keys pointer */
+    hdql_CollectionKey * keys;
+    /* Number of key flat views */
+    size_t flatKeyViewLength;
+    /* Keys flat views array */
+    hdql_KeyView * kv;
 };
 
-/**\brief 
+/* Init workspace with query columns
  *
- * A query can be of a scalar type, or a compound type from which
- * scalar attributes are requested.
+ * With given query's top attribute definition, retrieves the resulting type
+ * and for every selected column forwards a call to
+ * interface's `handle_attr_def()`.
  *
- * If \p columns is null, then either single column titled as "value" will be
- * expected (when query result is scalar value) or all scalar columns of a
+ * If \p columns is null, then either single column titled as NULL string will
+ * be expected (when query result is scalar value) or all scalar columns of a
  * resulting compound will be obtained.
  * */
-int
-hdql_query_result_table_init( struct hdql_AttrDef * ad
-        , const char ** columns
-        , struct hdql_iQueryResultsTable * iqr
+static int
+_query_result_table_init_columns( const struct hdql_AttrDef * ad
+        , const char ** attrs
+        , struct hdql_iQueryResultsHandler * iqr
+        , struct hdql_Context * ctx
         ) {
+    int rc;
     if(hdql_attr_def_is_compound(ad)) {
         /* iterate over (selected) compound attributes and let the object
          * behind the interface know, in which order we are going to provide
@@ -39,31 +51,258 @@ hdql_query_result_table_init( struct hdql_AttrDef * ad
         const char ** attrNames = (const char **) alloca(sizeof(char*)*(nAttrs+1));
         hdql_compound_get_attr_names(c, attrNames);
         attrNames[nAttrs] = NULL;
-        const char ** selectedColumns = columns ? columns : attrNames;
+        const char ** selectedColumns = attrs ? attrs : attrNames;
         for( const char ** colNamePtr = selectedColumns
                 ; *colNamePtr; ++colNamePtr ) {
             const struct hdql_AttrDef * cAD
                 = hdql_compound_get_attr(c, *colNamePtr);
-            iqr->handle_column_definition(*colNamePtr, cAD, iqr->userdata);
+            rc = iqr->handle_attr_def(*colNamePtr, cAD, iqr->userdata);
+            if(rc < 0) return rc;
         }
     } else {
         /* query results in scalar value */
         assert(hdql_attr_def_is_atomic(ad));
         const char * singularColName;
-        if(columns && columns[0] && columns[0][0] != '\0') {
-            if(columns[1] && columns[1][0] != '\0') {
+        if(attrs && attrs[0] && attrs[0][0] != '\0') {
+            if(attrs[1] && attrs[1][0] != '\0') {
                 /* This means, that more than one column name is provided,
                  * while query results in a singular value. Most probably
                  * indicates error. */
                 return HDQL_ERR_GENERIC;
             }
         } else {
-            singularColName = "value";
+            singularColName = "";
         }
-        iqr->handle_column_definition(singularColName, ad, iqr->userdata);
+        rc = iqr->handle_attr_def(singularColName, ad, iqr->userdata);
+        if(rc < 0) return rc;
     }
-    if(iqr->columns_defined) iqr->columns_defined(iqr->userdata);
+    return 0;
+}
+
+/* Allocates structure to track keys with their flattened views
+ *
+ * Forwards call to interface's `handle_keys()`.
+ *
+ * \note Entire query object is required since full keys chain allocation
+ *       implies recursive traversal.
+ * */
+static int
+_query_result_table_init_keys( struct hdql_QueryResultsWorkspace * ws ) {
+    ws->keys = NULL;
+    int rc = hdql_query_keys_reserve(ws->q, &ws->keys, ws->ctx);
+    assert(rc == 0);
+    ws->flatKeyViewLength = hdql_keys_flat_view_size(ws->keys, ws->ctx);
+    ws->kv = ws->flatKeyViewLength
+                      ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*ws->flatKeyViewLength)
+                      : NULL;
+    hdql_keys_flat_view_update(ws->q, ws->keys, ws->kv, ws->ctx);
+    assert(ws->iqr->handle_keys);
+    return ws->iqr->handle_keys(ws->keys, ws->kv, ws->flatKeyViewLength, ws->iqr->userdata);
+}
+
+
+
+struct hdql_QueryResultsWorkspace *
+hdql_query_results_init(
+          struct hdql_Query * q
+        , const char ** attrs
+        , struct hdql_iQueryResultsHandler * iqr
+        , struct hdql_Context * ctx
+        ) {
+    int rc;
+    struct hdql_QueryResultsWorkspace * ws = (struct hdql_QueryResultsWorkspace *)
+        hdql_context_alloc(ctx, sizeof(struct hdql_QueryResultsWorkspace));
+
+    ws->q   = q;
+    ws->ctx = ctx;
+    ws->iqr = iqr;
+
+    if(iqr->handle_attr_def) {
+        const struct hdql_AttrDef * ad = hdql_query_top_attr(q);
+        assert(ad);
+        if(0 != (rc = _query_result_table_init_columns(ad, attrs, iqr, ctx))) {
+            /* TODO forward error */
+            return NULL;
+        }
+    }
+    if(iqr->handle_keys) {
+        if(0 != (rc = _query_result_table_init_keys(ws))) {
+            /* TODO forward error */
+            return NULL;
+        }
+    }
+    if(iqr->finalize_schema) iqr->finalize_schema(iqr->userdata);
+    return ws;
+}
+
+int
+hdql_query_results_reset( struct hdql_Datum * d, struct hdql_QueryResultsWorkspace * ws ) {
+    return hdql_query_reset(ws->q, d, ws->ctx);
+}
+
+int
+hdql_query_results_advance( struct hdql_QueryResultsWorkspace * ws ) {
+    hdql_Datum_t r;
+    if(NULL == (r = hdql_query_get(ws->q, ws->keys, ws->ctx))) {
+        ws->iqr->handle_record(r, ws->iqr->userdata);
+        return 0;
+    }
+    return 1;
+}
+
+int
+hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * ) {
+    return -1;  // TODO
+}
+
+/*
+ * Prints query results as CSV
+ */
+
+struct hdql_CSVHandler;  /* fwd */
+
+struct hdql_CSVColumnHandler {
+    /** Attribute entry definition */
+    const hdql_AttrDef * ad;
+    /** Prints columns based on attribute definition and given datum,
+     * uses CSV handler's formatting options and stream */
+    void (*handler)( struct hdql_CSVHandler *
+            , hdql_Datum_t
+            , const hdql_AttrDef * ad
+            );
+    /** NULL-terminated list of column names yielded by this attribute. */
+    const char ** columnNames;
+};
+
+struct hdql_CSVHandler {
+    /** destination stream to print data */
+    FILE * dest;
+    /** context is needed to expand compound columns */
+    struct hdql_Context * ctx;
+    /** Array of attribute handlers, in order */
+    size_t nAttrs  /**< overall attributes to handle */
+         , nColumns  /**< overall columns count */
+         ;
+    struct hdql_CSVColumnHandler ** attributeHandlers;
+};
+
+static void
+_csv_print_column(struct hdql_CSVHandler * csv
+        , const char * columnString ) {
+    /* TODO: column formatting options, delimiter, etc */
+    fputs(columnString, csv->dest);
+    fputs(",", csv->dest);
+}
+
+static int
+_add_column_handler( struct hdql_CSVHandler * csv
+        , struct hdql_CSVColumnHandler * ch
+        ) {
+    static const size_t chs = sizeof(struct hdql_CSVColumnHandler *);
+    if(csv->attributeHandlers) {
+        assert(csv->nAttrs != 0);
+        struct hdql_CSVColumnHandler ** newArr = (struct hdql_CSVColumnHandler **)
+            malloc(chs*(csv->nAttrs + 1));
+        if(!newArr) return HDQL_ERR_MEMORY;
+        mempcpy(newArr, csv->attributeHandlers, chs*(csv->nAttrs));
+        newArr[csv->nAttrs] = ch;
+        free(csv->attributeHandlers);
+        csv->attributeHandlers = newArr;
+    } else {
+        assert(csv->nAttrs == 0);
+        csv->attributeHandlers = (struct hdql_CSVColumnHandler **)
+                malloc(chs);
+        if(csv->attributeHandlers) return HDQL_ERR_MEMORY;
+        csv->attributeHandlers[0] = ch;
+    }
+    ++(csv->nAttrs);
     return HDQL_ERR_CODE_OK;
+}
+
+
+static void _handle_collection_as_csv_entry(      struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, const hdql_AttrDef * ad);
+static void _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, const hdql_AttrDef * ad);
+
+
+static int
+_csv_results_handler_handle_attr_def(const char * columnName
+        , const struct hdql_AttrDef * ad, void * csv_ ) {
+    struct hdql_CSVHandler * csv = (struct hdql_CSVHandler *) csv_;
+    if(hdql_attr_def_is_collection(ad)) {
+        /* for collection columns we only print number of items
+         * in the list */
+        struct hdql_CSVColumnHandler * ch = (struct hdql_CSVColumnHandler *)
+                malloc(sizeof(struct hdql_CSVColumnHandler));
+
+        ch->ad = ad;
+        ch->handler = _handle_collection_as_csv_entry;
+
+        ch->columnNames = (const char **) malloc(sizeof(const char*)*2);
+        ch->columnNames[0] = columnName;
+        ch->columnNames[1] = NULL;
+
+        _add_column_handler(csv, ch);
+
+        ++(csv->nColumns);
+    } else if(hdql_attr_def_is_compound(ad)) {
+        /* Non-collection compound attr is expanded into a set of
+         * attrname.sub-attrname columns */
+        /* TODO: extend columns array with compound attribute handler */
+        // csv->nColumns += nCompoundColumns;
+    } else if(hdql_attr_def_is_atomic(ad)) {
+        ++(csv->nColumns);
+    }
+}
+
+/*
+ * Attribute handlers
+ */
+
+/* Collection attribute yields only items count in CSV output */
+static void
+_handle_collection_as_csv_entry( struct hdql_CSVHandler * csv
+        , hdql_Datum_t ownerDatum
+        , const hdql_AttrDef * ad
+        ) {
+    assert(hdql_attr_def_is_collection(ad));
+    assert(!hdql_attr_def_is_scalar(ad));
+    const struct hdql_CollectionAttrInterface * ciface
+        = hdql_attr_def_collection_iface(ad);
+    assert(ciface);
+
+    /* count items */
+    size_t nItems = 0;
+    hdql_It_t it = ciface->create(ownerDatum, ciface->definitionData
+            , NULL, csv->ctx);
+    assert(it);
+    ciface->reset(it, ownerDatum, ciface->definitionData, NULL, csv->ctx);
+    while(NULL != (it = ciface->advance(it))) {++nItems;}
+
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%zu", nItems);
+    _csv_print_column(csv, buf); 
+}
+
+
+
+/* Scalar compound attribute yields few columns recursively */
+static void
+_handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
+        , hdql_Datum_t ownerDatum
+        , const hdql_AttrDef * ad
+        ) {
+    assert(!hdql_attr_def_is_collection(ad));
+    assert(hdql_attr_def_is_scalar(ad));
+    assert(hdql_attr_def_is_compound(ad));
+    assert(!hdql_attr_def_is_static_value(ad));
+    assert(!hdql_attr_def_is_atomic(ad));
+
+    const struct hdql_ScalarAttrInterface * siface
+        = hdql_attr_def_scalar_iface(ad);
+    assert(siface);
+
+    // TODO: need preallocated `definitionData' supplied by some reentrant item
+    //_csv_print_column(csv, buf); 
 }
 
 #if 0
@@ -148,7 +387,6 @@ hdql_query_results_table_init( const char * qstr, const char ** sqstr
     return qtn;
 }
 #endif
-
 
 #if 0
 typedef struct {

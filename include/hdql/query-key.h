@@ -79,8 +79,7 @@ hdql_query_print_key_to_buf(
 
 
 size_t
-hdql_keys_flat_view_size( const struct hdql_Query * q
-                        , const struct hdql_CollectionKey * keys
+hdql_keys_flat_view_size( const struct hdql_CollectionKey * keys
                         , hdql_Context_t ctx
                         );
 

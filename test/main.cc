@@ -2,7 +2,6 @@
 #include "hdql/attr-def.h"
 #include "hdql/errors.h"
 #include "hdql/helpers/compounds.hh"
-#include "hdql/helpers/query-results-table.h"
 #include "hdql/helpers/fancy-print-err.h"
 #include "samples.hh"
 

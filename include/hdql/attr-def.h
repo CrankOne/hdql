@@ -221,6 +221,13 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t, struct hdql_CollectionKey *, h
 
 void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 
+/**\brief Prints short one-line string describing attribute definition */
+int
+hdql_top_attr_str( const struct hdql_AttrDef * subj
+              , char * strbuf, size_t buflen
+              , hdql_Context_t context
+              );
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

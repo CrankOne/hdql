@@ -496,3 +496,80 @@ hdql_attr_def_destroy( hdql_AttrDef_t ad
     hdql_context_free(ctx, (hdql_Datum_t) ad);
 }
 
+int
+hdql_top_attr_str( const struct hdql_AttrDef * subj
+              , char * strbuf, size_t buflen
+              , hdql_Context_t context
+              ) {
+    struct hdql_ValueTypes * vts = hdql_context_get_types(context);
+    if(NULL == subj || 0 == buflen || NULL == strbuf)
+        return HDQL_ERR_BAD_ARGUMENT;
+    size_t nUsed = 0;
+    #define _M_pr(fmt, ...) \
+        nUsed += snprintf(strbuf + nUsed, buflen - nUsed, fmt, __VA_ARGS__); \
+        if(nUsed >= buflen - 1) return 1;
+    // query 0x23fff34 is "[static ](collection|scalar) [of [atomic|compound]type] "
+    _M_pr("%s%s%s "
+            , hdql_attr_def_is_static_value(subj) ? "static " : ""
+            , hdql_attr_def_is_collection(subj) ? "collection" : "scalar"
+            , hdql_attr_def_is_fwd_query(subj)
+              ? " query result of query forwarding to "
+              : ( hdql_attr_def_is_atomic(subj)
+                ? " of atomic type"
+                : ( hdql_compound_is_virtual(hdql_attr_def_compound_type_info(subj))
+                  ? " of virtual compound type"
+                  : " of compound type"
+                  )
+                )
+            );
+    if(hdql_attr_def_is_fwd_query(subj)) {
+        // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
+        _M_pr("%p which is ", hdql_attr_def_fwd_query(subj) );
+        return hdql_top_attr_str( hdql_query_get_subject(hdql_attr_def_fwd_query(subj))
+                , strbuf + nUsed, buflen - nUsed, context );
+    }
+    if(hdql_attr_def_is_atomic(subj)) {
+        // "[static ](collection|scalar) of atomic type <%s>"
+        assert(vts);
+        hdql_ValueTypeCode_t vtc = hdql_attr_def_get_atomic_value_type_code(subj);
+        if(0x0 != vtc) {
+            const struct hdql_ValueInterface * vi
+                = hdql_types_get_type( vts
+                                     , hdql_attr_def_get_atomic_value_type_code(subj)
+                                     );
+            assert(NULL != vi);
+            _M_pr("<%s>", vi->name);
+            if(hdql_attr_def_is_static_value(subj)) {
+                assert(vi);
+                // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
+                if(vi->get_as_string) {
+                    char vBf[64];
+                    int rc = vi->get_as_string(hdql_attr_def_get_static_value(subj)
+                                , vBf, sizeof(vBf), context);
+                    if(0 == rc) {
+                        _M_pr(" =%s", vBf);
+                    } else {
+                        _M_pr(" =? at %p", hdql_attr_def_get_static_value(subj));
+                    }
+                } else {
+                    _M_pr(" at %p", hdql_attr_def_get_static_value(subj));
+                }
+            }
+        } else {
+            _M_pr("?%p?", subj);
+        }
+    } else {
+        char buf[256];
+        hdql_compound_get_full_type_str(hdql_attr_def_compound_type_info(subj), buf, sizeof(buf));
+        // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"
+        _M_pr("<%s>", buf
+                //, hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
+                //? "based on "
+                //: ""
+                //, hdql_compound_get_name(hdql_attr_def_compound_type_info(q->subject))
+            );
+    }
+    #undef _M_pr
+    return 0;
+}
+

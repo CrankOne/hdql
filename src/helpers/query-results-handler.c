@@ -24,10 +24,10 @@ struct hdql_QueryResultsWorkspace {
     struct hdql_KeyView * kv;
 };
 
-/* Init workspace with query columns
+/* Init workspace with query result attribs
  *
  * With given query's top attribute definition, retrieves the resulting type
- * and for every selected column forwards a call to
+ * and for every selected attribute forwards execution to
  * interface's `handle_attr_def()`.
  *
  * If \p columns is null, then either single column titled as NULL string will
@@ -35,7 +35,7 @@ struct hdql_QueryResultsWorkspace {
  * resulting compound will be obtained.
  * */
 static int
-_query_result_table_init_columns( const struct hdql_AttrDef * ad
+_query_result_table_init_attrs( const struct hdql_AttrDef * ad
         , const char ** attrs
         , struct hdql_iQueryResultsHandler * iqr
         , struct hdql_Context * ctx
@@ -46,18 +46,23 @@ _query_result_table_init_columns( const struct hdql_AttrDef * ad
          * behind the interface know, in which order we are going to provide
          * values and of which type */
         const struct hdql_Compound * c = hdql_attr_def_compound_type_info(ad);
+        /* Loop over compound keys */
         size_t nAttrs = hdql_compound_get_nattrs(c);
         assert(nAttrs > 0);
         const char ** attrNames = (const char **) alloca(sizeof(char*)*(nAttrs+1));
         hdql_compound_get_attr_names(c, attrNames);
         attrNames[nAttrs] = NULL;
         const char ** selectedColumns = attrs ? attrs : attrNames;
-        for( const char ** colNamePtr = selectedColumns
-                ; *colNamePtr; ++colNamePtr ) {
-            const struct hdql_AttrDef * cAD
-                = hdql_compound_get_attr(c, *colNamePtr);
+        for( const char ** colNamePtr = selectedColumns; *colNamePtr; ++colNamePtr ) {
+            const struct hdql_AttrDef * cAD = hdql_compound_get_attr(c, *colNamePtr);
             rc = iqr->handle_attr_def(*colNamePtr, cAD, iqr->userdata);
-            if(rc < 0) return rc;
+            if(rc < 0) {
+                /* TODO: communicate error other way */
+                fprintf(stderr, "Error while communicating attribute"
+                        " definition of a query result \"%s\": %d\n"
+                        , *colNamePtr, rc);
+                return rc;
+            }
         }
     } else {
         /* query results in scalar value */
@@ -68,6 +73,9 @@ _query_result_table_init_columns( const struct hdql_AttrDef * ad
                 /* This means, that more than one column name is provided,
                  * while query results in a singular value. Most probably
                  * indicates error. */
+                /* TODO: communicate error other way */
+                fprintf(stderr, "Query results in atomic value, while multiple"
+                        " attributes are expected by selection.\n");
                 return HDQL_ERR_GENERIC;
             }
         } else {
@@ -109,45 +117,62 @@ hdql_query_results_init(
         , struct hdql_iQueryResultsHandler * iqr
         , struct hdql_Context * ctx
         ) {
+    if(NULL == iqr->handle_record) {
+        /* TODO: communicate otherwise */
+        fprintf(stderr, "Query results handler interface does not provide"
+                " implementation function to handle record.\n");
+        return NULL;
+    }
     int rc;
+    /* allocate workspace */
     struct hdql_QueryResultsWorkspace * ws = (struct hdql_QueryResultsWorkspace *)
         hdql_context_alloc(ctx, sizeof(struct hdql_QueryResultsWorkspace));
 
+    /* set query instance, context and ptr to the interface in use */
     ws->q   = q;
     ws->ctx = ctx;
     ws->iqr = iqr;
 
+    /* if attribute handling is enabled in iface implem, process attributes */
     if(iqr->handle_attr_def) {
         const struct hdql_AttrDef * ad = hdql_query_top_attr(q);
         assert(ad);
-        if(0 != (rc = _query_result_table_init_columns(ad, attrs, iqr, ctx))) {
-            /* TODO forward error */
+        if(0 != (rc = _query_result_table_init_attrs(ad, attrs, iqr, ctx))) {
+            /* TODO communicate error other way */
+            fprintf(stderr, "Can't process attributes of query result: %d\n", rc);
             return NULL;
         }
     }
     if(iqr->handle_keys) {
         if(0 != (rc = _query_result_table_init_keys(ws))) {
-            /* TODO forward error */
+            /* TODO communicate error other way */
+            fprintf(stderr, "Can't process keys of query result: %d\n", rc);
             return NULL;
         }
+    } else {
+        ws->flatKeyViewLength = 0;
+        ws->keys = NULL;
+        ws->kv = NULL;
     }
     if(iqr->finalize_schema) iqr->finalize_schema(iqr->userdata);
+
     return ws;
 }
 
 int
-hdql_query_results_reset( struct hdql_Datum * d, struct hdql_QueryResultsWorkspace * ws ) {
-    return hdql_query_reset(ws->q, d, ws->ctx);
-}
-
-int
-hdql_query_results_advance( struct hdql_QueryResultsWorkspace * ws ) {
-    hdql_Datum_t r;
-    if(NULL == (r = hdql_query_get(ws->q, ws->keys, ws->ctx))) {
-        ws->iqr->handle_record(r, ws->iqr->userdata);
-        return 0;
+hdql_query_results_process_records_from( struct hdql_Datum * d
+        , struct hdql_QueryResultsWorkspace * ws ) {
+    int rc = hdql_query_reset(ws->q, d, ws->ctx);
+    if(rc != HDQL_ERR_CODE_OK) {
+        /* TODO communicate error other way */
+        fprintf(stderr, "Can't set query subject: %d\n", rc);
+        return rc;
     }
-    return 1;
+    hdql_Datum_t r;
+    while(NULL != (r = hdql_query_get(ws->q, ws->keys, ws->ctx))) {
+        ws->iqr->handle_record(r, ws->iqr->userdata);
+    }
+    return HDQL_ERR_CODE_OK;
 }
 
 int

@@ -67,9 +67,9 @@ hdql_query_results_init(
         , struct hdql_Context * ctx
         );
 
-int hdql_query_results_reset( struct hdql_Datum *, struct hdql_QueryResultsWorkspace * );
-
-int hdql_query_results_advance( struct hdql_QueryResultsWorkspace * );
+int
+hdql_query_results_process_records_from( struct hdql_Datum * d
+        , struct hdql_QueryResultsWorkspace * ws );
 
 int hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * );
 

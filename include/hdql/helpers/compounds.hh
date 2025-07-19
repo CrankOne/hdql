@@ -607,6 +607,7 @@ struct IFace< ptr
     advance( hdql_It_t it_ ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return it_;
+        assert(it->cIndex < std::extent<AttrT>::value);
         it->cIndex = ConcreteSelectionTraits::advance( it->owner->*ptr
                                                      , it->selection
                                                      , it->cIndex

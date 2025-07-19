@@ -286,7 +286,7 @@ TEST_F(TestingEventStruct, virtualCompoundDataIterationWorksOnSample1) {
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
@@ -365,7 +365,7 @@ TEST_F(TestingEventStruct, twoSubqueriesIterationWorksOnSample1) {
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
@@ -445,7 +445,7 @@ TEST_F(TestingEventStruct, virtualCompoundArithmeticsWorksOnSample1) {
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
@@ -519,7 +519,7 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(q, keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
     ASSERT_EQ(2, flatKeyViewLen);
     hdql_KeyView keysViews[2];
     hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());

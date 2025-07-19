@@ -48,15 +48,6 @@ hdql_query_create(
 const struct hdql_AttrDef *
 hdql_query_get_subject( struct hdql_Query * );
 
-/**\brief Prints short one-line string describing query
- *
- * \note Does not follows query chain, prints only the given query details */
-int
-hdql_query_str( const struct hdql_Query *
-              , char * strbuf, size_t buflen
-              , hdql_Context_t
-              );
-
 /**\brief Queries within a query result
  *
  * Concatenates query taking first argument as a parent (queried table) and
@@ -115,39 +106,6 @@ void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */
 void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
-
-#if 0
-/**\brief Interprets expression into sub-queries with respect to given
- *        compound type
- *
- * With given compund type \p topCompound, sequentially interprets
- * strings gven in null-terminated list \p subStrQueries placing
- * resulting query instances into \p dest and optionally calling \p icb
- * after every sucessfully interpreted item.
- *
- * Uses \p errBuf buffer of length
- * \p errBufSize during interpretation procudure. On  error, calls \p err_cb
- * (if not null) with number of faulty query, error details and \p userdata
- * and returns last exit code of `hdql_compile_query()`
- *
- * \note \p dest is not obliged to be null-terminated. If you plan to use
- *       it further with `hdql_query_tree_tier_advance()`, user code should
- *       terminate it with null explicetly.
- */
-int
-hdql_query_interpret_subordiantes( struct hdql_Compound * topCompound
-        , const char ** subStrQueries
-        , struct hdql_Query ** dest
-        , struct hdql_Context * ctx
-        /* introspection callbacks, may be null */
-        , int (*icb)(size_t nSQ, struct hdql_Query *, void *)
-        /* diagnostics */
-        , char * errBuf, size_t errBufSize
-        , void (*err_cb)(size_t nErrSQ, const int *, void *)
-        /* userdata to provide to callbacks */
-        , void * userdata
-        );
-#endif
 
 #ifdef __cplusplus
 }  // extern "C"

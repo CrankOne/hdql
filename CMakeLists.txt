@@ -43,7 +43,8 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/filtered-v-compound.c
                   src/funcs/generic-logic.c
                   src/helpers/query.cc
-                  src/helpers/query-results-table.c
+                  src/helpers/query-results-handler.c
+                  src/helpers/query-results-handler-csv.c
                   src/helpers/fancy-print-err.c
                   )
 
@@ -128,9 +129,14 @@ if (BUILD_TESTS)
                                               BASE_DIRECTORY "${PROJECT_SOURCE_DIR}"
                                               EXCLUDE "obj/*;build/*;doc/*;templates/*")
     endif (COVERAGE)
+    # HT benchmarking
     add_executable(hdql-ht-benchmark test/benchmark-ht-test.main.cc )
     target_link_libraries(hdql-ht-benchmark PUBLIC hdql)
     set_target_properties(hdql-ht-benchmark PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
+    # Dump test fixture
+    add_executable(hdql-csv-dump test/main.dump.cc test/samples.cc test/events-struct.cc)
+    target_link_libraries(hdql-csv-dump PUBLIC hdql)
+    set_target_properties(hdql-csv-dump PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
 endif (BUILD_TESTS)
 
 #
@@ -155,7 +161,7 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
               include/hdql/value.h
               include/hdql/hash-table.h
               include/hdql/allocator.h
-              include/hdql/helpers/query-results-table.h
+              include/hdql/helpers/query-results-handler.h
               include/hdql/helpers/compounds.hh
               include/hdql/helpers/functions.hh
               include/hdql/helpers/query.hh

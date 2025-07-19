@@ -245,17 +245,6 @@ struct hdql_Query : public hdql::Query<hdql::QueryState> {
               ) : hdql::Query<hdql::QueryState>( subject_
                                               , selexpr_
                                               ) {}
-    #if 0
-    bool is_functionlike() const {
-        // operation or function node:
-        return subject->isCollection  // ... is collection
-            && 0x0 == subject->interface.collection.keyTypeCode  // ... provides no key type by itself
-            && subject->interface.collection.get_key  // ... can provide keys
-            && state.iterable.selectionArgs  // ...has its "selection args" are set (function instance)
-            && NULL == subject->interface.collection.compile_selection  //...and has no way to create selection args 
-            ;
-    }
-    #endif
 };
 
 namespace hdql {
@@ -265,9 +254,6 @@ QueryState::QueryState( const hdql_AttrDef * subject_
                     ) : subject(subject_)
                       , owner(nullptr)
                       {
-    //if(subject->isSubQuery) {
-    //    bzero(&state, sizeof(state));
-    //} else
     if(hdql_attr_def_is_collection(subject)) {
         state.collection.iterator = NULL;
         if(selexpr)
@@ -279,14 +265,6 @@ QueryState::QueryState( const hdql_AttrDef * subject_
         state.scalar.dynamicSuppData = NULL;
         assert(!selexpr);
     }
-
-    #if 0
-    if(hdql_attr_def_is_fwd_query(subject)) {
-        assert(NULL == state.collection.selectionArgs);
-        assert(0);  // TODO
-        //state.collection.selectionArgs = reinterpret_cast<hdql_SelectionArgs_t>(subject->typeInfo.subQuery);
-    }
-    #endif
 }
 
 void
@@ -319,31 +297,9 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
                           , ctx);
     }
 
-    #if 0
-    if(hdql_attr_def_is_static_value(subject)) {
-        //hdql_context_local_attribute_destroy(ctx, );
-        //attrDef->typeInfo.staticValue.datum = hdql_context_alloc(ws->context, sizeof(hdql_Int_t));
-        assert(0);  // TODO
-        //if(subject->typeInfo.staticValue.datum) {
-        //  hdql_context_free(ctx, subject->typeInfo.staticValue.datum);
-        //}
-    }
-    #endif
-
-    #if 0
-    if( hdql_attr_def_is_compound(subject)
-     && hdql_compound_is_virtual( hdql_attr_def_compound_type_info(subject) )) {
-        // exception for owning the attribute queries is made for synthetic
-        // ones
-        hdql_context_free(ctx, (hdql_Datum_t) subject);
-    } else if( hdql_attr_def_is_static_value(subject) ) {
-        hdql_context_free(ctx, (hdql_Datum_t) subject);
-    }
-    #else
     if(hdql_attr_def_is_stray(subject)) {
         hdql_context_free(ctx, (hdql_Datum_t) subject);
     }
-    #endif
 }
 
 QueryState::~QueryState() {
@@ -360,33 +316,7 @@ QueryState::get_value( hdql_Datum_t & value
         owner = hdql_attr_def_get_static_value(subject);
     }
     assert(owner);  // otherwise missing `reset()`
-    //if(subject->isSubQuery) {
-    //    value = hdql_query_get(subject->typeInfo.subQuery, owner
-    //            , keyPtr ? reinterpret_cast<hdql_CollectionKey *>(keyPtr->datum) : NULL
-    //            , ctx
-    //            );
-    //    return NULL != value;
-    //}
     if(hdql_attr_def_is_collection(subject)) {
-        #if 0
-        if(!state.collection.iterator) {
-            // not initialized/empty -- init, reset
-            state.collection.iterator =
-                subject->interface.collection.create( owner
-                        , subject->interface.collection.definitionData
-                        , state.collection.selectionArgs
-                        , ctx
-                        );
-            if(!state.collection.iterator)
-                return false;
-            subject->interface.collection.reset( owner
-                        , state.collection.selectionArgs
-                        , state.collection.iterator
-                        , subject->interface.collection.definitionData
-                        , ctx
-                        );
-        }
-        #endif
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         assert(state.collection.iterator);
         value = iface->dereference(state.collection.iterator, keyPtr);
@@ -410,9 +340,6 @@ void
 QueryState::advance( hdql_Context_t ctx ) {
     assert(subject);
     assert(owner);  // otherwise missing reset()
-    //if(subject->isSubQuery) {
-    //    // NOTE: advance for sub-queries has no sense as it was already 
-    //} else
     if(hdql_attr_def_is_collection(subject)) {
         if(!state.collection.iterator)
             return;  // permitted state for empty collections
@@ -501,83 +428,6 @@ hdql_query_create(
 extern "C" const struct hdql_AttrDef *
 hdql_query_get_subject( struct hdql_Query * q ) {
     return q->subject;
-}
-
-extern "C" int
-hdql_query_str( const struct hdql_Query * q
-              , char * strbuf, size_t buflen
-              , hdql_Context_t context
-              ) {
-    struct hdql_ValueTypes * vts = hdql_context_get_types(context);
-    if(NULL == q || 0 == buflen || NULL == strbuf)
-        return HDQL_ERR_BAD_ARGUMENT;
-    size_t nUsed = 0;
-    #define _M_pr(fmt, ...) \
-        nUsed += snprintf(strbuf + nUsed, buflen - nUsed, fmt, __VA_ARGS__); \
-        if(nUsed >= buflen - 1) return 1;
-    // query 0x23fff34 is "[static ](collection|scalar) [of [atomic|compound]type] "
-    _M_pr("%s%s%s "
-            , hdql_attr_def_is_static_value(q->subject) ? "static " : ""
-            , hdql_attr_def_is_collection(q->subject) ? "collection" : "scalar"
-            , hdql_attr_def_is_fwd_query(q->subject)
-              ? " forwarding to "
-              : ( hdql_attr_def_is_atomic(q->subject)
-                ? " of atomic type"
-                : ( hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
-                  ? " of virtual compound type"
-                  : " of compound type"
-                  )
-                )
-            );
-    if(hdql_attr_def_is_fwd_query(q->subject)) {
-        // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
-        _M_pr("%p which is ", hdql_attr_def_fwd_query(q->subject) );
-        return hdql_query_str( hdql_attr_def_fwd_query(q->subject)
-                , strbuf + nUsed, buflen - nUsed, context );
-    }
-    if(hdql_attr_def_is_atomic(q->subject)) {
-        // "[static ](collection|scalar) of atomic type <%s>"
-        assert(vts);
-        hdql_ValueTypeCode_t vtc = hdql_attr_def_get_atomic_value_type_code(q->subject);
-        if(0x0 != vtc) {
-            const hdql_ValueInterface * vi
-                = hdql_types_get_type( vts
-                                     , hdql_attr_def_get_atomic_value_type_code(q->subject)
-                                     );
-            assert(NULL != vi);
-            _M_pr("<%s>", vi->name);
-            if(hdql_attr_def_is_static_value(q->subject)) {
-                assert(vi);
-                // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
-                if(vi->get_as_string) {
-                    char vBf[64];
-                    int rc = vi->get_as_string(hdql_attr_def_get_static_value(q->subject)
-                                , vBf, sizeof(vBf), context);
-                    if(0 == rc) {
-                        _M_pr(" =%s", vBf);
-                    } else {
-                        _M_pr(" =? at %p", hdql_attr_def_get_static_value(q->subject));
-                    }
-                } else {
-                    _M_pr(" at %p", hdql_attr_def_get_static_value(q->subject));
-                }
-            }
-        } else {
-            _M_pr("?%p?", q->subject);
-        }
-    } else {
-        char buf[256];
-        hdql_compound_get_full_type_str(hdql_attr_def_compound_type_info(q->subject), buf, sizeof(buf));
-        // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"
-        _M_pr("<%s>", buf
-                //, hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
-                //? "based on "
-                //: ""
-                //, hdql_compound_get_name(hdql_attr_def_compound_type_info(q->subject))
-            );
-    }
-    #undef _M_pr
-    return 0;
 }
 
 extern "C" hdql_Datum_t
@@ -676,7 +526,7 @@ hdql_query_dump( FILE * outf
     int rc;
     char buf[1024];
     for(; q; q = static_cast<hdql_Query *>(q->next)) {
-        rc = hdql_query_str(q, buf, sizeof(buf), context);
+        rc = hdql_top_attr_str(q->subject, buf, sizeof(buf), context);
         if(0 != rc) return;
         fputs(" * ", outf);
         fputs(buf, outf);
@@ -693,50 +543,5 @@ hdql_query_top_attr(const struct hdql_Query * q_) {
     }
     return q->subject;
 }
-
-#if 0
-extern "C" int
-hdql_query_interpret_subordiantes( struct hdql_Compound * topCompound
-        , const char ** subStrQueries
-        , struct hdql_Query ** dest
-        , struct hdql_Context * ctx
-        /* introspection callbacks, may be null */
-        , int (*icb)(size_t nSQ, struct hdql_Query *, void *)
-        /* diagnostics */
-        , char * errBuf, size_t errBufSize
-        , void (*err_cb)(size_t nErrSQ, const int *, void *)
-        /* userdata to provide to callbacks */
-        , void * userdata
-        ) {
-    struct hdql_Query ** bgn = dest;
-    int errDetails[5] = {0, -1, -1, -1, -1};
-    for( const char ** sqs = subStrQueries
-       ; *sqs
-       ; ++sqs, ++dest ) {
-        *dest = hdql_compile_query( *sqs
-                              , topCompound
-                              , ctx
-                              , errBuf, errBufSize
-                              , errDetails
-                              );
-        if(errDetails[0]) {
-            if(err_cb) err_cb(dest - bgn, errDetails, userdata);
-            return errDetails[0];
-        }
-        /* communicate this sub-query's top attr definition, if need */
-        if(icb) {
-            int rc;
-            if(HDQL_ERR_CODE_OK != (rc = icb(dest - bgn, *dest, userdata))) {
-                /* error reported in return of the sub-query top
-                 * attribute; invoke error handler with special NULL as error
-                 * details and forward error code down by stack (to caller) */
-                if(err_cb) err_cb(dest - bgn, NULL, userdata);
-                return rc;
-            }
-        }
-    }
-    return HDQL_ERR_CODE_OK;
-}
-#endif
 
 

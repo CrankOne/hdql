@@ -3,11 +3,18 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/errors.h"
+#include "hdql/query.h"
 #include "hdql/types.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if 0
+#   define _M_DBGMSG(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+#   define _M_DBGMSG(fmt, ...)
+#endif
 
 struct hdql_CSVHandler;  /* fwd */
 struct hdql_CSVAttrHandler;  /* fwd */
@@ -17,25 +24,6 @@ struct hdql_AttrHandlerTier;  /* fwd */
 struct hdql_AttrHandlerTier {
     size_t n;  /* number handlers at this level */
     struct hdql_CSVAttrHandler ** handlers;
-};
-
-/* Userdata for `hdql_iQueryResultsHandler` defining how to actually handle
- * attributes from a query result. */
-struct hdql_CSVHandler {
-    /** destination stream to print data */
-    FILE * dest;
-    /** value in a record delimiter, a null-terminated string */
-    char * valueDelimiter;
-    /** record delimiter, a null-terminated string */
-    char * recordDelimiter;
-    /** context is needed to expand compound columns */
-    struct hdql_Context * ctx;
-
-    /* Array of attribute handlers, in order */
-    struct hdql_AttrHandlerTier rootHandlers;
-
-    /* internal printer state */
-    size_t nColumnsPrinted;
 };
 
 /* Handles individual attributes in query result. May expand to multiple
@@ -65,6 +53,33 @@ struct hdql_CSVAttrHandler {
     } payload;
 };
 
+/* Userdata for `hdql_iQueryResultsHandler` defining how to actually handle
+ * attributes from a query result. */
+struct hdql_CSVHandler {
+    /** destination stream to print data */
+    FILE * dest;
+    /** value in a record delimiter, a null-terminated string */
+    char * valueDelimiter;
+    /** record delimiter, a null-terminated string */
+    char * recordDelimiter;
+    /** attribute delimiter, used in nested column names (like `attr.subattr`) */
+    char * attrDelimiter;
+    /** prefix for number of items in collections */
+    char * collectionMarker;
+    /** column name placeholder for anonymous columns */
+    const char * anonColumnName;
+
+    /** context is needed to expand compound columns */
+    struct hdql_Context * ctx;
+
+    struct hdql_CSVAttrHandler rootObjectHandler;
+
+    /* internal printer state */
+    size_t nColumnsPrinted;
+};
+
+
+
 /*
  * Utility functions of handler tier struct
  */
@@ -93,23 +108,6 @@ _push_back_handler( struct hdql_AttrHandlerTier * t, struct hdql_CSVAttrHandler 
     return HDQL_ERR_CODE_OK;
 }
 
-/** utility function iterating all attribute handlers with given callback */
-//static int
-//_for_all_handlers_in_tier( struct hdql_AttrHandlerTier * t
-//        , hdql_Datum_t datum
-//        , void * userdata
-//        ) {
-//    int rc;
-//    for(size_t i = 0; i < t->n; ++i) {
-//        //rc = cllb(t->suffix, t->handlers[i], userdata);
-//        //if(0 != rc) return rc;
-//        struct hdql_CSVAttrHandler * ah = t->handlers[i];
-//        assert(ah->value_handler);
-//        ah->value_handler(csv, datum, ah);
-//    }
-//    return 0;
-//}
-
 /*
  * Utility functions of CSV record handler main structure
  */
@@ -136,6 +134,7 @@ _csv_print_column(struct hdql_CSVHandler * csv
 static void _handle_collection_as_csv_entry(      struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, struct hdql_CSVAttrHandler * ad);
 static void _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, struct hdql_CSVAttrHandler * ad);
 static void _handle_scalar_atomic_as_csv_entry(   struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, struct hdql_CSVAttrHandler * ad);
+static void _handle_scalar_atomic_value_as_csv_entry(   struct hdql_CSVHandler * csv, hdql_Datum_t ownerDatum, struct hdql_CSVAttrHandler * ad);
 
 static void
 _expand_scalar_compound_to_columns( const struct hdql_AttrDef * ad
@@ -144,45 +143,36 @@ _expand_scalar_compound_to_columns( const struct hdql_AttrDef * ad
         );
 
 static int
-_extend_tier_with_attribute( struct hdql_AttrHandlerTier * t
-            , const char * attrName
-            , const struct hdql_AttrDef * ad
-            , struct hdql_Context * ctx
-            ) {
-    assert(ctx);
-    /* allocate new attribute handler */
-    struct hdql_CSVAttrHandler * ah = (struct hdql_CSVAttrHandler *)
-                malloc(sizeof(struct hdql_CSVAttrHandler));
+_assign_value_handler( const struct hdql_AttrDef * ad
+        , struct hdql_CSVAttrHandler * ah
+        , hdql_Context_t ctx
+        ) {
+    /* we dereference here top attr def for forwarding queries to use it
+     * with decisions below. Note, that working with forwarding query
+     * needs dedicated state management */
+    const struct hdql_AttrDef * topAD = ad;
+    while(hdql_attr_def_is_fwd_query(topAD)) {
+        topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
+    }
 
-    ah->name = attrName;
-    ah->value_handler = NULL;
-    ah->ad = ad;
-    memset(&ah->payload,     0x0, sizeof(ah->payload));
-    memset(&ah->dynamicData, 0x0, sizeof(ah->dynamicData));
-
-    if(hdql_attr_def_is_collection(ad)) {
-        fprintf(stderr, "(csv) ... \"%s\" is collection, handler assigned\n"
-            , attrName );  /* TODO: debug log? */
+    if( hdql_attr_def_is_collection(topAD) ) {
+        _M_DBGMSG("  top attr type is of collection type\n");
         ah->value_handler = _handle_collection_as_csv_entry;
-    } else if(hdql_attr_def_is_atomic(ad)) {
+    } else if(hdql_attr_def_is_atomic(topAD)) {
+        _M_DBGMSG("  top attr type is of scalar atomic type\n");
         ah->value_handler = _handle_scalar_atomic_as_csv_entry;
         struct hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
         assert(valTypes);
         const struct hdql_ValueInterface * vi
-              = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(ad));
+              = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAD));
         /* TODO: unclear whether we will get rid of this method in favor of
          *  conversions, though */
         assert(vi->get_as_string);
         ah->payload.get_as_string = vi->get_as_string;
-        fprintf(stderr, "(csv) ... \"%s\" is atomic, handler assigned\n"
-            , attrName );  /* TODO: debug log? */
-    } else if(hdql_attr_def_is_compound(ad)) {
-        fprintf(stderr, "(csv) ... \"%s\" is scalar compound, expanding it recursively...\n"
-            , attrName );  /* TODO: debug log? */
+    } else if(hdql_attr_def_is_compound(topAD)) {
+        _M_DBGMSG("  top attr type is of scalar compound type (expanding recursively)\n");
         ah->value_handler = _handle_scalar_compound_as_csv_entry;
         _expand_scalar_compound_to_columns(ad, &ah->payload.attrHandlers, ctx);
-        fprintf(stderr, "(csv) ... extended with \"%s\" as compound type\n"
-            , attrName );  /* TODO: debug log? */
     }
     #ifndef DNDEBUG
     else {
@@ -195,6 +185,29 @@ _extend_tier_with_attribute( struct hdql_AttrHandlerTier * t
         assert(0);
     }
     #endif
+    return 0;
+}
+
+static int
+_extend_tier_with_attribute( struct hdql_AttrHandlerTier * t
+            , const char * attrName
+            , const struct hdql_AttrDef * ad
+            , struct hdql_Context * ctx
+            ) {
+    assert(ctx);
+    /* allocate new attribute handler */
+    struct hdql_CSVAttrHandler * ah = (struct hdql_CSVAttrHandler *)
+                malloc(sizeof(struct hdql_CSVAttrHandler));
+
+    ah->name = attrName && '\0' != *attrName ? attrName : NULL;  //<- ...
+    ah->value_handler = NULL;
+    ah->ad = ad;
+    memset(&ah->payload,     0x0, sizeof(ah->payload));
+    memset(&ah->dynamicData, 0x0, sizeof(ah->dynamicData));
+
+    _M_DBGMSG("  assigning handler to `%s'...\n", attrName ? attrName : "?");
+    _assign_value_handler(ad, ah, ctx);
+
     /* push new initialized attribute handler */
     return _push_back_handler(t, ah);
 }
@@ -207,32 +220,70 @@ _expand_scalar_compound_to_columns( const struct hdql_AttrDef * ad
         , struct hdql_Context * ctx
         ) {
     const struct hdql_Compound * c = hdql_attr_def_compound_type_info(ad);
-    //hdql_compound_get_full_type_str(const struct hdql_Compound *c, char *buf, size_t bufSize);
-    const size_t nAttrs = hdql_compound_get_nattrs(c);
+    const size_t nAttrs = hdql_compound_get_nattrs_recursive(c);
     const char ** attrNames = (const char **) alloca(sizeof(const char*)*nAttrs);
-    hdql_compound_get_attr_names(c, attrNames);
+    hdql_compound_get_attr_names_recursive(c, attrNames);
     for(size_t nAttr = 0; nAttr < nAttrs; ++nAttr) {
         const struct hdql_AttrDef * subAD = hdql_compound_get_attr(c, attrNames[nAttr]);
         assert(subAD);
         _extend_tier_with_attribute(t, attrNames[nAttr], subAD, ctx);
-        fprintf(stderr, "(csv) ... extended tier with \"%s\"\n"
-            , attrNames[nAttr] );  /* TODO: debug log? */
     }
 }
 
 /* part of `hdql_iQueryResultsHandler` implementation for CSV handler,
- * matches `hdql_iQueryResultsHandler::handle_attr_def()`.
- *
- * Extends set of individual attributes handlers based on compoound query
- * result attribute declaration, keeps track on the columns to print.
+ * matches `hdql_iQueryResultsHandler::handle_result_type()`.
  * */
 static int
-_csv_results_handler_handle_attr_def(const char * attrName
-        , const struct hdql_AttrDef * ad, void * csv_ ) {
-    fprintf(stderr, "(csv) Handling top-level attribute definition \"%s\".\n"
-            , attrName );  /* TODO: debug log? */
+_csv_handler_set_result_type( const struct hdql_AttrDef * ad, void * csv_ ) {
+    fflush(stderr);
+
     struct hdql_CSVHandler * csv = (struct hdql_CSVHandler *) csv_;
-    return _extend_tier_with_attribute(&csv->rootHandlers, attrName, ad, csv->ctx);
+    assert(csv->rootObjectHandler.ad == NULL);  /* make sure it hasn't being called before */
+    csv->rootObjectHandler.ad = ad;
+    _M_DBGMSG("Assigning handler for root record type.\n");
+    /* Special case here is when root type is a collection. Contrary to
+     * in-depth iteration of the query result (assigned
+     * by _assign_value_handler(), we expect query itslef to iterate over this
+     * collection, so we must consider datum as a scalar item here. */
+    if(hdql_attr_def_is_atomic(ad)) {
+        /* get atomic value iface */
+        struct hdql_ValueTypes * valTypes = hdql_context_get_types(csv->ctx);
+        assert(valTypes);
+        const struct hdql_ValueInterface * vi
+                = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(ad));
+
+        if(hdql_attr_def_is_scalar(ad)) {
+            _M_DBGMSG("  root obj. top attr type is of scalar atomic type\n");
+            csv->rootObjectHandler.value_handler = _handle_scalar_atomic_as_csv_entry;
+            /* TODO: unclear whether we will get rid of this method in favor of
+             *  conversions, though */
+            assert(vi->get_as_string);
+            csv->rootObjectHandler.payload.get_as_string = vi->get_as_string;
+        } else {
+            assert(hdql_attr_def_is_collection(ad));
+            /* This is a special (and simplest possible) case when query
+             * yields a series of scalars that this handler must not iterate
+             * by itself. Just use this datum to stringify as is. */
+            csv->rootObjectHandler.payload.get_as_string = vi->get_as_string;
+            csv->rootObjectHandler.value_handler = _handle_scalar_atomic_value_as_csv_entry;
+        }
+    } else if(hdql_attr_def_is_compound(ad)) {
+        _M_DBGMSG("  root obj. top attr type is of scalar compound type (expanding recursively)\n");
+        csv->rootObjectHandler.value_handler = _handle_scalar_compound_as_csv_entry;
+        _expand_scalar_compound_to_columns(ad, &csv->rootObjectHandler.payload.attrHandlers, csv->ctx);
+    }
+    #ifndef DNDEBUG
+    else {
+        char bf[128];
+        hdql_top_attr_str(ad, bf, sizeof(bf), csv->ctx);
+        fputs("DEBUG ASSERTION FAILED: logic error: can't handle top level attr def of query result"
+                " yielding type `", stderr);
+        fputs(bf, stderr);
+        fputs("'.\n", stderr);
+        assert(0);
+    }
+    #endif
+    return 0;
 }
 
 /*
@@ -259,7 +310,13 @@ _handle_collection_as_csv_entry( struct hdql_CSVHandler * csv
      * */
     size_t nItems = 0;
     if(h->dynamicData.collectionIt)
-        h->dynamicData.collectionIt = ciface->reset(h->dynamicData.collectionIt, ownerDatum, ciface->definitionData, NULL, csv->ctx);
+        h->dynamicData.collectionIt = ciface->reset( 
+                  h->dynamicData.collectionIt
+                , ownerDatum
+                , ciface->definitionData
+                , NULL
+                , csv->ctx
+                );
     while( h->dynamicData.collectionIt ) {  /* null is allowed for iterator (empty collections) */
         hdql_Datum_t check = ciface->dereference(h->dynamicData.collectionIt, NULL);
         if(!check) break;
@@ -281,7 +338,7 @@ _get_scalar_data(struct hdql_CSVHandler * csv
     const struct hdql_ScalarAttrInterface * siface
         = hdql_attr_def_scalar_iface(h->ad);
     assert(siface);
-    
+
     if(siface->reset) {
         h->dynamicData.scSupp = siface->reset(ownerDatum
                 , h->dynamicData.scSupp
@@ -320,6 +377,16 @@ _handle_scalar_atomic_as_csv_entry( struct hdql_CSVHandler * csv
     }
 }
 
+static void
+_handle_scalar_atomic_value_as_csv_entry( struct hdql_CSVHandler * csv
+        , hdql_Datum_t valueDatum
+        , struct hdql_CSVAttrHandler * h
+        ) {
+    char buf[128];  /* TODO: configurable? */
+    h->payload.get_as_string(valueDatum, buf, sizeof(buf), csv->ctx);
+    _csv_print_column(csv, buf);
+}
+
 /* Scalar compound attribute yields few columns recursively */
 static void
 _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
@@ -334,7 +401,6 @@ _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
 
     /* Get item by dereferencing the owner with attribute definition */
     hdql_Datum_t r = _get_scalar_data(csv, ownerDatum, h);
-
     for(size_t i = 0; i < h->payload.attrHandlers.n; ++i) {
         struct hdql_CSVAttrHandler * ah = h->payload.attrHandlers.handlers[i];
         ah->value_handler(csv, r, ah);
@@ -352,19 +418,32 @@ static int _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t d
  * */
 static int
 _csv_results_handler_handle_record(hdql_Datum_t datum, void * csv_ ) {
-    //fprintf(stderr, "(csv) Handling top-level record datum.\n");  /* TODO: debug log? */
     assert(csv_);
     struct hdql_CSVHandler * csv = (struct hdql_CSVHandler *) csv_;
 
     csv->nColumnsPrinted = 0;
-    _reset_dynamic_states(&csv->rootHandlers, datum, csv->ctx);
 
-    for(size_t i = 0; i < csv->rootHandlers.n; ++i) {
-        assert(csv->rootHandlers.handlers[i]->value_handler);
-        csv->rootHandlers.handlers[i]->value_handler(csv, datum
-                , csv->rootHandlers.handlers[i] );
+    _M_DBGMSG("Handling new record.\n");
+    assert(csv->rootObjectHandler.ad);
+    if(hdql_attr_def_is_compound(csv->rootObjectHandler.ad)) {
+        struct hdql_AttrHandlerTier * hsTier = &csv->rootObjectHandler.payload.attrHandlers;
+        _reset_dynamic_states(hsTier, datum, csv->ctx);
+
+        _M_DBGMSG("  record is of compound type, expecting %zu attrs\n", hsTier->n);
+        for(size_t i = 0; i < hsTier->n; ++i) {
+            assert(hsTier->handlers[i]->value_handler);
+            _M_DBGMSG("  handling root compound's attr #%zu\n", i);
+            hsTier->handlers[i]->value_handler(csv, datum
+                    , hsTier->handlers[i] );
+        }
+    } else {
+        assert(hdql_attr_def_is_atomic(csv->rootObjectHandler.ad));
+        _M_DBGMSG("  record is of atomic type.\n");
+        csv->rootObjectHandler.value_handler( csv
+                , datum, &csv->rootObjectHandler);
     }
     fputs(csv->recordDelimiter, csv->dest);
+    _M_DBGMSG("Record handled.\n");
     return 0;
 }
 
@@ -372,6 +451,7 @@ static int
 _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struct hdql_Context * ctx) {
     for(size_t i = 0; i < t->n; ++i) {
         struct hdql_CSVAttrHandler * ah = t->handlers[i];
+
         if(hdql_attr_def_is_collection(t->handlers[i]->ad)) {  /* collection */
             const struct hdql_CollectionAttrInterface * ciface
                 = hdql_attr_def_collection_iface(ah->ad);
@@ -390,15 +470,21 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
                              , ctx
                              );
         } else {  /* scalar */
-            assert(hdql_attr_def_is_scalar(t->handlers[i]->ad));
-            const struct hdql_ScalarAttrInterface * siface
-                = hdql_attr_def_scalar_iface(ah->ad);
-            if(siface->reset)
+            assert(hdql_attr_def_is_scalar(ah->ad));
+            const struct hdql_ScalarAttrInterface * siface = hdql_attr_def_scalar_iface(ah->ad);
+            if(siface->instantiate) {
+                if(NULL == ah->dynamicData.scSupp) {
+                    ah->dynamicData.scSupp
+                        = siface->instantiate(datum, siface->definitionData, ctx);
+                    assert(ah->dynamicData.scSupp);
+                }
+                assert(siface->reset);
                 ah->dynamicData.scSupp = siface->reset( datum
                         , ah->dynamicData.scSupp
                         , siface->definitionData
                         , ctx
                         );
+            }
         }
     }
     return 0;
@@ -408,7 +494,7 @@ static void
 _print_columns_list( const struct hdql_AttrHandlerTier * t
         , FILE * dest
         , const char * prefix
-        , const char * columnDelim, const char * attrDelim, const char * collectionMarker
+        , const char * columnDelim, const char * attrDelim, const char * collectionMarker, const char * anonColumnName
         );
 /* part of `hdql_iQueryResultsHandler` implementation for CSV handler,
  * matches `hdql_iQueryResultsHandler::finalize_schema()`.
@@ -421,9 +507,13 @@ static int _csv_handler_finalize_schema(void * csv_) {
 
     /* TODO: print key columns if need */
 
-    _print_columns_list(&csv->rootHandlers, csv->dest, NULL
-            , ",", ".", "#"
+    if(hdql_attr_def_is_compound(csv->rootObjectHandler.ad)) {
+        _print_columns_list(&csv->rootObjectHandler.payload.attrHandlers, csv->dest, NULL
+            , csv->valueDelimiter, csv->attrDelimiter, csv->collectionMarker, csv->anonColumnName
             );
+    } else {
+        fputs(csv->anonColumnName, csv->dest);
+    }
     /* Preint delimiter after table header */
     fputs(csv->recordDelimiter, csv->dest);
     return 0;
@@ -432,44 +522,57 @@ static void
 _print_columns_list( const struct hdql_AttrHandlerTier * t
         , FILE * dest
         , const char * prefix
-        , const char * columnDelim, const char * attrDelim, const char * collectionMarker
+        , const char * columnDelim, const char * attrDelim, const char * collectionMarker, const char * anonColumnName
         ) {
     for(size_t i = 0; i < t->n; ++i) {
         /* print column delimiter */
         if(i) fputs(columnDelim, dest);
         /* consider attribute definition at the tier */
         const struct hdql_CSVAttrHandler * ah = t->handlers[i];
-        if(hdql_attr_def_is_collection(ah->ad)) {
+
+        const struct hdql_AttrDef * topAD = ah->ad;
+        while(hdql_attr_def_is_fwd_query(topAD)) {
+            topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
+        }
+
+        if(hdql_attr_def_is_collection(topAD)) {
             /* prefix collection column */
             fputs(collectionMarker, dest);
             if(prefix && attrDelim) {
                 fputs(prefix, dest);
                 fputs(attrDelim, dest);
             }
-            fputs(ah->name, dest);
-        } else if(hdql_attr_def_is_atomic(ah->ad)) {
+            fputs(ah->name ? ah->name : anonColumnName, dest);
+        } else if(hdql_attr_def_is_atomic(topAD)) {
             /* ordinary column */
             if(prefix && attrDelim) {
                 fputs(prefix, dest);
                 fputs(attrDelim, dest);
             }
-            fputs(ah->name, dest);
-        } else if(hdql_attr_def_is_compound(ah->ad)) {
+            fputs(ah->name ? ah->name : anonColumnName, dest);
+        } else if(hdql_attr_def_is_compound(topAD)) {
             /* compound -- expand recursively */
             char * nextPrefix = NULL;
             if(attrDelim) {
-                size_t len = strlen(ah->name) + strlen(attrDelim);
+                size_t len = strlen(ah->name ? ah->name : anonColumnName) + strlen(attrDelim);
                 if(prefix) len += strlen(prefix) + strlen(attrDelim);
                 nextPrefix = (char *) malloc(len);
                 if(prefix) {
-                    snprintf(nextPrefix, len, "%s%s%s%s", prefix, attrDelim, ah->name, attrDelim);
+                    snprintf(nextPrefix, len, "%s%s%s%s", prefix, attrDelim
+                            , ah->name ? ah->name : anonColumnName, attrDelim);
                 } else {
-                    snprintf(nextPrefix, len, "%s%s", ah->name, attrDelim);
+                    snprintf(nextPrefix, len, "%s%s", ah->name ? ah->name : anonColumnName, attrDelim);
                 }
             }
             _print_columns_list( &ah->payload.attrHandlers
-                    , dest, nextPrefix, columnDelim, attrDelim, collectionMarker);
+                    , dest, nextPrefix, columnDelim, attrDelim
+                    , collectionMarker, anonColumnName);
         }
+        #ifndef DNDEBUG
+        else {
+            assert(0);
+        }
+        #endif
     }
 }
 
@@ -480,11 +583,11 @@ _print_columns_list( const struct hdql_AttrHandlerTier * t
 int
 hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler * iqr
         , FILE * stream
-        , const char * valueDelimiter, const char * recordDelimiter
+        , const char * valueDelimiter, const char * attrDelimiter, const char * recordDelimiter
         , struct hdql_Context * ctx
         ) {
     assert(ctx);
-    iqr->handle_attr_def = _csv_results_handler_handle_attr_def;
+    iqr->handle_result_type = _csv_handler_set_result_type;
     iqr->handle_keys = NULL;  // TODO
     iqr->handle_record = _csv_results_handler_handle_record;
     iqr->finalize_schema = _csv_handler_finalize_schema;
@@ -492,13 +595,20 @@ hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler * iqr
     struct hdql_CSVHandler * csv
             = (struct hdql_CSVHandler *) malloc(sizeof(struct hdql_CSVHandler));
     csv->dest = stream;
+
+    /* formatting options */
     csv->recordDelimiter = strdup(recordDelimiter);
     csv->valueDelimiter = strdup(valueDelimiter);
+    csv->attrDelimiter = strdup(attrDelimiter);
+    csv->collectionMarker = strdup("N");
+    csv->anonColumnName = strdup("(value)");
+
     csv->ctx = ctx;
     csv->nColumnsPrinted = 0;
 
-    csv->rootHandlers.handlers = NULL;
-    csv->rootHandlers.n = 0;
+    memset(&csv->rootObjectHandler, 0x0, sizeof(csv->rootObjectHandler));
+    assert(csv->rootObjectHandler.ad == NULL);  // XXX
+    fflush(stderr);
 
     iqr->userdata = csv;
     return 0;

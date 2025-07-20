@@ -151,94 +151,6 @@ struct Query : public SelectionItemT {
 
 }  // namespace hdql
 
-#if 0
-#if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST  // tests for Query<> {{{
-struct TestingItem {
-    // Current state and maximum permitted
-    int c, max_;
-    // Label, used in debugging
-    int label;
-    // internal copy of the value in use; differs from `currentAttr' of
-    // encompassing `Query<>` only for terminative item. Practically, should
-    // correspond to actual entry in the collection or attribute in compound
-    // item
-    int valueCopy;
-    
-    TestingItem( const hdql_AttrDef * subject_
-               , const hdql_SelectionArgs_t selexpr_ )
-        : c(0), max_(0)
-    {}
-
-    bool get_value( hdql_Datum_t & value
-                  , hdql_CollectionKey * keyPtr
-                  , hdql_Context_t ctx
-                  ) {
-        assert(c <= max_);
-        if(c == max_) return false;
-        valueCopy = c;
-        value = reinterpret_cast<hdql_Datum_t>(&valueCopy);
-        return true;
-    }
-
-    void advance( hdql_Context_t ctx ) {
-        assert(c < max_);
-        ++c;
-    }
-
-    void reset( hdql_Datum_t newOwner
-              , hdql_Context_t ctx
-              ) {
-        c = 0;
-    }
-};
-
-static const struct {
-    int vs[4];
-} gTestExpectedOutput[] = {
-    {0, 0, 0, 0},
-    {0, 0, 0, 1},
-    {0, 1, 0, 0},
-    {0, 1, 0, 1},
-    {0, 2, 0, 0},
-    {0, 2, 0, 1},
-    {1, 0, 0, 0},
-    {1, 0, 0, 1},
-    {1, 1, 0, 0},
-    {1, 1, 0, 1},
-    {1, 2, 0, 0},
-    {1, 2, 0, 1},
-};
-
-TEST(BasicQueryIteration, ChainedSelectionIterationWorks) {
-    hdql::Query<TestingItem>
-        q1(NULL, NULL), q2(NULL, NULL), q3(NULL, NULL), q4(NULL, NULL);
-    q1.next = &q2;  q1.max_ = 2;
-    q2.next = &q3;  q2.max_ = 3;
-    q3.next = &q4;  q3.max_ = 1;
-    q4.next = NULL; q4.max_ = 2;
-    q1.label = 1;
-    q2.label = 2;
-    q3.label = 3;
-    q4.label = 4;
-    hdql_Datum_t data = reinterpret_cast<hdql_Datum_t>(0xff);
-    size_t n = 0;
-    ASSERT_EQ(q1.depth(), 4);
-    while(q1.get(data, NULL, NULL)) {
-        ASSERT_LT(n, sizeof(gTestExpectedOutput)/sizeof(*gTestExpectedOutput));
-        size_t nn = 0;
-        for(hdql::Query<TestingItem> * q = &q1; q; q = q->next, ++nn) {
-            int value = *reinterpret_cast<int*>(q->currentAttr);
-           // std::cout << " " << value;
-            ASSERT_LT(nn, 4);
-            EXPECT_EQ(value, gTestExpectedOutput[n].vs[nn]);
-        }
-        //std::cout << std::endl;
-        ++n;
-    }
-}
-#endif  /// }}}
-#endif
-
 struct hdql_Query : public hdql::Query<hdql::QueryState> {
     hdql_Query( const hdql_AttrDef * subject_
               , const hdql_SelectionArgs_t selexpr_
@@ -355,26 +267,13 @@ QueryState::reset( hdql_Datum_t newOwner
                 , hdql_Context_t ctx
                 ) {
     assert(newOwner);
-    hdql_Datum_t fwdQ = NULL;  // used only for forwarding query instead of definition data
-    if(hdql_attr_def_is_fwd_query(subject)) {
-        assert( (hdql_attr_def_is_collection(subject) && NULL == hdql_attr_def_collection_iface(subject)->definitionData )
-             || (NULL == hdql_attr_def_scalar_iface(subject)->definitionData) );
-        // ^^^ definition data must not be not set for forwarding query
-        //     interface
-        //hdql_query_reset( hdql_attr_def_fwd_query(subject), newOwner, ctx);
-        // ^^^ not needed as interface implementation should do it by its own
-        assert( (!hdql_attr_def_is_collection(subject))
-             || NULL == state.collection.selectionArgs );
-        // ^^^ selection arguments are meaningless for forwarding query
-        fwdQ = (hdql_Datum_t) hdql_attr_def_fwd_query(subject);
-    }
     if(hdql_attr_def_is_collection(subject)) {
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         if(NULL == state.collection.iterator) {
             assert(iface->create);
             state.collection.iterator =
                 iface->create( newOwner
-                    , fwdQ ? fwdQ : iface->definitionData
+                    , iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
                     );
@@ -382,7 +281,7 @@ QueryState::reset( hdql_Datum_t newOwner
         state.collection.iterator =
                 iface->reset(state.collection.iterator
                     , newOwner
-                    , fwdQ ? fwdQ : iface->definitionData
+                    , iface->definitionData
                     , state.collection.selectionArgs
                     , ctx
                     );
@@ -392,7 +291,7 @@ QueryState::reset( hdql_Datum_t newOwner
             if(NULL == state.scalar.dynamicSuppData ) {
                 state.scalar.dynamicSuppData
                     = iface->instantiate( newOwner
-                        , fwdQ ? fwdQ : iface->definitionData
+                        , iface->definitionData
                         , ctx
                         );
                 if(NULL == state.scalar.dynamicSuppData) {
@@ -403,7 +302,7 @@ QueryState::reset( hdql_Datum_t newOwner
             assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
             state.scalar.dynamicSuppData = iface->reset( newOwner
                         , state.scalar.dynamicSuppData
-                        , fwdQ ? fwdQ : iface->definitionData
+                        , iface->definitionData
                         , ctx
                         );
         }
@@ -423,11 +322,6 @@ hdql_query_create(
         ) {
     hdql_Datum_t bf = hdql_context_alloc(ctx, sizeof(hdql_Query));
     return new (bf) hdql_Query( attrDef, selArgs );
-}
-
-extern "C" const struct hdql_AttrDef *
-hdql_query_get_subject( struct hdql_Query * q ) {
-    return q->subject;
 }
 
 extern "C" hdql_Datum_t
@@ -513,8 +407,7 @@ hdql_query_get_collection_selection(struct hdql_Query * q) {
 }
 
 extern "C" const struct hdql_AttrDef *
-hdql_query_attr(const struct hdql_Query * q) {
-    assert(q);
+hdql_query_get_subject( struct hdql_Query * q ) {
     return q->subject;
 }
 

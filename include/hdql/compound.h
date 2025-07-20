@@ -23,14 +23,19 @@ struct hdql_Compound;
 
 /**\brief Creates new "static" compound type */
 struct hdql_Compound * hdql_compound_new(const char * name, struct hdql_Context * ctx);
+
 /**\brief Creates new "virtual" compound type */
 struct hdql_Compound * hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * ctx);
+
 /**\breif Destroys virtual compound instance*/
 void hdql_virtual_compound_destroy(struct hdql_Compound *, struct hdql_Context * ctx);
+
 /**\breif Returns parent type of virtual compound */
 const struct hdql_Compound * hdql_virtual_compound_get_parent(const struct hdql_Compound * self);
+
 /**\brief Returns true if compound is virtual */
 int hdql_compound_is_virtual(const struct hdql_Compound * compound);
+
 /**\brief Returns true if both compounds are of the same type */
 bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct hdql_Compound * compoundB);
 
@@ -50,11 +55,17 @@ int hdql_compound_add_attr( struct hdql_Compound * instance
                           , const char * attrName
                           , struct hdql_AttrDef * attrDef
                           );
-/**\brief Retrieves attribute definition by name */
+
+/**\brief Retrieves attribute definition by name
+ *
+ * Recursive by default -- i.e. it will look in parent's attributes if not
+ * found in current. */
 const struct hdql_AttrDef *
 hdql_compound_get_attr( const struct hdql_Compound *, const char * name );
+
 /**\brief Returns (type) name of the compound object */
 const char * hdql_compound_get_name(const struct hdql_Compound *);
+
 /**\brief Prints full compound type string
  *
  * Renders compound type string expanding virtual compound type recursively,
@@ -81,6 +92,9 @@ void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
  *       parent's, if any */
 size_t hdql_compound_get_nattrs(const struct hdql_Compound *);
 
+/**\brief Returns number of compound attributes, includeing all parents */
+size_t hdql_compound_get_nattrs_recursive(const struct hdql_Compound * c);
+
 /**\brief Retrieves names list of compound attributes 
  *
  * Array of pounters \p dest must be at least of `hdql_compound_get_nattrs()`
@@ -89,85 +103,13 @@ size_t hdql_compound_get_nattrs(const struct hdql_Compound *);
  * */
 void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest);
 
-#if 0
-typedef unsigned int hdql_AttrFlags_t;
-
-extern const hdql_AttrFlags_t hdql_kAttrIsAtomic;
-extern const hdql_AttrFlags_t hdql_kAttrIsCollection;
-extern const hdql_AttrFlags_t hdql_kAttrIsSubquery;
-extern const hdql_AttrFlags_t hdql_kAttrIsStaticValue;
-
-/**\brief Compound's attribute definition descriptor
+/**\brief Retrieves names list of all compound attributes, including inherited
  *
- * Defines, how certain attribute has to be accessed within a compound type.
- * In terms of data access interface may define either:
- *  - (if `isAtomic` is set) -- atomic attribute, i.e. attribute of simple
- *    arithmetic type; `typeInfo.atomic` struct instance defines
- *    data access interface
- *  - (if `isAtomic` is not set) -- a compound attribute, i.e. attribute
- *    consisting of multiple attributes (atomic or compounds);
- *    `typeInfo.compound` shall be used to access the data in term of
- *    sub-attributes.
- *  - (if `isSubQuery` is set) -- value retrieved using collection interface
- *    based on query object provided instead of atomic or compound interface
- * In terms of how the data is associated to owning object:
- *  - (if `isCollection` is set) -- a collection attribute that should be
- *    accessed via iterator, which lifecycle is steered by `interface.collection`
- *  - (if `isCollection` is not set) -- a scalar attribute (optionally)
- *    providing value which can be retrieved (or set) using
- *    `interface.scalar` interface.
- * Prohibited combinations:
- *  - isSubQuery && !isCollection -- subqueries are always iterable collections,
- *    (yet subquery type must never be a terminal one)
- *  - isSubQuery && staticValue -- "static" values do not need an owning
- *    instance
+ * Array of pounters \p dest must be at least of `hdql_compound_get_nattrs_recursive()`
+ * length. Pointers to attribute name strings are managed by compound (i.e.
+ * user code is not responsible for freeing them).
  * */
-struct hdql_AttrDef {
-    #if 0
-    /** If set, it attribute is of atomic type (int, float, etc), otherwise 
-     * it is a compound */
-    unsigned int isAtomic:1;
-    /** If set, attribute is collection of values indexed by certain key,
-     * otherwise it is a scalar (a single value) */
-    unsigned int isCollection:1;
-    /** If set, attribute should be interpreted as a sub-query */
-    unsigned int isSubQuery:1;
-    /** If set, attribute has no owner:
-     *  0x1 -- constant value (parser should calculate simple arithmetics)
-     *  0x2 -- externally set variable (no arithmetics on parsing) */
-    unsigned int staticValueFlags:2;
-    #endif
-
-    hdql_AttrFlags_t attrFlags;
-    /**\brief Key type code, can be zero (unset) */
-    hdql_ValueTypeCode_t keyTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
-
-    /** Data access interface for a value */
-    union {
-        struct hdql_ScalarAttrInterface     scalar;
-        struct hdql_CollectionAttrInterface collection;
-    } interface;
-
-    /**\brief Key management interface */
-    union {
-        struct hdql_ScalarKeyInterface * scalar;
-        struct hdql_CollectionKeyInterface * collection;
-    } keyInterface;
-
-    /** Defines value type features */
-    union {
-        struct hdql_AtomicTypeFeatures   atomic;
-        struct hdql_Compound           * compound;
-        struct hdql_Query              * subQuery;
-        struct {
-            hdql_Datum_t datum;
-            hdql_ValueTypeCode_t typeCode;
-        } staticValue;
-    } typeInfo;
-};
-
-void hdql_attribute_definition_init(struct hdql_AttrDef *);
-#endif
+void hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, const char ** dest);
 
 #ifdef __cplusplus
 }  // extern "C"

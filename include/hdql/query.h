@@ -73,10 +73,6 @@ hdql_query_is_fully_scalar(struct hdql_Query * q);
 const struct hdql_AttrDef *
 hdql_query_top_attr( const struct hdql_Query * );
 
-/**\brief Retruens query's current attribute */
-const struct hdql_AttrDef *
-hdql_query_attr(const struct hdql_Query *);
-
 /**\brief Returns collection query's selection arguments */
 hdql_SelectionArgs_t
 hdql_query_get_collection_selection(struct hdql_Query *);

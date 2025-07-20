@@ -67,7 +67,7 @@ hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * c
         //    hdql_query_destroy(hdql_attr_def_fwd_query(attrDef.second), ctx);
         //}
         // ^^^ order is not guaranteed, so forwarded queries get destroyed
-        //     when the owning query getse finalize()'d (see Query<>::finalize())
+        //     when the owning query gets finalize()'d (see Query<>::finalize())
         hdql_attr_def_destroy(attrDef.second, ctx);
     }
     #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
@@ -176,6 +176,16 @@ hdql_compound_get_nattrs(const struct hdql_Compound * c) {
     return c->attrsByName.size();
 }
 
+extern "C" size_t
+hdql_compound_get_nattrs_recursive(const struct hdql_Compound * c) {
+    assert(c);
+    size_t nAttrs = 0;
+    do {
+        nAttrs += c->attrsByName.size();
+    } while(!!(c = c->parent));
+    return nAttrs;
+}
+
 extern "C" void
 hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest) {
     assert(c);
@@ -184,6 +194,18 @@ hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest)
     for(auto & p : c->attrsByName) {
         dest[n++] = p.first.c_str();
     }
+}
+
+extern "C" void
+hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, const char ** dest) {
+    assert(c);
+    assert(dest);
+    size_t n = 0;
+    do {
+        for(auto & p : c->attrsByName) {
+            dest[n++] = p.first.c_str();
+        }
+    } while(!!(c = c->parent));
 }
 
 extern "C" void

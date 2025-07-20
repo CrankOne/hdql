@@ -24,6 +24,7 @@ struct hdql_QueryResultsWorkspace {
     struct hdql_KeyView * kv;
 };
 
+#if 0
 /* Init workspace with query result attribs
  *
  * With given query's top attribute definition, retrieves the resulting type
@@ -41,16 +42,31 @@ _query_result_table_init_attrs( const struct hdql_AttrDef * ad
         , struct hdql_Context * ctx
         ) {
     int rc;
-    if(hdql_attr_def_is_compound(ad)) {
+
+    /* if this is fwd query result, use top attr def (TODO: if this possible?
+     * seems like this func is always called with hdql_query_top_attr(),
+     * so this precaution may be redundant...) */
+    const struct hdql_AttrDef * topAD = ad;
+    while(hdql_attr_def_is_fwd_query(topAD)) {
+        topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
+    }
+
+    /* Compound and scalar handling is different. For compound cases, interface
+     * implementation unpacks provided compound by itself, based on attribute
+     * definitions. While for scalar case it has to handle a single value. I.e.,
+     * the interface must know whether it receives compoun instance or
+     * its a scalar datum */
+    if(hdql_attr_def_is_compound(topAD)) {
         /* iterate over (selected) compound attributes and let the object
          * behind the interface know, in which order we are going to provide
          * values and of which type */
         const struct hdql_Compound * c = hdql_attr_def_compound_type_info(ad);
+        //hdql_compound_is_virtual(c);
         /* Loop over compound keys */
-        size_t nAttrs = hdql_compound_get_nattrs(c);
+        size_t nAttrs = hdql_compound_get_nattrs_recursive(c);
         assert(nAttrs > 0);
         const char ** attrNames = (const char **) alloca(sizeof(char*)*(nAttrs+1));
-        hdql_compound_get_attr_names(c, attrNames);
+        hdql_compound_get_attr_names_recursive(c, attrNames);
         attrNames[nAttrs] = NULL;
         const char ** selectedColumns = attrs ? attrs : attrNames;
         for( const char ** colNamePtr = selectedColumns; *colNamePtr; ++colNamePtr ) {
@@ -66,7 +82,7 @@ _query_result_table_init_attrs( const struct hdql_AttrDef * ad
         }
     } else {
         /* query results in scalar value */
-        assert(hdql_attr_def_is_atomic(ad));
+        assert(hdql_attr_def_is_atomic(topAD));
         const char * singularColName;
         if(attrs && attrs[0] && attrs[0][0] != '\0') {
             if(attrs[1] && attrs[1][0] != '\0') {
@@ -86,6 +102,7 @@ _query_result_table_init_attrs( const struct hdql_AttrDef * ad
     }
     return 0;
 }
+#endif
 
 /* Allocates structure to track keys with their flattened views
  *
@@ -134,10 +151,10 @@ hdql_query_results_init(
     ws->iqr = iqr;
 
     /* if attribute handling is enabled in iface implem, process attributes */
-    if(iqr->handle_attr_def) {
+    if(iqr->handle_result_type) {
         const struct hdql_AttrDef * ad = hdql_query_top_attr(q);
         assert(ad);
-        if(0 != (rc = _query_result_table_init_attrs(ad, attrs, iqr, ctx))) {
+        if(0 != (rc = iqr->handle_result_type(ad, iqr->userdata))) {
             /* TODO communicate error other way */
             fprintf(stderr, "Can't process attributes of query result: %d\n", rc);
             return NULL;

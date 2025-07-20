@@ -274,8 +274,10 @@ hdql_attr_def_create_fwd_query(
 
     if(isFullyScalar) {
         ad->interface.scalar = _hdql_gScalarFwdQueryIFace;
+        ad->interface.scalar.definitionData = (hdql_Datum_t) subquery;
     } else {
         ad->interface.collection = _hdql_gCollectionFwdQueryIFace;
+        ad->interface.collection.definitionData = (hdql_Datum_t) subquery;
     }
 
     ad->keyTypeCode = 0x0;
@@ -490,9 +492,6 @@ void
 hdql_attr_def_destroy( hdql_AttrDef_t ad
                      , hdql_Context_t ctx
                      ) {
-    //if(hdql_attr_def_is_fwd_query(ad)) {
-    //  hdql_query_destroy(hdql_attr_def_fwd_query(ad), ctx);
-    //}
     hdql_context_free(ctx, (hdql_Datum_t) ad);
 }
 

@@ -30,13 +30,14 @@ struct hdql_iQueryResultsHandler {
     /** Arbitrary user pointer forwarded into all interface's calls */
     void * userdata;
 
-    /**\brief Callback to handle attribute definition in query result
+    /**\brief Handles query result's type (attr.definition)
      *
-     * Interface implementation may benefit from these calls in order to
-     * prepare streaming schema.
+     * Interface implementation uses it to prepare streaming schema as
+     * provided "attribute definition" brings all the introspeciton information
+     * about query result types.
      *
      * Called in `hdql_query_result_table_init()`. */
-    int (*handle_attr_def)(const char *, const struct hdql_AttrDef *, void *);
+    int (*handle_result_type)(const struct hdql_AttrDef *, void *);
 
     /**\brief Callback to handle keys definition
      *

@@ -16,7 +16,7 @@ extern "C" {
 int
 hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler *
         , FILE * stream
-        , const char * valueDelimiter, const char * recordDelimiter
+        , const char * valueDelimiter, const char * attrDelimiter, const char * recordDelimiter
         , struct hdql_Context * ctx
         );
 

@@ -72,10 +72,13 @@ typedef std::pair<size_t, size_t> SimpleRangeSelection;
 static SimpleRangeSelection
 _compile_simple_selection(const char * expression_) {
     assert(expression_);
+    SimpleRangeSelection r;
+    if('\0' == *expression_) {
+        return {std::numeric_limits<size_t>::min(), std::numeric_limits<size_t>::max()};
+    }
     assert('\0' != *expression_);
     const std::string expression(expression_);
     size_t n = expression.find(':');
-    SimpleRangeSelection r;
     std::string fromStr = expression.substr(0, n);
     if(fromStr != "...") {
         r.first = std::stoul(fromStr);
@@ -130,8 +133,8 @@ struct SelectionTraits<test::SimpleRangeSelection, T[N]> {
 
     static test::SimpleRangeSelection *
     compile( const char * strexpr
-                , const hdql_Datum_t defData
-                , hdql_Context & context) {
+           , const hdql_Datum_t defData
+           , hdql_Context & context) {
         hdql_Datum_t buf = hdql_context_alloc(&context, sizeof(test::SimpleRangeSelection));
         return new (buf) test::SimpleRangeSelection(test::_compile_simple_selection(strexpr));
     }

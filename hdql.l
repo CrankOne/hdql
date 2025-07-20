@@ -176,7 +176,7 @@ identifier  {L}({L}|{D})*
                     *gVerbatimCur = '\0';
                     BEGIN(INITIAL);
                     yylval->selexpr = strdup(gVerbatimBuf);
-                    return T_SELECTION_IDS;
+                    return T_SELECTION_LABEL;
                 }
 
 <SELECTOR,SELECTOR_IDS>\\]   { *gVerbatimCur++ = yytext[1]; }

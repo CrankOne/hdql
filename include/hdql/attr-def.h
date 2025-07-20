@@ -93,7 +93,11 @@ struct hdql_CollectionAttrInterface {
                                     );
 
     /**\brief If not NULL, shall produce key selection using externally-defined
-     *        parser */
+     *        parser
+     * \p expr is the expression of user-defined grammar (forwarded from HDQL
+     * patser as is), \p definitionData is this collection's definition data
+     * and current query evaluation context is provided as \p ctx.
+     * */
     hdql_SelectionArgs_t (*compile_selection)( const char * expr
                                              , const hdql_Datum_t definitionData
                                              , hdql_Context_t ctx );

@@ -314,9 +314,9 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
   selection : T_SELECTION_EXPRESSION
             { $$.selectionExpression = $1; $$.label = NULL; }
             | T_SELECTION_EXPRESSION T_SELECTION_LABEL
-            { $$.selectionExpression = $1; $$.label = $2; }
+            { $$.selectionExpression = $1; $$.label = $2; printf("xxx `%s'\n", $2); }
             | T_SELECTION_LABEL
-            { $$.selectionExpression = NULL; $$.label = $1; }
+            { $$.selectionExpression = NULL; $$.label = $1; printf("xxx `%s'\n", $1); }
             ;
 
   queryExpr : T_PERIOD T_IDENTIFIER
@@ -397,8 +397,18 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
                 free($2);
                 if($3.selectionExpression) free($3.selectionExpression);
-                if($3.label)               free($3.label);
                 $$ = hdql_query_create( attrDef, selection, ws->context);
+                if($3.label) {
+                    char * label = (char*) hdql_context_alloc(ws->context, strlen($3.label)+1);
+                    if(!label) {
+                        free($3.label);
+                        hdql_query_destroy($$, ws->context);
+                        return HDQL_ERR_MEMORY;
+                    }
+                    strcpy(label, $3.label);
+                    hdql_query_assign_label($$, label);
+                    free($3.label);
+                }
                 assert($$);
             }
             | queryExpr T_PERIOD T_IDENTIFIER
@@ -460,10 +470,20 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
                 free($3);
                 if($4.selectionExpression) free($4.selectionExpression);
-                if($4.label)               free($4.label);
 
                 struct hdql_Query * cq = hdql_query_create(attrDef, selection, ws->context);
                 assert(cq);
+                if($4.label) {
+                    char * label = (char*) hdql_context_alloc(ws->context, strlen($4.label)+1);
+                    if(!label) {
+                        free($4.label);
+                        hdql_query_destroy(cq, ws->context);
+                        return HDQL_ERR_MEMORY;
+                    }
+                    strcpy(label, $4.label);
+                    hdql_query_assign_label(cq, label);
+                    free($4.label);
+                }
                 $$ = hdql_query_append($1, cq);
             }
             | queryExpr T_LCRLBC {

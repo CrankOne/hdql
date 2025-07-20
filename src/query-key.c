@@ -38,7 +38,10 @@ hdql_query_keys_reserve( struct hdql_Query * query
         assert(query);
         cKey->isTerminal = 0x0;
         cKey->isList = 0x0;
-        cKey->label = NULL;
+        if( hdql_query_is_labeled(query) )
+            cKey->label = hdql_query_get_label(query);
+        else
+            cKey->label = NULL;
         const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
         hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(subj);

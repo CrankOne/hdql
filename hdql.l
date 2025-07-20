@@ -167,8 +167,9 @@ identifier  {L}({L}|{D})*
 
 <SELECTOR>->    {
                     *gVerbatimCur = '\0';
-                    BEGIN(SELECTOR_IDS);
                     yylval->selexpr = strdup(gVerbatimBuf);
+                    BEGIN(SELECTOR_IDS);
+                    gVerbatimCur = gVerbatimBuf;
                     return T_SELECTION_EXPRESSION;
                 }
 

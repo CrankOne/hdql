@@ -384,7 +384,6 @@ bool hdql_attr_def_is_direct_query(hdql_AttrDef_t ad) { return !ad->isFwdQuery; 
 bool hdql_attr_def_is_static_value(hdql_AttrDef_t ad) { return ad->staticValueFlags; }
 bool hdql_attr_def_is_stray(hdql_AttrDef_t ad) { return ad->isStray; }
 
-
 hdql_ValueTypeCode_t
 hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t ad) {
     assert(ad->isAtomic || 0x0 != ad->staticValueFlags);  // unguarded type code

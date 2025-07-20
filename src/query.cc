@@ -152,11 +152,14 @@ struct Query : public SelectionItemT {
 }  // namespace hdql
 
 struct hdql_Query : public hdql::Query<hdql::QueryState> {
+    char * label;
     hdql_Query( const hdql_AttrDef * subject_
               , const hdql_SelectionArgs_t selexpr_
               ) : hdql::Query<hdql::QueryState>( subject_
                                               , selexpr_
-                                              ) {}
+                                              )
+                , label(nullptr)
+                {}
 };
 
 namespace hdql {
@@ -405,6 +408,23 @@ hdql_query_get_collection_selection(struct hdql_Query * q) {
     assert(hdql_attr_def_is_collection(q->subject));
     return q->state.collection.selectionArgs;
 }
+
+extern "C" void
+hdql_query_assign_label(struct hdql_Query * q, char * l) {
+    assert(q);
+    q->label = l;
+}
+
+extern "C" bool
+hdql_query_is_labeled(const struct hdql_Query * q) {
+    return q->label;
+}
+
+extern "C" const char *
+hdql_query_get_label(const struct hdql_Query * q) {
+    return q->label;
+}
+
 
 extern "C" const struct hdql_AttrDef *
 hdql_query_get_subject( struct hdql_Query * q ) {

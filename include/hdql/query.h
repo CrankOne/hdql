@@ -74,8 +74,19 @@ const struct hdql_AttrDef *
 hdql_query_top_attr( const struct hdql_Query * );
 
 /**\brief Returns collection query's selection arguments */
-hdql_SelectionArgs_t
-hdql_query_get_collection_selection(struct hdql_Query *);
+hdql_SelectionArgs_t hdql_query_get_collection_selection(struct hdql_Query *);
+
+/**\brief Tags query with a string label
+ *
+ * The label pointer must be allocated at the same context that was used to
+ * create query. */
+void hdql_query_assign_label(struct hdql_Query *, char *);
+
+/**\brief Returns whether this query is labeled */
+bool hdql_query_is_labeled(const struct hdql_Query *);
+
+/**\brief Returns query's label or null */
+const char * hdql_query_get_label(const struct hdql_Query *);
 
 /**\brief Returns next dereference query item
  *

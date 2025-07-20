@@ -122,7 +122,8 @@ _query_result_table_init_keys( struct hdql_QueryResultsWorkspace * ws ) {
                       : NULL;
     hdql_keys_flat_view_update(ws->q, ws->keys, ws->kv, ws->ctx);
     assert(ws->iqr->handle_keys);
-    return ws->iqr->handle_keys(ws->keys, ws->kv, ws->flatKeyViewLength, ws->iqr->userdata);
+    return ws->iqr->handle_keys( ws->keys, ws->kv, ws->flatKeyViewLength
+            , ws->iqr->userdata);
 }
 
 

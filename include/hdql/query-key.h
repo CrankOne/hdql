@@ -22,6 +22,8 @@ struct hdql_CollectionKey {
         hdql_Datum_t datum;
         struct hdql_CollectionKey * keysList;
     } pl;
+    /**\brief Some keys may have a string label assigned*/
+    const char * label;
 };
 
 
@@ -87,6 +89,7 @@ struct hdql_KeyView {
     hdql_ValueTypeCode_t               code;
     const struct hdql_CollectionKey  * keyPtr;
     const struct hdql_ValueInterface * interface;
+    const char                       * label;
 };
 
 int

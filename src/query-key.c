@@ -38,6 +38,7 @@ hdql_query_keys_reserve( struct hdql_Query * query
         assert(query);
         cKey->isTerminal = 0x0;
         cKey->isList = 0x0;
+        cKey->label = NULL;
         const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
         hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(subj);
@@ -49,7 +50,6 @@ hdql_query_keys_reserve( struct hdql_Query * query
             // type code for query is zero, that can be a list or null key
             rc = hdql_attr_def_reserve_keys(subj, cKey, ctx);
             if(0 != rc) {
-                assert(0);  // XXX
                 hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
                         , "List-key reserve method failed"
                           " to reserve key for query %p with code %d"
@@ -67,112 +67,6 @@ hdql_query_keys_reserve( struct hdql_Query * query
                 /* or untyped key with list or null (trivial) payload */
              || (cKey->code == 0 && (( cKey->isList && cKey->pl.keysList ) || (cKey->pl.datum == NULL) ))
               );
-        #if 0
-        if(query->subject->isSubQuery) {
-            // subquery
-            cKey->code = 0x0;
-            cKey->isCompound = 0x1;
-            rc = hdql_query_reserve_keys_for(
-                      query->subject->typeInfo.subQuery
-                    , &(cKey->payload.keysList)
-                    //, reinterpret_cast<hdql_CollectionKey **>(&(cKey->datum))
-                    , ctx
-                    );
-            assert(0 == rc);  // TODO: handle errors
-            goto nextQuery;
-        }
-        if(query->subject->isCollection) {
-            if( NULL != query->subject->keyInterface.collection.get_key ) {
-                // collection does not provide key retrieve function; i.e. it
-                // is a set. In debug mode make sure interface does not define
-                // other key-related routines and continue
-                assert(NULL == query->subject->keyInterface.collection.reserve_key);
-                // ...
-                goto nextQuery;
-            }
-            if(0x0 != query->subject->interface.collection.keyTypeCode) {
-                // ordinary (defined in HDQL context) key type
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                cKey->code  = query->subject->interface.collection.keyTypeCode;
-                cKey->isCompound = 0x0;
-                cKey->payload.datum = hdql_create_value( query->subject->interface.collection.keyTypeCode
-                                               , ctx);
-                assert(cKey->payload.datum);
-                if(vi->init)
-                    vi->init(cKey->payload.datum, vi->size, ctx);
-                assert(!query->subject->isSubQuery);
-            } else {
-                // key type is not defined for collection, but key retrieval
-                // operation is set, key reserve operation must be defined
-                assert(NULL != query->subject->interface.collection.reserve_key);  // TODO: control at insertion
-                rc = query->subject->interface.collection.reserve_key(
-                          reinterpret_cast<hdql_CollectionKey **>(&(cKey->payload.datum))
-                        , query->state.iterable.selectionArgs
-                        , ctx
-                        );
-                assert(0 == rc);  // TODO: handle errors
-            }
-            goto nextQuery;
-        }
-        if(!query->subject->isCollection) {
-            if( NULL != query->subject->interface.scalar.get_key
-             || NULL != query->subject->interface.scalar.reserve_key
-             || NULL != query->subject->interface.scalar.destroy_key
-              ) {
-                // scalar attribute provides key retrieval method
-
-            } else {
-                // scalar attribute does not provide key retrieval method ->
-                // make this a blank key
-                cKey->code = 0x0;
-                cKey->isCompound = 0x0;
-                bzero(&(cKey->payload), sizeof(cKey->payload));
-                goto nextQuery;
-            }
-        }
-        assert(0);
-        } else {
-            // collection which provides key copy
-            assert(query->subject->isCollection);
-            assert(query->subject->interface.collection.get_key);
-            // if is of typed key
-            if(0x0 != query->subject->interface.collection.keyTypeCode) {
-                // ordinary (defined in HDQL context) key type
-                const hdql_ValueInterface * vi =
-                    hdql_types_get_type(types, query->subject->interface.collection.keyTypeCode);
-                assert(vi);
-                assert(0 != vi->size);  // controlled at insertion
-                cKey->code  = query->subject->interface.collection.keyTypeCode;
-                cKey->datum = hdql_create_value( query->subject->interface.collection.keyTypeCode
-                                               , ctx);
-                assert(cKey->datum);
-                if(vi->init)
-                    vi->init(cKey->datum, vi->size, ctx);
-                assert(!query->subject->isSubQuery);
-            } else {
-                // NOTE: we anticipate the only possible cases when key code is
-                // not set, but `get_key()` is defined as functional query -- a
-                // function query
-                assert(query->is_functionlike());
-                hdql_Func * fDef = reinterpret_cast<hdql_Func *>(query->state.iterable.selectionArgs);
-                hdql_CollectionKey * cKeyPtr;
-                rc = hdql_func_reserve_keys( fDef
-                    , &cKeyPtr
-                    , ctx );
-                if(0 != rc) {
-                    hdql_context_err_push(ctx, rc, "reserving keys for query %p"
-                            , query );
-                }
-                assert(NULL != cKeyPtr);
-                //assert(NULL == cKey->datum);  // delibirately not initialized
-                cKey->datum = reinterpret_cast<hdql_Datum_t>(cKeyPtr);
-                assert(rc == 0);  // TODO: handle errors
-            }
-        }
-        #endif
         query = hdql_query_next_query(query);
         ++cKey;
     } while(query);
@@ -430,6 +324,7 @@ static int _copy_flat_view_ptrs(
         kcpPtr->c->code      = keys->code;
         kcpPtr->c->keyPtr    = keys;
         kcpPtr->c->interface = hdql_types_get_type(vts, keys->code);
+        kcpPtr->c->label     = keys->label;
         ++(kcpPtr->c);
     }
     return 0;

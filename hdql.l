@@ -153,40 +153,65 @@ identifier  {L}({L}|{D})*
 
 "["             gVerbatimCur = gVerbatimBuf; BEGIN(SELECTOR);
 
-<SELECTOR>"]"   {
-                    *gVerbatimCur = '\0';
-                    BEGIN(INITIAL);
-                    yylval->selexpr = strdup(gVerbatimBuf);
-                    return T_SELECTION_EXPRESSION;
-                }
+<SELECTOR>"]" {
+    *gVerbatimCur = '\0';
+    BEGIN(INITIAL);
+    yylval->selexpr = strdup(gVerbatimBuf);
+    return T_SELECTION_EXPRESSION;
+}
 
-<SELECTOR>\\->  {
-                    strncpy(gVerbatimCur, yytext+1, 2);
-                    gVerbatimCur += 2;
-                }
+<SELECTOR>"->" {
+    *gVerbatimCur = '\0';
+    yylval->selexpr = strdup(gVerbatimBuf);
+    BEGIN(SELECTOR_IDS);
+    gVerbatimCur = gVerbatimBuf;
+    return T_SELECTION_EXPRESSION;
+}
 
-<SELECTOR>->    {
-                    *gVerbatimCur = '\0';
-                    yylval->selexpr = strdup(gVerbatimBuf);
-                    BEGIN(SELECTOR_IDS);
-                    gVerbatimCur = gVerbatimBuf;
-                    return T_SELECTION_EXPRESSION;
-                }
+<SELECTOR_IDS>"]" {
+    *gVerbatimCur = '\0';
+    BEGIN(INITIAL);
+    yylval->selexpr = strdup(gVerbatimBuf);
+    return T_SELECTION_LABEL;
+}
 
-<SELECTOR_IDS>"]"   {
-                    *gVerbatimCur = '\0';
-                    BEGIN(INITIAL);
-                    yylval->selexpr = strdup(gVerbatimBuf);
-                    return T_SELECTION_LABEL;
-                }
+<SELECTOR,SELECTOR_IDS>"\\->" {
+    strcpy(gVerbatimCur, "->");
+    gVerbatimCur += 2;
+}
 
-<SELECTOR,SELECTOR_IDS>\\]   { *gVerbatimCur++ = yytext[1]; }
+<SELECTOR,SELECTOR_IDS>"\\]" {
+    *gVerbatimCur++ = ']';
+}
 
-<SELECTOR,SELECTOR_IDS>([^\]-]|(\\->))+ {
-                    char *yptr = yytext;
-                    while ( *yptr )
-                        *gVerbatimCur++ = *yptr++;
-                }
+<SELECTOR,SELECTOR_IDS>"\\[" {
+    *gVerbatimCur++ = '[';
+}
+
+<SELECTOR,SELECTOR_IDS>"\\\\" {
+    *gVerbatimCur++ = '\\';
+}
+
+<SELECTOR,SELECTOR_IDS>"\\." {
+    *gVerbatimCur++ = yytext[1];  /* Generic escape: \x -> x */
+}
+
+<SELECTOR,SELECTOR_IDS>[^\\\]\[-]+ {
+    /* Copy all characters that are not \, ], [, or - */
+    char *yptr = yytext;
+    while (*yptr)
+        *gVerbatimCur++ = *yptr++;
+}
+
+<SELECTOR,SELECTOR_IDS>"-"[^>] {
+    *gVerbatimCur++ = '-';
+    *gVerbatimCur++ = yytext[1];
+}
+
+<SELECTOR,SELECTOR_IDS>. {
+    /* Accept all remaining characters literally */
+    *gVerbatimCur++ = *yytext;
+}
 
 %%
 

@@ -95,15 +95,15 @@ _arith_op_scalar_interface_destroy(
     }
     /* TODO: deleting externally-allocated "definition data" does not seem to
      * be a good solution */
-    if(NULL != defData_) {
-        if(defData->args[0]) {
-            hdql_query_destroy(defData->args[0], ctx);
-        }
-        if(defData->args[1]) {
-            hdql_query_destroy(defData->args[1], ctx);
-        }
-        hdql_context_free(ctx, defData_);
-    }
+    //if(NULL != defData_) {
+    //    if(defData->args[0]) {
+    //        hdql_query_destroy(defData->args[0], ctx);
+    //    }
+    //    if(defData->args[1]) {
+    //        hdql_query_destroy(defData->args[1], ctx);
+    //    }
+    //    hdql_context_free(ctx, defData_);
+    //}
     hdql_context_free(ctx, state_);
 }
 

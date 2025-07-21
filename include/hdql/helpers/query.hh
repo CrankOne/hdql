@@ -367,7 +367,7 @@ public:
 
     bool is_static_value() const;
 
-    bool is_stray() const;
+    bool is_transient() const;
 
     size_t keys_depth() const;
     const hdql_CollectionKey * keys() const;

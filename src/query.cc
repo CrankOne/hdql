@@ -118,7 +118,7 @@ struct Query : public SelectionItemT {
         return true;
     }
 
-    void finalize(hdql_Context_t ctx) {
+    void destroy(hdql_Context_t ctx) {
         // NOTE: special case are forwarded queries for virtual compounds. We
         // do destroy them here as this is the simplest way to avoid dependency
         // calculus for virtual compound being deleted
@@ -143,7 +143,7 @@ struct Query : public SelectionItemT {
         if(!next) return 1;
         return next->depth() + 1;
     }
-};
+};  // struct Query<>
 
 }  // namespace hdql
 
@@ -200,17 +200,33 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
                 state.collection.selectionArgs = nullptr;
             }
         }
+        // check, if forwarding query. It was created during interpretation
+        // stage and is not managed by iface although brought by it as supp
+        // data.
+        //if(hdql_attr_def_is_fwd_query(subject)
+        //&& !hdql_attr_def_is_transient(subject)) {
+        //    hdql_query_destroy((hdql_Query *) iface->definitionData, ctx);
+        //}
     } else {
         const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(subject);
         if(iface->destroy)
             iface->destroy( state.scalar.dynamicSuppData
                           , iface->definitionData
                           , ctx);
+        //if( hdql_attr_def_is_fwd_query(subject)
+        // && !hdql_attr_def_is_transient(subject)
+        // ) {
+        //    hdql_query_destroy((hdql_Query *) iface->definitionData, ctx);
+        //}
     }
 
-    if(hdql_attr_def_is_stray(subject)) {
-        hdql_context_free(ctx, (hdql_Datum_t) subject);
-    }
+    // Transient attribute definitions are created dynamically by parsing
+    // procedure. They are not managed as part of context definitions, so
+    // they must be deleted when owning query gets destroyed.
+    //if(hdql_attr_def_is_transient(subject)) {
+    //    hdql_attr_def_destroy(subject, ctx);
+    //    //hdql_context_free(ctx, (hdql_Datum_t) subject);
+    //}
 }
 
 QueryState::~QueryState() {
@@ -359,7 +375,7 @@ hdql_query_destroy(struct hdql_Query * q, hdql_Context_t ctx) {
     assert(q);
     if(q->label)
         hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(q->label));
-    q->finalize(ctx);
+    q->destroy(ctx);
     q->~hdql_Query();
     hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(q));
 }

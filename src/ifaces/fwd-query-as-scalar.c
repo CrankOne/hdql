@@ -89,7 +89,11 @@ _fwd_query_scalar_interface_destroy(
         hdql_query_keys_destroy(dd->keys, ctx);
     }
     // NOTE: sub-queries get destroyed within virtual compound dtrs
-    // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);`
+    // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);` XXX
+    // More strictly: scalar interface destroy must not deallocate definition
+    // data (it is logically not a runtime information managed by iface's
+    // create/destroy)
+    //hdql_query_destroy((struct hdql_Query*) defData, ctx);
     hdql_context_free(ctx, (hdql_Datum_t) dd_);
 }
 

@@ -464,8 +464,8 @@ Query::is_static_value() const {
 }
 
 bool
-Query::is_stray() const {
-    return hdql_attr_def_is_stray(_topAttrDef);
+Query::is_transient() const {
+    return hdql_attr_def_is_transient(_topAttrDef);
 }
 
 #if 0

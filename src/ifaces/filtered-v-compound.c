@@ -84,7 +84,8 @@ _filtered_compound_scalar_interface_reset(
         , const hdql_Datum_t defData_
         , hdql_Context_t ctx
         ) {
-    struct FilteredVCompoundState * s = hdql_cast(ctx, struct FilteredVCompoundState, s_);
+    struct FilteredVCompoundState * s
+        = hdql_cast(ctx, struct FilteredVCompoundState, s_);
     hdql_query_reset(s->filterQuery, newOwner, ctx);
     return s_;
 }
@@ -95,8 +96,9 @@ _filtered_compound_scalar_interface_destroy(
         , const hdql_Datum_t defData_
         , hdql_Context_t ctx
         ) {
-    struct FilteredVCompoundState * s = hdql_cast(ctx, struct FilteredVCompoundState, s_);
-    hdql_query_destroy(s->filterQuery, ctx);
+    //struct FilteredVCompoundState * s
+    //    = hdql_cast(ctx, struct FilteredVCompoundState, s_);
+    //hdql_query_destroy(s->filterQuery, ctx);
     hdql_context_free(ctx, s_);
 }
 

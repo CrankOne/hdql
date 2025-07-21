@@ -161,22 +161,22 @@ _arith_op_collection_destroy( hdql_It_t it_
     if(NULL != state->cResult && state->defData->evaluator && state->defData->evaluator->returnType) {
         hdql_destroy_value(state->defData->evaluator->returnType, state->cResult, ctx);
     }
-    if(NULL != state->defData) {
-        if(state->defData->args[0]) {
-            hdql_query_destroy(state->defData->args[0], ctx);
-        }
-        if(state->defData->args[1]) {
-            hdql_query_destroy(state->defData->args[1], ctx);
-        }
-    }
+    //if(NULL != state->defData) {
+    //    if(state->defData->args[0]) {
+    //        hdql_query_destroy(state->defData->args[0], ctx);
+    //    }
+    //    if(state->defData->args[1]) {
+    //        hdql_query_destroy(state->defData->args[1], ctx);
+    //    }
+    //}
     if(NULL != state->cRKey) {
         hdql_query_keys_destroy(state->cRKey, ctx);
     }
     /* TODO: deleting externally-allocated "definition data" does not seem to
      * be a good solution */
-    if(NULL != state->defData) {
-        hdql_context_free(ctx, (hdql_Datum_t) state->defData);
-    }
+    //if(NULL != state->defData) {
+    //    hdql_context_free(ctx, (hdql_Datum_t) state->defData);
+    //}
     hdql_context_free(ctx, (hdql_Datum_t) it_);
 }
 

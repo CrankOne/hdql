@@ -68,8 +68,8 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
     ASSERT_FALSE(q.is_static_value());
-    // - is not a stray (syntetic) attribute created within a context
-    ASSERT_FALSE(q.is_stray());
+    // - is not transient (syntetic) attribute created within a context
+    ASSERT_FALSE(q.is_transient());
 
     // iterate over results using polymorphic cursor
     // NOTE: same as in TestingEventStruct.straightDataIterationWorksOnSample1
@@ -144,8 +144,8 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
     ASSERT_FALSE(q.is_static_value());
-    // - is not a stray (syntetic) attribute created within a context
-    ASSERT_FALSE(q.is_stray());
+    // - is not transient (syntetic) attribute created within a context
+    ASSERT_FALSE(q.is_transient());
 
     // iterate over results using polymorphic cursor
     // NOTE: same as in TestingEventStruct.straightDataIterationWorksOnSample1
@@ -224,8 +224,8 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
     ASSERT_FALSE(q.is_static_value());
-    // - is not a stray (syntetic) attribute created within a context
-    ASSERT_FALSE(q.is_stray());
+    // - is not a transient (syntetic) attribute created within a context
+    ASSERT_FALSE(q.is_transient());
 
     // iterate over results using polymorphic cursor
     // NOTE: same as in TestingEventStruct.straightDataIterationWorksOnSample1

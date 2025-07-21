@@ -95,11 +95,11 @@ extern "C" void
 hdql_context_destroy(hdql_Context_t ctx) {
     if(ctx->functions)
         _hdql_functions_destroy(ctx->functions, ctx);
-    if(ctx->operations)
-        _hdql_operations_destroy(ctx->operations, ctx);
     for(auto vCompoundPtr : ctx->virtualCompounds) {
         hdql_virtual_compound_destroy(vCompoundPtr, ctx);
     }
+    if(ctx->operations)
+        _hdql_operations_destroy(ctx->operations, ctx);
     if(ctx->converters)
         _hdql_converters_destroy(ctx->converters, ctx);
     if(ctx->valueTypes)

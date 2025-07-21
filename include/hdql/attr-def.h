@@ -171,11 +171,15 @@ hdql_attr_def_create_dynamic_value(
         , hdql_Context_t
         );
 
-/**\brief Sets "stray" flag on this attribute definition
+/**\brief Sets "transient" flag on this attribute definition
  *
- * Stray attribute definitions are not related to compounds and must be
- * deleted by owner instances (usually queries). */
-void hdql_attr_def_set_stray(struct hdql_AttrDef *);
+ * Transient attribute definitions are not attached to compounds and must be
+ * deleted by owner instances (usually queries). They refer to access
+ * interfaces (scalar or collection) with dynamic data written in "definition
+ * data" field that must be deleted
+ * by such attr. def-s. */
+void hdql_attr_def_set_transient(struct hdql_AttrDef *
+        , void (*)(hdql_Datum_t, hdql_Context_t) );
 
 //hdql_AttrDef_t
 //hdql_attr_def_create_static_atomic_scalar(
@@ -191,7 +195,7 @@ bool hdql_attr_def_is_collection(hdql_AttrDef_t);
 bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
 bool hdql_attr_def_is_static_value(hdql_AttrDef_t);
-bool hdql_attr_def_is_stray(hdql_AttrDef_t);
+bool hdql_attr_def_is_transient(hdql_AttrDef_t);
 
 /**\brief Returns type code for (optionally static) atomic value */
 hdql_ValueTypeCode_t

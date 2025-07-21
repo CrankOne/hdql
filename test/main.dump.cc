@@ -89,7 +89,18 @@ test_query_on_data( int nSample, const char * expression ) {
      * Particular results handler is the extension point; usually specified at
      * the runtime */
     struct hdql_iQueryResultsHandler iqr;
-    rc = hdql_query_results_handler_csv_init(&iqr, stdout, ",", "/", "\n", ctx); {
+
+    const struct hdql_DSVFormatting fmt = {
+              .valueDelimiter           = ","
+            , .recordDelimiter          = "\n"
+            , .attrDelimiter            = "."
+            , .collectionLengthMarker   = "N"
+            , .anonymousColumnName      = "value"
+            , .nullToken                = "N/A"
+            , .unlabeledKeyColumnFormat = "key%zu"
+        };
+
+    rc = hdql_query_results_handler_csv_init(&iqr, stdout, &fmt, ctx); {
         /* common: instantiate workspace, relying on specified results handler */
         struct hdql_QueryResultsWorkspace * ws = hdql_query_results_init(
                   q

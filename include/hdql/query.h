@@ -46,7 +46,7 @@ hdql_query_create(
         );
 
 const struct hdql_AttrDef *
-hdql_query_get_subject( struct hdql_Query * );
+hdql_query_get_subject( const struct hdql_Query * );
 
 /**\brief Queries within a query result
  *

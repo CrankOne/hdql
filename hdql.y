@@ -314,9 +314,9 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
   selection : T_SELECTION_EXPRESSION
             { $$.selectionExpression = $1; $$.label = NULL; }
             | T_SELECTION_EXPRESSION T_SELECTION_LABEL
-            { $$.selectionExpression = $1; $$.label = $2; printf("xxx `%s'\n", $2); }
+            { $$.selectionExpression = $1; $$.label = $2; }
             | T_SELECTION_LABEL
-            { $$.selectionExpression = NULL; $$.label = $1; printf("xxx `%s'\n", $1); }
+            { $$.selectionExpression = NULL; $$.label = $1; }
             ;
 
   queryExpr : T_PERIOD T_IDENTIFIER

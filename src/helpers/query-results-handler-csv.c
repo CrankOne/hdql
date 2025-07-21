@@ -58,22 +58,8 @@ struct hdql_CSVAttrHandler {
 struct hdql_CSVHandler {
     /** destination stream to print data */
     FILE * dest;
-    /** value in a record delimiter, a null-terminated string */
-    char * valueDelimiter;
-    /** record delimiter, a null-terminated string */
-    char * recordDelimiter;
-    /** attribute delimiter, used in nested column names (like `attr.subattr`) */
-    char * attrDelimiter;
-    /** prefix for number of items in collections */
-    char * collectionMarker;
-    /** column name placeholder for anonymous columns */
-    char * anonColumnName;
-    /** token to print for null; used for missed items or keys without
-     * string representation */
-    char * nullToken;
-    /** Column format for unlabeled key, must include one `%zu` for key column
-     * order number */
-    char * unlabeledKeyColumnFormat;
+    /** formatting assets */
+    struct hdql_DSVFormatting fmt;
 
     /** context is needed to expand compound columns */
     struct hdql_Context * ctx;
@@ -127,7 +113,7 @@ static void
 _csv_print_column(struct hdql_CSVHandler * csv
         , const char * columnString ) {
     if(csv->nColumnsPrinted) {
-        fputs(csv->valueDelimiter, csv->dest);
+        fputs(csv->fmt.valueDelimiter, csv->dest);
     }
     fputs(columnString, csv->dest);
     ++(csv->nColumnsPrinted);
@@ -159,10 +145,7 @@ _assign_value_handler( const struct hdql_AttrDef * ad
     /* we dereference here top attr def for forwarding queries to use it
      * with decisions below. Note, that working with forwarding query
      * needs dedicated state management */
-    const struct hdql_AttrDef * topAD = ad;
-    while(hdql_attr_def_is_fwd_query(topAD)) {
-        topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
-    }
+    const struct hdql_AttrDef * topAD = hdql_attr_def_top_attr(ad);
 
     if( hdql_attr_def_is_collection(topAD) ) {
         _M_DBGMSG("  top attr type is of collection type\n");
@@ -382,7 +365,7 @@ _handle_scalar_atomic_as_csv_entry( struct hdql_CSVHandler * csv
         h->payload.get_as_string(r, buf, sizeof(buf), csv->ctx);
         _csv_print_column(csv, buf);
     } else {
-        _csv_print_column(csv, csv->nullToken);
+        _csv_print_column(csv, csv->fmt.nullToken);
     }
 }
 
@@ -395,6 +378,8 @@ _handle_scalar_atomic_value_as_csv_entry( struct hdql_CSVHandler * csv
     h->payload.get_as_string(valueDatum, buf, sizeof(buf), csv->ctx);
     _csv_print_column(csv, buf);
 }
+
+static int _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struct hdql_Context * ctx);
 
 /* Scalar compound attribute yields few columns recursively */
 static void
@@ -410,14 +395,16 @@ _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
 
     /* Get item by dereferencing the owner with attribute definition */
     hdql_Datum_t r = _get_scalar_data(csv, ownerDatum, h);
+
+    //assert(hdql_attr_def_is_compound(topAD))
+    _reset_dynamic_states(&h->payload.attrHandlers
+                        , r, csv->ctx);
+
     for(size_t i = 0; i < h->payload.attrHandlers.n; ++i) {
         struct hdql_CSVAttrHandler * ah = h->payload.attrHandlers.handlers[i];
         ah->value_handler(csv, r, ah);
     }
 }
-
-
-static int _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struct hdql_Context * ctx);
 
 /* part of `hdql_iQueryResultsHandler` implementation for CSV handler,
  * matches `hdql_iQueryResultsHandler::handle_record()`.
@@ -444,7 +431,7 @@ _csv_results_handler_handle_record(hdql_Datum_t datum, void * csv_ ) {
                 kv->interface->get_as_string(kv->keyPtr->pl.datum, fkvBf, sizeof(fkvBf), csv->ctx);
                 _csv_print_column(csv, fkvBf);
             } else {
-                _csv_print_column(csv, csv->nullToken);
+                _csv_print_column(csv, csv->fmt.nullToken);
             }
         }
     }
@@ -467,7 +454,7 @@ _csv_results_handler_handle_record(hdql_Datum_t datum, void * csv_ ) {
         csv->rootObjectHandler.value_handler( csv
                 , datum, &csv->rootObjectHandler);
     }
-    fputs(csv->recordDelimiter, csv->dest);
+    fputs(csv->fmt.recordDelimiter, csv->dest);
     _M_DBGMSG("Record handled.\n");
     return 0;
 }
@@ -477,7 +464,9 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
     for(size_t i = 0; i < t->n; ++i) {
         struct hdql_CSVAttrHandler * ah = t->handlers[i];
 
-        if(hdql_attr_def_is_collection(t->handlers[i]->ad)) {  /* collection */
+        const struct hdql_AttrDef * topAD = hdql_attr_def_top_attr(ah->ad);
+
+        if(hdql_attr_def_is_collection(topAD)) {  /* collection */
             const struct hdql_CollectionAttrInterface * ciface
                 = hdql_attr_def_collection_iface(ah->ad);
             assert(ciface);
@@ -495,7 +484,7 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
                              , ctx
                              );
         } else {  /* scalar */
-            assert(hdql_attr_def_is_scalar(ah->ad));
+            assert(hdql_attr_def_is_scalar(topAD));
             const struct hdql_ScalarAttrInterface * siface = hdql_attr_def_scalar_iface(ah->ad);
             if(siface->instantiate) {
                 if(NULL == ah->dynamicData.scSupp) {
@@ -537,12 +526,12 @@ static int _csv_handler_finalize_schema(void * csv_) {
         char keyColNameBf[32];
         for(size_t nFKV = 0; nFKV < csv->flatKeyViewLength; ++nFKV) {
             struct hdql_KeyView * kv = csv->flatKeyViews + nFKV;
-            if(csv->nColumnsPrinted) fputs(csv->valueDelimiter, csv->dest);
+            if(csv->nColumnsPrinted) fputs(csv->fmt.valueDelimiter, csv->dest);
             if(kv->label) {
                 fputs(kv->label, csv->dest);
             } else {
                 snprintf( keyColNameBf, sizeof(keyColNameBf)
-                        , csv->unlabeledKeyColumnFormat, nFKV );
+                        , csv->fmt.unlabeledKeyColumnFormat, nFKV );
                 fputs(keyColNameBf, csv->dest);
             }
             ++(csv->nColumnsPrinted);
@@ -552,15 +541,15 @@ static int _csv_handler_finalize_schema(void * csv_) {
     if(hdql_attr_def_is_compound(csv->rootObjectHandler.ad)) {
         _print_columns_list(&csv->rootObjectHandler.payload.attrHandlers
                 , csv->dest, &csv->nColumnsPrinted, NULL
-                , csv->valueDelimiter, csv->attrDelimiter
-                , csv->collectionMarker, csv->anonColumnName
+                , csv->fmt.valueDelimiter, csv->fmt.attrDelimiter
+                , csv->fmt.collectionLengthMarker, csv->fmt.anonymousColumnName
             );
     } else {
-        if(csv->nColumnsPrinted) fputs(csv->valueDelimiter, csv->dest);
-        fputs(csv->anonColumnName, csv->dest);
+        if(csv->nColumnsPrinted) fputs(csv->fmt.valueDelimiter, csv->dest);
+        fputs(csv->fmt.anonymousColumnName, csv->dest);
     }
     /* Preint delimiter after table header */
-    fputs(csv->recordDelimiter, csv->dest);
+    fputs(csv->fmt.recordDelimiter, csv->dest);
     return 0;
 }
 static void
@@ -573,17 +562,14 @@ _print_columns_list( const struct hdql_AttrHandlerTier * t
         , const char * collectionMarker, const char * anonColumnName
         ) {
     for(size_t i = 0; i < t->n; ++i) {
-        /* print column delimiter */
-        if(*columnsCount) fputs(columnDelim, dest);
         /* consider attribute definition at the tier */
         const struct hdql_CSVAttrHandler * ah = t->handlers[i];
 
-        const struct hdql_AttrDef * topAD = ah->ad;
-        while(hdql_attr_def_is_fwd_query(topAD)) {
-            topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
-        }
+        const struct hdql_AttrDef * topAD = hdql_attr_def_top_attr(ah->ad);
 
         if(hdql_attr_def_is_collection(topAD)) {
+            /* print column delimiter */
+            if(*columnsCount) fputs(columnDelim, dest);
             /* prefix collection column */
             fputs(collectionMarker, dest);
             if(prefix && attrDelim) {
@@ -593,6 +579,8 @@ _print_columns_list( const struct hdql_AttrHandlerTier * t
             fputs(ah->name ? ah->name : anonColumnName, dest);
             ++(*columnsCount);
         } else if(hdql_attr_def_is_atomic(topAD)) {
+            /* print column delimiter */
+            if(*columnsCount) fputs(columnDelim, dest);
             /* ordinary column */
             if(prefix && attrDelim) {
                 fputs(prefix, dest);
@@ -658,7 +646,7 @@ static int _csv_handler_handle_keys(struct hdql_CollectionKey * keys
 int
 hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler * iqr
         , FILE * stream
-        , const char * valueDelimiter, const char * attrDelimiter, const char * recordDelimiter
+        , const struct hdql_DSVFormatting * fmt
         , struct hdql_Context * ctx
         ) {
     assert(ctx);
@@ -673,19 +661,21 @@ hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler * iqr
     csv->dest = stream;
 
     /* formatting options */
-    csv->recordDelimiter = strdup(recordDelimiter);
-    csv->valueDelimiter = strdup(valueDelimiter);
-    csv->attrDelimiter = strdup(attrDelimiter);
-    csv->collectionMarker = strdup("N");
-    csv->anonColumnName = strdup("(value)");
-    csv->nullToken = strdup("N/A");
-    csv->unlabeledKeyColumnFormat = strdup("key#%zu");
+    #define _M_dup_or_NULL(t) \
+        csv-> fmt . t = fmt-> t ? strdup(fmt-> t) : NULL
+    _M_dup_or_NULL(recordDelimiter          );
+    _M_dup_or_NULL(valueDelimiter           );
+    _M_dup_or_NULL(attrDelimiter            );
+    _M_dup_or_NULL(collectionLengthMarker   );
+    _M_dup_or_NULL(anonymousColumnName      );
+    _M_dup_or_NULL(nullToken                );
+    _M_dup_or_NULL(unlabeledKeyColumnFormat );
+    #undef _M_dup_or_NULL
 
     csv->ctx = ctx;
     csv->nColumnsPrinted = 0;
 
     memset(&csv->rootObjectHandler, 0x0, sizeof(csv->rootObjectHandler));
-    assert(csv->rootObjectHandler.ad == NULL);  // XXX
     fflush(stderr);
 
     iqr->userdata = csv;

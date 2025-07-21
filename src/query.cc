@@ -1,10 +1,6 @@
 #include <cstdio>
-#include <unordered_map>
-#include <string>
 #include <cassert>
-#include <vector>
 #include <stdexcept>
-#include <iostream>
 
 #include <cstring>
 
@@ -427,7 +423,7 @@ hdql_query_get_label(const struct hdql_Query * q) {
 
 
 extern "C" const struct hdql_AttrDef *
-hdql_query_get_subject( struct hdql_Query * q ) {
+hdql_query_get_subject( const struct hdql_Query * q ) {
     return q->subject;
 }
 
@@ -451,10 +447,14 @@ extern "C" const hdql_AttrDef *
 hdql_query_top_attr(const struct hdql_Query * q_) {
     const hdql::Query<hdql::QueryState> * q = q_;
     while(q->next) { q = q->next; }
+    #if 0
     if(hdql_attr_def_is_fwd_query(q->subject)) {
         return hdql_query_top_attr(hdql_attr_def_fwd_query(q->subject));
     }
     return q->subject;
+    #else
+    return hdql_attr_def_top_attr(hdql_query_get_subject(static_cast<const struct hdql_Query *>(q)));
+    #endif
 }
 
 

@@ -8,6 +8,17 @@
 extern "C" {
 #endif
 
+struct hdql_DSVFormatting {
+    const char * valueDelimiter  /**< value in a record delimiter (`,` for CSV) */
+       , * recordDelimiter  /**< record delimiter (newline for CSV) */
+       , * attrDelimiter  /**< attribute delimiter, used in nested column names (like `attr.subattr`) */
+       , * collectionLengthMarker  /**< prefix for number of items in collections */
+       , * anonymousColumnName  /**< column name placeholder for anonymous columns */
+       , * nullToken  /** token to print for null */
+       , * unlabeledKeyColumnFormat  /**< Column fmt for unlabeled key, include `%zu` for order number */
+       ;
+};
+
 /**\brief Initializes CSV printing `hdql_iQueryResultsHandler` interface
  *        implementation
  *
@@ -16,7 +27,7 @@ extern "C" {
 int
 hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler *
         , FILE * stream
-        , const char * valueDelimiter, const char * attrDelimiter, const char * recordDelimiter
+        , const struct hdql_DSVFormatting * formatting
         , struct hdql_Context * ctx
         );
 

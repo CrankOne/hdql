@@ -119,6 +119,7 @@ if (BUILD_TESTS)
                           test/samples.cc
                           test/iteration-tests.cc
                           test/cpp-api.cc
+                          test/dsv.test.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -11,7 +11,6 @@
 #include "samples.hh"
 
 #include <gtest/gtest.h>
-#include <stdexcept>
 
 using hdql::test::TestingEventStruct;
 

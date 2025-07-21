@@ -51,7 +51,7 @@ hdql_compound_new(const char * name, struct hdql_Context * ctx) {
 extern "C" hdql_Compound *
 hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ctx) {
     assert(parent);
-    assert(!parent->name.empty());
+    //assert(!parent->name.empty());
     #ifdef  HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     char * bf = reinterpret_cast<char *>(hdql_alloc(ctx, struct hdql_Compound));
     return new (bf) hdql_Compound("", parent);

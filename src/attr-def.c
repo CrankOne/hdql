@@ -487,6 +487,16 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
     return -2;
 }
 
+const hdql_AttrDef_t
+hdql_attr_def_top_attr(const hdql_AttrDef_t ad) {
+    assert(ad);
+    const struct hdql_AttrDef * topAD = ad;
+    while(hdql_attr_def_is_fwd_query(topAD)) {
+        topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
+    }
+    return topAD;
+}
+
 void
 hdql_attr_def_destroy( hdql_AttrDef_t ad
                      , hdql_Context_t ctx

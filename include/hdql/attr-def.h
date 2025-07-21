@@ -223,6 +223,11 @@ hdql_attr_def_get_static_value(const hdql_AttrDef_t);
 int
 hdql_attr_def_reserve_keys( const hdql_AttrDef_t, struct hdql_CollectionKey *, hdql_Context_t);
 
+/**\brief Retrieves attribute definition recursively, until it is not a fwd query
+ *
+ * Similar to `hdql_query_top_attr()`. */
+const hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
+
 void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 
 /**\brief Prints short one-line string describing attribute definition */

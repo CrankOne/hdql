@@ -31,6 +31,7 @@ struct QueryState {
     // state as this instances are provided by compound definitions (and
     // deleted by them)
     const hdql_AttrDef * subject;
+    bool ownsSubject;
 
     // This is actual selection state with all data mutable during query
     // lifecycle
@@ -163,6 +164,7 @@ namespace hdql {
 QueryState::QueryState( const hdql_AttrDef * subject_
                     , hdql_SelectionArgs_t selexpr
                     ) : subject(subject_)
+                      , ownsSubject(false)
                       , owner(nullptr)
                       {
     if(hdql_attr_def_is_collection(subject)) {
@@ -223,10 +225,10 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
     // Transient attribute definitions are created dynamically by parsing
     // procedure. They are not managed as part of context definitions, so
     // they must be deleted when owning query gets destroyed.
-    //if(hdql_attr_def_is_transient(subject)) {
-    //    hdql_attr_def_destroy(subject, ctx);
-    //    //hdql_context_free(ctx, (hdql_Datum_t) subject);
-    //}
+    if( hdql_attr_def_is_transient(subject) && ownsSubject) {
+        hdql_attr_def_destroy(subject, ctx);
+        //hdql_context_free(ctx, (hdql_Datum_t) subject);
+    }
 }
 
 QueryState::~QueryState() {
@@ -368,6 +370,11 @@ hdql_query_reset( struct hdql_Query * query
         return HDQL_ERR_BAD_QUERY_STATE;
     }
     return HDQL_ERR_CODE_OK;
+}
+
+extern "C" void
+hdql_query_set_transient_subject_ownership(struct hdql_Query * q) {
+    q->ownsSubject = true;
 }
 
 extern "C" void

@@ -95,8 +95,11 @@ extern "C" void
 hdql_context_destroy(hdql_Context_t ctx) {
     if(ctx->functions)
         _hdql_functions_destroy(ctx->functions, ctx);
-    for(auto vCompoundPtr : ctx->virtualCompounds) {
-        hdql_virtual_compound_destroy(vCompoundPtr, ctx);
+    // iterate v compounds backwards as they can be based on each other and
+    // are created from basic to derived. Unwinding them backwards should
+    // prevent double free
+    for( auto it = ctx->virtualCompounds.rbegin(); it != ctx->virtualCompounds.rend(); ++it ) {
+        hdql_virtual_compound_destroy(*it, ctx);
     }
     if(ctx->operations)
         _hdql_operations_destroy(ctx->operations, ctx);

@@ -360,19 +360,30 @@ R"~(key0,d,c,b,a,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
 )~", ev);
 }
 
+// TODO: enable std math to make it work
+#if 0
+TEST_F(DSVDumpTest, handlesComplexQuery ) {
+    hdql::test::Event ev;
+    hdql::test::fill_data_sample_1(ev);
+    check_request(R"~(.tracks[->trackID]{
+      c2n := .chi2/.ndf
+    , h:=.hits[->hitID]{:.z < 6}
+    : .c2n > 3
+    }.h{ xx:=.x
+       , yy:=.y
+       : sqrt(.xx + .yy) < 7
+       })~",
+R"~(trackID,hitID,yy,xx,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
+2,301,9.00e+00,7.80e+00,4,5.00e-02,1.20e+00,9.00e+00,7.80e+00,6.00e+00,5.00e+00
+2,202,8.90e+00,6.70e+00,4,N/A,5.00e-01,8.90e+00,6.70e+00,5.00e+00,4.00e+00
+)~", ev);
+    // TODO
+    // Note, that moving [->hitID] from .hits to .h causes interesting errors,
+    // worth to investigate or improve the parser. It also breaks the fancy
+    // print function.
+}
+#endif
 
-// Problematic cases:
+// Interesting problematic case:
 //  .tracks[1:2]{:.chi2/.ndf > 6}               =>infinite loop
-//  .hits[0:200->hitID].rawData{s:=.samples[0:1->sampleID]:.s>10}.s   =>SEGFAULT (query evaluation. premature deletion)
-//
-//  .tracks[->trackID]{
-//        c2n := .chi2/.ndf
-//      , h:=.hits[->hitID]{:.z < 6} 
-//      : .c2n > 3
-//      }.h{ xx:=.x
-//         , yy:=.y
-//         : sqrt(.xx + .yy) < 7
-//         }
-// Note, that moving [->hitID] from .hits to .h causes assertion failure;
-// unclear, whether this is permitted state. Same problematic case is:
-//  .tracks[->trackID]{c2n := .chi2/.ndf, h:=.hits{:.z < 6} : .c2n > 0}
+

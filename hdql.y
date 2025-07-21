@@ -285,6 +285,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                         = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
                 assert(hdql_attr_def_is_transient(attrDef));
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
+                hdql_query_set_transient_subject_ownership($$);
                 assert($$);
                 assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
             }
@@ -305,6 +306,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                         = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
                 assert(hdql_attr_def_is_transient(attrDef));
                 $$ = hdql_query_create(attrDef, NULL, ws->context);
+                hdql_query_set_transient_subject_ownership($$);
                 assert($$);
                 assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
             }
@@ -436,7 +438,9 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute `%s::%s' is not a collection (can't"
                           " apply selection expression \"%s\")"
-                        , hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef))
+                        , hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
+                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
+                                )
                         , $3, $4 );
                     free($3);
                     if($4.selectionExpression) free($4.selectionExpression);
@@ -450,7 +454,9 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute \"%s\" of `%s' does not support selection"
                           " (can't compile selection expression \"%s\")"
-                        , $3, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $4);
+                        , $3, hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
+                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
+                                ), $4);
                     free($3);
                     if($4.selectionExpression) free($4.selectionExpression);
                     if($4.label)               free($4.label);
@@ -462,7 +468,9 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to translate selection expression \"%s\" of"
                         " collection attribute %s::%s."
-                        , $4, hdql_compound_get_name(hdql_attr_def_compound_type_info(attrDef)), $3);
+                        , $4, hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
+                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
+                                ), $3);
                     free($3);
                     if($4.selectionExpression) free($4.selectionExpression);
                     if($4.label)               free($4.label);
@@ -504,6 +512,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                             &yyloc, ws, yyscanner,
                             $4.compoundPtr, $4.filter);
                     if(NULL == scopeQuery) return HDQL_BAD_QUERY_EXPRESSION;
+                    hdql_query_set_transient_subject_ownership(scopeQuery);
 
                     rc = _pop_cmpd(ws);
                     if(0 != rc) return rc;
@@ -517,6 +526,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                             &yyloc, ws, yyscanner,
                             $2.compoundPtr, $2.filter);
                     if(NULL == scopeQuery) return HDQL_BAD_QUERY_EXPRESSION;
+                    hdql_query_set_transient_subject_ownership(scopeQuery);
                     /* append virtual compound query to the query before scope
                      * operator */
                     $$ = scopeQuery;
@@ -765,7 +775,9 @@ _new_virtual_compound_query( YYLTYPE * yylloc
     } else {
         hdql_attr_def_set_transient(vCompoundAttrDef, _transient_dtr__virtual_compound);
     }
-    return hdql_query_create(vCompoundAttrDef, NULL, ws->context);
+    struct hdql_Query * q = hdql_query_create(vCompoundAttrDef, NULL, ws->context);
+    hdql_query_set_transient_subject_ownership(q);
+    return q;
 }
 
 static void
@@ -895,6 +907,7 @@ _operation( struct hdql_Query * a
         /* destroy sub-queries */
         hdql_query_destroy(a, ws->context);
         if(b) hdql_query_destroy(b, ws->context);
+        /* TODO (?): destroy owned attribute definitions */
         return 0;
     }
     /* ...otherwise, create operation node */
@@ -924,6 +937,7 @@ _operation( struct hdql_Query * a
     }
     hdql_attr_def_set_transient(rAD, _transient_dtr__arith_op);
     *r = hdql_query_create(rAD, NULL, ws->context);
+    hdql_query_set_transient_subject_ownership(*r);
     return 0;
 }  /* _operation() */
 
@@ -971,7 +985,9 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
     assert(hdql_attr_def_is_transient(fAD));
     /* Otherwise, create a new query object wrapping "function attribute
      * definition */
-    return hdql_query_create(fAD, NULL, ws->context);
+    struct hdql_Query * q = hdql_query_create(fAD, NULL, ws->context);
+    hdql_query_set_transient_subject_ownership(q);
+    return q;
 }  /* _new_function() */
 
 /* 

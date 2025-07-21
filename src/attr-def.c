@@ -514,14 +514,11 @@ hdql_attr_def_top_attr(const hdql_AttrDef_t ad) {
 void
 hdql_attr_def_destroy( hdql_AttrDef_t ad, hdql_Context_t ctx) {
     if(hdql_attr_def_is_transient(ad)) {
-        printf("XXX destroying transient ??? attr %p\n", ad);
         /* "transient" attribute means that it manages its interface definition
          * data */
         if(hdql_attr_def_is_collection(ad) && ad->transient_dtr) {
-            printf("XXX destroying transient collection attr %p\n", ad);
             ad->transient_dtr(ad->interface.collection.definitionData, ctx);
         } else if(hdql_attr_def_is_scalar(ad) && ad->transient_dtr) {
-            printf("XXX destroying transient scalar attr %p\n", ad);
             ad->transient_dtr(ad->interface.scalar.definitionData, ctx);
         }
         #ifndef NDEBUG

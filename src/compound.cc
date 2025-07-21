@@ -1,11 +1,8 @@
 #include "hdql/compound.h"
 #include "hdql/attr-def.h"
 #include "hdql/context.h"
-#include "hdql/query.h"
-#include "hdql/query-key.h"
 #include "hdql/types.h"
 
-#include <iostream>
 #include <unordered_map>
 #include <string>
 #include <cassert>
@@ -64,9 +61,8 @@ hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ct
 extern "C" void
 hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * ctx) {
     for(auto & attrDef : vCompound->attrsByName ) {
-        std::cout << "XXX destroying attr of v-cmpnd \"" << attrDef.first
-            << "\": " << attrDef.second << std::endl;  // XXX
-        hdql_attr_def_destroy(attrDef.second, ctx);
+        if(hdql_attr_def_is_fwd_query(attrDef.second))
+            hdql_attr_def_destroy(attrDef.second, ctx);
     }
     #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
     vCompound->~hdql_Compound();

@@ -191,6 +191,20 @@ struct AutoFunction {
         return state_;
     }
 
+    static void _transient_dtr__func_args(hdql_Datum_t d, hdql_Context_t ctx) {
+        if(!d) return;
+        FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
+            reinterpret_cast<FunctionInstantiationArgs *>(d));
+        for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q) {
+            hdql_query_destroy(*q, ctx);
+        }
+        if(fInstArgs->converters) {
+            hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->converters));
+        }
+        hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->args));
+        hdql_context_free(ctx, const_cast<hdql_Datum_t>(d));
+    }
+
     static void
     destroy(
           hdql_Datum_t state_
@@ -217,18 +231,6 @@ struct AutoFunction {
                 hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(state->argValuesPtrs));
             }
             hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(state));
-        }
-        // TODO: it seems wrong to destroy def.args in state's desturctor
-        // perhaps one should anticipate this at the query's level
-        if(fInstArgs_) {
-            for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q) {
-                hdql_query_destroy(*q, ctx);
-            }
-            if(fInstArgs->converters) {
-                hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->converters));
-            }
-            hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(fInstArgs->args));
-            hdql_context_free(ctx, const_cast<hdql_Datum_t>(fInstArgs_));
         }
     }
 
@@ -398,13 +400,15 @@ struct AutoFunction {
                 .reset = reset,
                 .destroy = destroy,
             };
-        return hdql_attr_def_create_atomic_scalar(
+        auto r = hdql_attr_def_create_atomic_scalar(
                   &retFts
                 , &iface
                 , 0x0  // keyTypeCode
                 , NULL  // hdql_ReserveKeysListCallback_t keyIFace
                 , context
                 );
+        hdql_attr_def_set_transient(r, _transient_dtr__func_args);
+        return r;
     }
 };  // struct AutoFunction
 

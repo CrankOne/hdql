@@ -109,6 +109,9 @@ hdql_query_get( struct hdql_Query * query
 
 int hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
 
+void
+hdql_query_set_transient_subject_ownership(struct hdql_Query * q);
+
 void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */

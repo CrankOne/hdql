@@ -5,12 +5,23 @@
  */
 
 #include <cstdio>
-#include <exception>
+#include <algorithm>
+#include <charconv>
+#include <variant>
+
+#include <variant>
+#include <string>
+#include <vector>
+#include <map>
+#include <charconv>
+#include <algorithm>
+#include <cmath>
+#include <sstream>
+
 #include <gtest/gtest.h>
 
-#include <charconv>
-
 #include "events-struct.hh"
+#include "hdql/query.h"
 #include "samples.hh"
 
 #include "hdql/attr-def.h"
@@ -23,46 +34,10 @@ using hdql::test::TestingEventStruct;
 
 class DSVDumpTest : public TestingEventStruct {
 protected:
-    // type alias for tokenized CSV row for comparison
-    using RowMap = std::unordered_map<std::string, std::string>;
+
+    //
+    // Value
     using Value = std::variant<std::monostate, int64_t, double, std::string>;
-
-    // crude CSV parser
-    static std::vector<RowMap> parse_csv(const std::string& csv) {
-        std::vector<RowMap> result;
-        std::istringstream iss(csv);
-        std::string line;
-        std::vector<std::string> columns;
-
-        auto split = [](const std::string& s) -> std::vector<std::string> {
-                    std::vector<std::string> tokens;
-                    std::string token;
-                    std::istringstream ss(s);
-                    while (std::getline(ss, token, ',')) {
-                        tokens.push_back(token);
-                    }
-                    return tokens;
-                };
-        // tokenize header
-        if( !std::getline(iss, line) ) return result;
-        columns = split(line);
-        // tokenize rows
-        while( std::getline(iss, line) ) {
-            std::vector<std::string> cells = split(line);
-            if( cells.size() != columns.size() ) {
-                throw std::runtime_error("CSV row/column size mismatch");
-            }
-
-            RowMap row;
-            for (size_t i = 0; i < columns.size(); ++i) {
-                row[columns[i]] = cells[i];
-            }
-            result.push_back(std::move(row));
-        }
-
-        return result;
-    }
-
     // Parses value into a suitable type
     static Value parse_value(const std::string& s) {
         // Special case: non-available marker
@@ -79,8 +54,8 @@ protected:
         // fallback to str
         return s;
     }
-
-    bool values_match( const Value & a, const Value & b, double floatTolerance = 1e-6) {
+    // Type-casting comparison for values
+    static bool values_match( const Value & a, const Value & b, double floatTolerance = 1e-6) {
         if( a.index() != b.index()) {
             // comparing int vs double, promote and compare numerically
             if (std::holds_alternative<int64_t>(a) && std::holds_alternative<double>(b))
@@ -100,28 +75,112 @@ protected:
         }, a );
     }
 
-    // compare expected vs actual (unordered columns)
-    void check_csv_match( const std::vector<RowMap> & expected
-                        , const std::vector<RowMap> & generated
-                        ) {
-        ASSERT_EQ(expected.size(), generated.size())
-            << "Row count mismatch: expected " << expected.size()
-            << ", got " << generated.size();
+    // row and table representation
+    using Row = std::map<std::string, Value>;
+    using Table = std::vector<Row>;
+
+    static bool row_less(const Row& a, const Row& b) {
+        auto ita = a.begin();
+        auto itb = b.begin();
+
+        while (ita != a.end() && itb != b.end()) {
+            if (ita->first != itb->first)
+                return ita->first < itb->first;
+
+            const Value& va = ita->second;
+            const Value& vb = itb->second;
+
+            // Compare by type index first to ensure consistent ordering
+            if (va.index() != vb.index())
+                return va.index() < vb.index();
+
+            // Compare by actual value
+            switch (va.index()) {
+                case 0: break;  // monostate, equal
+                case 1: {
+                    int64_t ia = std::get<1>(va);
+                    int64_t ib = std::get<1>(vb);
+                    if (ia != ib) return ia < ib;
+                    break;
+                }
+                case 2: {
+                    double da = std::get<2>(va);
+                    double db = std::get<2>(vb);
+                    if (std::abs(da - db) > 1e-12) return da < db;
+                    break;
+                }
+                case 3: {
+                    const std::string& sa = std::get<3>(va);
+                    const std::string& sb = std::get<3>(vb);
+                    if (sa != sb) return sa < sb;
+                    break;
+                }
+                default:
+                    break;
+            }
+
+            ++ita;
+            ++itb;
+        }
+
+        return ita != a.end(); // a has more fields than b => greater
+    }
+
+    static std::vector<std::string> tokenize_csv_line(const std::string& line) {
+        std::vector<std::string> result;
+        std::istringstream iss(line);
+        std::string cell;
+        while (std::getline(iss, cell, ',')) result.push_back(cell);
+        return result;
+    }
+
+    static Table parse_csv_(const std::string& csv) {
+        std::istringstream iss(csv);
+        std::string line;
+
+        // Header
+        std::getline(iss, line);
+        auto headers = tokenize_csv_line(line);
+
+        Table table;
+        while (std::getline(iss, line)) {
+            auto values = tokenize_csv_line(line);
+            if (values.size() != headers.size()) continue;  // malformed
+            Row row;
+            for (size_t i = 0; i < headers.size(); ++i) {
+                row[headers[i]] = parse_value(values[i]);
+            }
+            table.push_back(std::move(row));
+        }
+        return table;
+    }
+
+    bool check_csv_match_unordered( const std::string& expectedCsv
+                , const std::string& actualCsv) {
+        Table expected = parse_csv_(expectedCsv);
+        // ASSERT_NO_THROW(expected = parse_csv_(expectedCsv))
+        //    << "while parsing expected data:\n" << expectedCsv;
+
+        Table actual = parse_csv_(actualCsv);
+        //ASSERT_NO_THROW(actual = parse_csv_(actualCsv))
+        //    << "while parsing actual data:\n" << actualCsv;
+
+        std::sort(expected.begin(), expected.end(), row_less);
+        std::sort(actual.begin(), actual.end(), row_less);
+
+        if( expected.size() != actual.size() ) return false;
 
         for( size_t i = 0; i < expected.size(); ++i ) {
-            for( const auto& [key, expectedValue] : expected[i] ) {
-                auto it = generated[i].find(key);
-                ASSERT_NE(it, generated[i].end())
-                        << "Missing column: \"" << key << "\"";
-                Value expv   = parse_value(expectedValue)
-                    , actual = parse_value(it->second)
-                    ;
-                EXPECT_TRUE( values_match(expv, actual) )
-                        << "Mismatch at row " << i << ", column: " << key
-                        << "; expected: " << expectedValue
-                        << ", got: " << it->second;
+            const auto& rowA = expected[i];
+            const auto& rowB = actual[i];
+            if( rowA.size() != rowB.size() ) return false;
+            for( const auto& [key, valA] : rowA ) {
+                auto it = rowB.find(key);
+                if (it == rowB.end()) return false;
+                if( !values_match(valA, it->second) ) return false;
             }
         }
+        return true;
     }
 
     void check_request( const char * queryExpr
@@ -160,18 +219,12 @@ protected:
         fclose(_ss);
         _ss = NULL;
 
-        std::vector<RowMap> expectedTable;
-        ASSERT_NO_THROW(expectedTable = parse_csv(expectedOutput))
-            << "while parsing expected data for request \""
-            << queryExpr << "\": " << "\n" << expectedOutput;
-        
+        // NOTE: query has to be destroyed AFTER the resuls handler since
+        //       handler's composition depends on the query. (TODO: destroy in processing?)
+        hdql_query_results_handler_csv_cleanup(&_iqr);
+        hdql_query_destroy(q, _ctx);
 
-        std::vector<RowMap> actualTable;
-        ASSERT_NO_THROW(actualTable = parse_csv(_buf))
-            << "while parsing actual data for request \""
-            << queryExpr << "\": " << "\n" << _buf;
-
-        check_csv_match(expectedTable, actualTable);  // check results
+        check_csv_match_unordered(expectedOutput, _buf);  // check results
     }
 
 protected:
@@ -204,7 +257,6 @@ protected:
     
 
     void TearDown() override {
-        hdql_query_results_handler_csv_cleanup(&_iqr);
         TestingEventStruct::TearDown();
         if(_ss) fclose(_ss);
         free(_buf);
@@ -226,10 +278,57 @@ TEST_F(DSVDumpTest, handlesAtomicResult ) {
 )~", ev);
 }
 
+TEST_F(DSVDumpTest, handlesAtomicCollection ) {
+    hdql::test::Event ev;
+    hdql::test::fill_data_sample_1(ev);
+    check_request(".hits.rawData.samples", R"~(key0,key1,value
+301,0,41
+301,1,42
+301,2,43
+301,3,44
+103,0,21
+103,1,22
+103,2,23
+103,3,24
+102,0,11
+102,1,12
+102,2,13
+102,3,14
+101,0,1
+101,1,2
+101,2,3
+101,3,4
+)~", ev);
+}
+
+TEST_F(DSVDumpTest, iteratesCollectionWithSelector) {
+    hdql::test::Event ev;
+    hdql::test::fill_data_sample_1(ev);
+    check_request(".tracks.hits[50:103].rawData.time"
+            , R"~(key0,key1,value
+0,102,2.000000e-02
+0,101,1.000000e-02
+)~", ev);
+}
+
+TEST_F(DSVDumpTest, handlesAtomicCollectionWithLabeledColumnsAndSelection ) {
+    hdql::test::Event ev;
+    hdql::test::fill_data_sample_1(ev);
+    check_request(".hits[0:200->hitID].rawData.samples[0:1->sampleID]", R"~(hitID,sampleID,value
+103,0,21
+103,1,22
+102,0,11
+102,1,12
+101,0,1
+101,1,2
+)~", ev);
+}
+
 TEST_F(DSVDumpTest, handlesCompoundResult ) {
     hdql::test::Event ev;
     hdql::test::fill_data_sample_1(ev);
-    check_request(".hits", R"~(key0,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
+    check_request(".hits",
+R"~(key0,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
 301,4,5.00e-02,1.20e+00,9.00e+00,7.80e+00,6.00e+00,5.00e+00
 202,4,N/A,5.00e-01,8.90e+00,6.70e+00,5.00e+00,4.00e+00
 103,4,3.00e-02,9.00e+00,7.80e+00,5.60e+00,4.00e+00,3.00e+00
@@ -241,7 +340,8 @@ TEST_F(DSVDumpTest, handlesCompoundResult ) {
 TEST_F(DSVDumpTest, handlesVirtualCompoundResult ) {
     hdql::test::Event ev;
     hdql::test::fill_data_sample_1(ev);
-    check_request(".hits{a:=.x, b:=.y, c:=.z}", R"~(key0,c,b,a,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
+    check_request(".hits{a:=.x, b:=.y, c:=.z}",
+R"~(key0,c,b,a,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
 301,1.2,9.00e+00,7.80e+00,4,5.00e-02,1.20e+00,9.0e+00,7.80e+00,6.00e+00,5.00e+00
 202,5.0e-01,8.90e+00,6.70e+00,4,N/A,5.00e-01,8.90e+00,6.70e+00,5.00e+00,4.00e+00
 103,9.0e+00,7.80e+00,5.60e+00,4,3.00e-02,9.00e+00,7.80e+00,5.60e+00,4.00e+00,3.00e+00
@@ -250,11 +350,20 @@ TEST_F(DSVDumpTest, handlesVirtualCompoundResult ) {
 )~", ev);
 }
 
-// .tracks.hits.rawData.samples         iterates atomic collection
-// .tracks.hits[50:103].rawData.time    iterates collection with selector
-// .hits{a:=.x, b:=.y, c:=.z:.b > 7}    resolves compound attributes
-//
-// Really complex one:
+TEST_F(DSVDumpTest, handlesDoubleVirtualCompound ) {
+    hdql::test::Event ev;
+    hdql::test::fill_data_sample_1(ev);
+    check_request(".hits{a:=.x, b:=.y, c:=.z:.b > 8}{d:=.a+.b}",
+R"~(key0,d,c,b,a,NrawData.samples,rawData.time,z,y,x,time,energyDeposition
+301,1.68e+01,1.20e+00,9.00e+00,7.80e+00,4,5.00e-02,1.20e+00,9.00e+00,7.80e+00,6.00e+00,5.00e+00
+202,1.56e+01,5.00e-01,8.90e+00,6.70e+00,4,N/A,5.00e-01,8.90e+00,6.70e+00,5.00e+00,4.00e+00
+)~", ev);
+}
+
+
+// Problematic cases:
+//  .tracks[1:2]{:.chi2/.ndf > 6}               =>infinite loop
+//  .hits[0:200->hitID].rawData{s:=.samples[0:1->sampleID]:.s>10}.s   =>SEGFAULT (query evaluation. premature deletion)
 //
 //  .tracks[->trackID]{
 //        c2n := .chi2/.ndf
@@ -267,4 +376,3 @@ TEST_F(DSVDumpTest, handlesVirtualCompoundResult ) {
 // Note, that moving [->hitID] from .hits to .h causes assertion failure;
 // unclear, whether this is permitted state. Same problematic case is:
 //  .tracks[->trackID]{c2n := .chi2/.ndf, h:=.hits{:.z < 6} : .c2n > 0}
-

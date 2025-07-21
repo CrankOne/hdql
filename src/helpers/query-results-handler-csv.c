@@ -166,9 +166,8 @@ _assign_value_handler( const struct hdql_AttrDef * ad
         ah->value_handler = _handle_scalar_compound_as_csv_entry;
         _expand_scalar_compound_to_columns(ad, &ah->payload.attrHandlers, ctx);
     }
-    #ifndef DNDEBUG
+    #ifndef NDEBUG
     else {
-        // EXAMPLE: `.hits{a:=.x, b:=.y, c:=.z}`
         char bf[128];
         hdql_top_attr_str(ad, bf, sizeof(bf), ctx);
         fputs("DEBUG ASSERTION FAILED: logic error: can't handle top level attr def of type `", stderr);
@@ -191,7 +190,7 @@ _extend_tier_with_attribute( struct hdql_AttrHandlerTier * t
     struct hdql_CSVAttrHandler * ah = (struct hdql_CSVAttrHandler *)
                 malloc(sizeof(struct hdql_CSVAttrHandler));
 
-    ah->name = attrName && '\0' != *attrName ? attrName : NULL;  //<- ...
+    ah->name = attrName && '\0' != *attrName ? attrName : NULL;
     ah->value_handler = NULL;
     ah->ad = ad;
     memset(&ah->payload,     0x0, sizeof(ah->payload));
@@ -605,6 +604,7 @@ _print_columns_list( const struct hdql_AttrHandlerTier * t
             _print_columns_list( &ah->payload.attrHandlers
                     , dest, columnsCount, nextPrefix, columnDelim, attrDelim
                     , collectionMarker, anonColumnName);
+            if(nextPrefix) free(nextPrefix);
         }
         #ifndef DNDEBUG
         else {
@@ -682,7 +682,77 @@ hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler * iqr
     return 0;
 }
 
+static void _free_attr_handler(struct hdql_CSVAttrHandler * ah, hdql_Context_t ctx);
+
+static void
+_free_tier(struct hdql_AttrHandlerTier * t, hdql_Context_t ctx) {
+    for(size_t i = 0; i < t->n; ++i) {
+        struct hdql_CSVAttrHandler * ah = t->handlers[i];
+        _free_attr_handler(ah, ctx);
+        free(ah);
+    }
+    if(t->handlers)
+        free(t->handlers);
+    //ah->payload.attrHandlers.n = 0;
+}
+
+static void
+_free_attr_handler(struct hdql_CSVAttrHandler * ah, hdql_Context_t ctx) {
+    const struct hdql_AttrDef * topAD = hdql_attr_def_top_attr(ah->ad);
+
+    /* name, ad are managed externally
+     * value_handler is func ptr */
+    if(hdql_attr_def_is_collection(topAD)) {
+        /* get collection iface to destroy dynamic iteration state */
+        const struct hdql_CollectionAttrInterface * ciface
+            = hdql_attr_def_collection_iface(ah->ad);
+        if(ciface->destroy && ah->dynamicData.collectionIt) {
+            ciface->destroy(ah->dynamicData.collectionIt, ctx);
+            //ah->dynamicData.collectionIt = NULL;
+        }
+    } else if(hdql_attr_def_is_atomic(topAD)) {
+        const struct hdql_ScalarAttrInterface * siface
+            = hdql_attr_def_scalar_iface(ah->ad);
+        if(siface->destroy && ah->dynamicData.scSupp) {
+            siface->destroy(ah->dynamicData.scSupp, siface->definitionData, ctx);
+            //ah->dynamicData.scSupp = NULL;
+        }
+    } else if(hdql_attr_def_is_compound(topAD)) {
+        _free_tier(&ah->payload.attrHandlers, ctx);
+    }
+    #ifndef NDEBUG
+    else {
+        char bf[128];
+        hdql_top_attr_str(topAD, bf, sizeof(bf), ctx);
+        fputs("DEBUG ASSERTION FAILED: logic error: can't free top level attr def of type `", stderr);
+        fputs(bf, stderr);
+        fputs("'.\n", stderr);
+        assert(0);
+    }
+    #endif
+    /* forwarding query handled specially */
+    //if(hdql_attr_def_is_fwd_query(ah->ad)) {
+    //    hdql_query_destroy(hdql_attr_def_fwd_query(ah->ad), ctx);
+    //}
+}
+
 void
 hdql_query_results_handler_csv_cleanup( struct hdql_iQueryResultsHandler * iqr ) {
-    // TODO
+    struct hdql_CSVHandler * csv = (struct hdql_CSVHandler *) iqr->userdata;
+
+    /* destruct tiers recursively */
+    _free_attr_handler(&csv->rootObjectHandler, csv->ctx);
+
+    #define _M_opt_free(t) \
+        if(csv-> fmt . t) { free((void*) csv->fmt. t); csv->fmt. t = NULL; }
+    _M_opt_free(recordDelimiter          );
+    _M_opt_free(valueDelimiter           );
+    _M_opt_free(attrDelimiter            );
+    _M_opt_free(collectionLengthMarker   );
+    _M_opt_free(anonymousColumnName      );
+    _M_opt_free(nullToken                );
+    _M_opt_free(unlabeledKeyColumnFormat );
+    #undef _M_opt_free
+
+    free(iqr->userdata);
 }

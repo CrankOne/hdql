@@ -122,9 +122,9 @@ struct Query : public SelectionItemT {
         // NOTE: special case are forwarded queries for virtual compounds. We
         // do destroy them here as this is the simplest way to avoid dependency
         // calculus for virtual compound being deleted
-        if(hdql_attr_def_is_fwd_query(SelectionItemT::subject)) {
-            hdql_query_destroy(hdql_attr_def_fwd_query(SelectionItemT::subject), ctx);
-        }
+        //if(hdql_attr_def_is_fwd_query(SelectionItemT::subject)) {
+        //    hdql_query_destroy(hdql_attr_def_fwd_query(SelectionItemT::subject), ctx);
+        //}
         if(next) {
             hdql_query_destroy(static_cast<hdql_Query *>(next), ctx);
         }
@@ -357,6 +357,8 @@ hdql_query_reset( struct hdql_Query * query
 extern "C" void
 hdql_query_destroy(struct hdql_Query * q, hdql_Context_t ctx) {
     assert(q);
+    if(q->label)
+        hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(q->label));
     q->finalize(ctx);
     q->~hdql_Query();
     hdql_context_free(ctx, reinterpret_cast<hdql_Datum_t>(q));

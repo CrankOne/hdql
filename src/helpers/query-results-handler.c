@@ -194,7 +194,10 @@ hdql_query_results_process_records_from( struct hdql_Datum * d
 }
 
 int
-hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * ) {
-    return -1;  // TODO
+hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * ws ) {
+    if(ws->kv) free(ws->kv);
+    if(ws->keys) hdql_query_keys_destroy(ws->keys, ws->ctx);
+    hdql_context_free(ws->ctx, (hdql_Datum_t) ws);
+    return 0;
 }
 

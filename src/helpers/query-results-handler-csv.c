@@ -693,6 +693,9 @@ _free_tier(struct hdql_AttrHandlerTier * t, hdql_Context_t ctx) {
     }
     if(t->handlers)
         free(t->handlers);
+    #ifndef NDEBUG
+    else { assert(t->n == 0); }
+    #endif
     //ah->payload.attrHandlers.n = 0;
 }
 
@@ -730,18 +733,21 @@ _free_attr_handler(struct hdql_CSVAttrHandler * ah, hdql_Context_t ctx) {
         assert(0);
     }
     #endif
-    /* forwarding query handled specially */
-    //if(hdql_attr_def_is_fwd_query(ah->ad)) {
-    //    hdql_query_destroy(hdql_attr_def_fwd_query(ah->ad), ctx);
-    //}
 }
 
 void
 hdql_query_results_handler_csv_cleanup( struct hdql_iQueryResultsHandler * iqr ) {
     struct hdql_CSVHandler * csv = (struct hdql_CSVHandler *) iqr->userdata;
 
-    /* destruct tiers recursively */
-    _free_attr_handler(&csv->rootObjectHandler, csv->ctx);
+    /* Here we check first if the AD is of compound type, not just forward
+     * execution to recursive `_free_attr_handler()` since at the top level
+     * handler the "is collection" property must be ignored -- we use query
+     * to iterate, not the dynamic state */
+    if(hdql_attr_def_is_compound(csv->rootObjectHandler.ad)) {
+        _free_tier(&csv->rootObjectHandler.payload.attrHandlers, csv->ctx);
+    } else {
+        _free_attr_handler(&csv->rootObjectHandler, csv->ctx);
+    }
 
     #define _M_opt_free(t) \
         if(csv-> fmt . t) { free((void*) csv->fmt. t); csv->fmt. t = NULL; }

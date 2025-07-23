@@ -1,10 +1,12 @@
 #include "hdql/attr-def-unwind.h"
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int
 _attr_def_unwind( const hdql_AttrDefStack_t s
@@ -60,12 +62,15 @@ hdql_attr_def_unwind( const hdql_AttrDef_t ad
 }
 
 /*
- * -------------
+ * Data handler built with AD unwinding
  */
 
+/**\brief Reentrant item to visit AD items, builds the data handling tree
+ *
+ * Provided as `userdata` to `hdql_iAttrDefVisitor`
+ * */
 struct hdql_iDataVisitor {
     void * userdata;
-
     /** Should rely on stack's top to create userdata for `handle_atomic_data()`
      * and return 0 or ignore this attribute returning 1. Other return codes
      * considered as error */
@@ -100,15 +105,47 @@ struct hdql_DatumHandler {
     } handler;
     union {
         hdql_Datum_t scalar;
-        hdql_It_t collection;
+        hdql_It_t collectionIt;
     } dynData;
-    // struct {} dynData
-    static void (*handle)();  // dereference item and advance states
+    void (*handle)(hdql_Datum_t d, struct hdql_DatumHandler * self);  // dereference item and advance states
+};
+
+/* variants of `hdql_DatumHandler::handle` {{{ */
+static void _cdh_handle_atomic_scalar_datum(hdql_Datum_t d, struct hdql_DatumHandler * dh) {
+    const struct hdql_ScalarAttrInterface * siface = hdql_attr_def_scalar_iface(ah->ad);
+    if((!dh->dynData.scalar) && siface->instantiate) {
+            if(NULL == ah->dynamicData.scSupp) {
+                ah->dynamicData.scSupp
+                    = siface->instantiate(datum, siface->definitionData, ctx);
+                assert(ah->dynamicData.scSupp);
+            }
+            assert(siface->reset);
+            ah->dynamicData.scSupp = siface->reset( datum
+                    , ah->dynamicData.scSupp
+                    , siface->definitionData
+                    , ctx
+                    );
+        }
+    }
+}
+
+static void _cdh_handle_atomic_collection_datum(hdql_Datum_t d, struct hdql_DatumHandler * dh) {
+}
+
+static void _cdh_handle_compound_scalar_datum(hdql_Datum_t d, struct hdql_DatumHandler * dh) {
+}
+
+static void _cdh_handle_compound_collection_datum(hdql_Datum_t d, struct hdql_DatumHandler * dh) {
+}
+/* }}} */
+
+struct hdql_CompoundADStack {
+    struct hdql_CompoundADStack * prev;
 };
 
 struct hdql_ADIterationState {
     struct hdql_iDataVisitor * v;
-    // ...
+    struct hdql_CompoundADStack * compoundsStack;
 };
 
 static int
@@ -134,10 +171,8 @@ _cdh_atomic_ad(const hdql_AttrDefStack_t cs, void * state_) {
         dh->handle = _cdh_handle_atomic_collection_datum;
     }
 
-    /* `_cdh_init_dynamic_state() takes into account scalar/collection property
-     * of AD, assigns dynamic state accordingly: */
-    rc = _cdh_init_dynamic_state(cs->ad, dh);
-    if(0 != rc) return rc;   /* communicate error */
+    /* zero dynamic state */
+    memset(&dh->dynData, 0x0, sizeof(dh->dynData));
 
     /* TODO: extend state with DH */
     return 0;
@@ -166,10 +201,8 @@ _cdh_push_compound_ad(const hdql_AttrDefStack_t cs, void * state_) {
         dh->handle = _cdh_handle_compound_collection_datum;
     }
 
-    /* `_cdh_init_dynamic_state() takes into account scalar/collection property
-     * of AD, assigns dynamic state accordingly: */
-    rc = _cdh_init_dynamic_state(cs->ad, dh);
-    if(0 != rc) return rc;  /* communicate error */
+    /* zero dynamic state */
+    memset(&dh->dynData, 0x0, sizeof(dh->dynData));
 
     /* TODO: extend state with DH, push stack */
     return 0;
@@ -180,4 +213,33 @@ _cdh_pop_compound_ad(const hdql_AttrDefStack_t cs, void * state_) {
     struct hdql_ADIterationState * state = (struct hdql_ADIterationState *) state_;
     /* TODO: finalize extending state with DH, pop stack */
 }
+
+/*
+ * User API for data visitor
+ */
+
+int
+hdql_data_handler_init_attribute_visitor( struct hdql_iAttrDefVisitor * av  /* to be initialized */
+        , struct hdql_iDataVisitor * dv  /* must be fully set already */
+        ) {
+    assert(av);
+    assert(dv);
+
+    /* init attribute definition visitor */
+    struct hdql_ADIterationState * state = malloc(sizeof(struct hdql_ADIterationState));
+    if(!state) return HDQL_ERR_MEMORY;
+    state->v = dv;
+
+    av->userdata = state;
+    av->atomic_ad = _cdh_atomic_ad;  /* expect UD to be of hdql_ADIterationState */
+    av->push_compound_ad = _cdh_push_compound_ad;
+    av->pop_compound_ad = _cdh_pop_compound_ad;
+
+    return 0;
+}
+
+//int
+//hdql_data_handler_apply( struct hdql_DatumHandler * dh, hdql_Datum_t d ) {
+//    dh->handle(d, &dh->dynData);
+//}
 

@@ -12,6 +12,31 @@ extern "C" {
 
 struct hdql_QueryResultsWorkspace;  /* opaque */
 
+/* The goal is to encapsulate state management for iteration over the query
+ * result tree-like data.
+ *
+ * Possible actions with attribute:
+ *  - any attribute can be marked for visit or ignoring with user's callback,
+ *    optionally creating AD userdata
+ *  - compound attributes can be marked for expansion. In this case they their
+ *    attributes will also be visited
+ *  - collection attributes can be marked for visiting
+ */
+
+typedef int hdql_QueryResultHandlerRC_t;
+
+struct hdql_AttrDefStack {
+    const char * attrName;
+    const struct hdql_AttrDef * ad;
+    const struct hdql_AttrDefStack * prev;
+};
+
+struct hdql_ADVisitor {
+    hdql_QueryResultHandlerRC_t (*visit_attr_def)( const struct hdql_AttrDefStack *, void * hUserdata, void ** adUserdata );
+    int (*visit_datum)(void * hUserdata, void ** adUserdata);
+};
+
+
 /**\brief Query results receiver interface
  *
  * This helper interface is meant to simplify integration with query object
@@ -35,9 +60,9 @@ struct hdql_iQueryResultsHandler {
     /** Arbitrary user pointer forwarded into all interface's calls */
     void * userdata;
 
-    void * (*init_atomic_ad)(const struct hdql_AttrDef *, const struct hdql_ValueInterface *, void * rh);
-    void * (*init_compound_ad)(const struct hdql_AttrDef *, const struct hdql_Compound * c, void * rh);
-    void * (*init_collection_ad)(const struct hdql_AttrDef *, void * rh);
+    int (*init_atomic_ad)(const struct hdql_AttrDef *, const struct hdql_ValueInterface *, void * rh);
+    int (*init_compound_ad)(const struct hdql_AttrDef *, const struct hdql_Compound * c, void * rh);
+    int (*init_collection_ad)(const struct hdql_AttrDef *, void * rh);
 
     int (*handle_atomic)(hdql_Datum_t, void * ah, void * rh);
     int (*handle_compound)(hdql_Datum_t, void * ah, void * rh);

@@ -11,51 +11,44 @@
 #include <stdlib.h>
 #include <assert.h>
 
-struct hdql_CSVHandler;  /* fwd */
-struct hdql_AttrHandler;  /* fwd */
-struct hdql_AttrHandlerTier;  /* fwd */
+static int
+_visit_ad( const hdql_AttrDef_t ad
+         , struct hdql_ADVisitor * v
+         , hdql_Context_t ctx
+         , const struct hdql_AttrDefStack * prev
+         , void * userdata
+         ) {
+    struct hdql_AttrDefStack s;
+    s.attrName = NULL;
+    s.ad = ad;
+    s.prev = prev;
 
-/* recursive struct defining one level attribute handlers */
-struct hdql_AttrHandlerTier {
-    size_t n;  /* number handlers at this level */
-    struct hdql_AttrHandler ** handlers;
-};
+    void * adUD = NULL;
+    hdql_QueryResultHandlerRC_t r = v->visit_attr_def(&s, userdata, &adUD);
+    if(0x0 == r) {  /* ignore this attribute */
+        assert(NULL == adUD);
+        return 0;
+    }
+    if(0x1 == r) {  /* this is the compound user code would like to expand */
+        const struct hdql_Compound * c = hdql_attr_def_compound_type_info(ad);
+        size_t na = hdql_compound_get_nattrs_recursive(c);
+        const char ** aNames = (const char **) alloca(na*sizeof(char*));
+        hdql_compound_get_attr_names_recursive(c, aNames);
+        for( size_t i = 0; i < na; ++i ) {
+            const struct hdql_AttrDef * subAD = hdql_compound_get_attr(c, aNames[i]);
+            _visit_ad(subAD, v, ctx, &s, userdata);
+        }
+    }
+}
 
-/* Handles individual attributes in query result. May expand to multiple
- * columns (e.g. for scalar compound attributes) */
-struct hdql_AttrHandler {
-    const char * name;
-    /* Attribute entry definition */
-    const struct hdql_AttrDef * ad;
+void
+hdql_attr_def_visit( const hdql_AttrDef_t ad
+        , struct hdql_ADVisitor * v
+        , hdql_Context_t ctx
+        ) {
+    // ...
+}
 
-    /* Internal callback, dispatchng calls, related to this node */
-    void (*value_handler)( struct hdql_CSVHandler *, hdql_Datum_t, struct hdql_AttrHandler * ad);
-
-    /* runtime short-lived state, used to dereference scalar or collection
-     * attributes (depends on iface) */
-    union {
-        hdql_Datum_t scSupp;
-        hdql_It_t collectionIt;
-    } dynamicData;
-
-    union {
-        void * atomicAttrData;
-        /* child tiers to stringify compounds */
-        struct hdql_AttrHandlerTier attrHandlers;
-    } payload;
-};
-
-struct hdql_QueryResultsWorkspace {
-    struct hdql_Query * q;
-    struct hdql_Context * ctx;
-    struct hdql_iQueryResultsHandler * iqr;
-
-    struct hdql_AttrHandler rootObjectHandler;
-
-    struct hdql_CollectionKey * keys;
-    struct hdql_KeyView * flatKeyViews;
-    size_t flatKeyViewLength;
-};
 
 /* Allocates structure to track keys with their flattened views
  *

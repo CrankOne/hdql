@@ -243,6 +243,12 @@ Query::keys() const {
     return _keys;
 }
 
+const struct hdql_AttrDef *
+Query::attr_def() const {
+    assert(_query);
+    return hdql_query_top_attr(_query);
+}
+
 namespace {
 static void
 _collect_names_recursive(

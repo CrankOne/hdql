@@ -376,6 +376,8 @@ public:
     size_t keys_depth() const;
     const hdql_CollectionKey * keys() const;
 
+    const struct hdql_AttrDef * attr_def() const;
+
     ///\brief Returns list of field names from the compound query result
     ///
     /// Only valid when `is_compound()` is true, throws `HDQLError` otherwise.

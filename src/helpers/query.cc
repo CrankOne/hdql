@@ -34,7 +34,6 @@ HDQLCompileError::HDQLCompileError( const char * expressionString_
 
 }  // namespace ::hdql::errors
 
-namespace helpers {
 namespace detail {
 //
 // Query access caches helper
@@ -104,6 +103,11 @@ GenericQueryCursor &
 GenericQueryCursor::operator++() {
     _query_instance()._next();
     return *this;
+}
+
+hdql_Datum *
+GenericQueryCursor::get() {
+    return _query_instance()._get_unsafe();
 }
 
 //
@@ -201,6 +205,12 @@ Query::_next() {
     _r = hdql_query_get(_query, _keys, _ownContext);
 }
 
+hdql_Datum *
+Query::_get_unsafe() {
+    assert(_is_available());
+    return _r;
+}
+
 Query::~Query() {
     if(_keys) {
         hdql_query_keys_destroy(_keys, _ownContext);
@@ -272,7 +282,7 @@ _collect_names_recursive(
 } // anonymous namespace
 
 std::vector<std::string>
-hdql::helpers::Query::names(char recurseDelimiter) const {
+hdql::Query::names(char recurseDelimiter) const {
     if (!is_compound())
         throw errors::HDQLError("Query result is not of compound type.");
     assert(_topAttrDef);
@@ -284,7 +294,7 @@ hdql::helpers::Query::names(char recurseDelimiter) const {
 }
 
 std::vector<std::string>
-hdql::helpers::Query::key_names() const {
+hdql::Query::key_names() const {
     if (!_keys) {
         throw errors::HDQLError("Query does not expose keys (perhaps keysNeeded=false)");
     }
@@ -532,6 +542,5 @@ get_atomic_scalar_converter_for( hdql_Context_t ownContext
 }
 #endif
 
-}  // namespace ::hdql::helpers
 }  // namespace hdql
 

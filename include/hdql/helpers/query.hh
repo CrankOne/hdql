@@ -83,8 +83,6 @@ public:
 };
 }  // namespace ::hdql::errors
 
-namespace helpers {
-
 class Query;
 
 namespace detail {
@@ -197,6 +195,8 @@ public:
     GenericQueryCursor & operator++();  // { _query_instance()._next(); return *this; }
     /// Forwards to `Query::_get_as<T>()`
     template<typename T> const T & get();  // { return _query_instance()._get_as<T>(); }
+                                           
+    hdql_Datum * get();
 
     friend class Query;
 };  // class GenericQueryCursor
@@ -236,6 +236,8 @@ public:
 
     /// Use conversion function
     const T & get() const;  // { ... use own conversion function }
+
+    hdql_Datum * get_unsafe();
 
     friend class Query;
 };  // class TypesQueryCursor<T>
@@ -315,6 +317,8 @@ protected:
     }
 
     template<typename T> const T & _get_as() const;
+
+    hdql_Datum * _get_unsafe();
 
     void _reset_subject_instance(hdql_Datum * e);
 
@@ -441,7 +445,6 @@ Query::_get_as() const {
     //
     // Note, that conversion is ignored if this is of a known compound type and
     // not possible if that's a virtual compound.
-    assert(!is_collection());  // TODO: how to deal with collections?
     Converter cnv = _get_converter_to(typeid(T));
     if(!cnv) {  // same type
         return *reinterpret_cast<const T*>(_r);
@@ -549,6 +552,5 @@ QueryCursor<T>::get() const {
     }
 }
 
-}  // namespace ::hdql::helpers
 }  // namespace hdql
 

@@ -1037,7 +1037,7 @@ public:
         return it->second;
     }
 
-    template<typename RootT> helpers::Query
+    template<typename RootT> Query
     query(const char * expression, bool keysNeeded=true) {
         auto rootCompoundIt = find(typeid(RootT));
         if(end() == rootCompoundIt) {
@@ -1051,7 +1051,7 @@ public:
             //, const std::vector<std::string> & attrsOrder={}
             );
     }
-};  // CompoundTypes
+};  // class CompoundTypes
 
 }  // ::hdql::helpers
 }  // namespace hdql

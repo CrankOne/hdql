@@ -55,8 +55,10 @@ hdql_query_product_advance( struct hdql_Query ** qs
     hdql_Datum_t * v = values + n1;
     for(struct hdql_Query ** q = qs + n1; 0 != i; --q, --v) {
         --i;
-        if(NULL == (*v = hdql_query_get(*q, k ? *k : NULL, ctx)))
+        if(NULL == (*v = hdql_query_get(*q, keys ? *k : NULL, ctx))) {
+            if(keys) --k;
             continue;  /* i-th query did not yield a value */
+        }
         /* otherwise, re-set ones to the right (with j > i) */
         for(size_t j = i + 1; j < n; ++j) {
             if(HDQL_ERR_CODE_OK != (rc = hdql_query_reset(qs[j], d, ctx))) {

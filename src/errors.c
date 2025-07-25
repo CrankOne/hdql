@@ -42,6 +42,8 @@ hdql_err_str(hdql_Err_t code) {
             return "unknown function identifier";
         case HDQL_ERR_FUNC_CANT_INSTANTIATE:
             return "could not instantiate function candidate for given arguments";
+        case HDQL_ERR_EMPTY_SET:
+            return "operation result is an empty set";
         //case HDQL_ERR_FUNC_ARG_COLLISION:
         //    return "argument #N already has been set";
         //case HDQL_ERR_FUNC_REDEFINITION:

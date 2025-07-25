@@ -97,7 +97,7 @@ add_library (hdql ${hdql_SOURCES})
 target_include_directories (hdql
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PUBLIC $<INSTALL_INTERFACE:include>
+    #PUBLIC $<INSTALL_INTERFACE:include>
     )
 
 set_target_properties (hdql PROPERTIES
@@ -120,6 +120,7 @@ if (BUILD_TESTS)
                           test/iteration-tests.cc
                           test/cpp-api.cc
                           test/dsv.test.cc
+                          test/query-product.test.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

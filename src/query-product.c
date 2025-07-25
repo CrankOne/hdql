@@ -1,4 +1,5 @@
 #include "hdql/query-product.h"
+#include "hdql/query-key.h"
 
 #include <assert.h>
 

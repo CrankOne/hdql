@@ -28,7 +28,6 @@ set (hdql_SOURCES src/types.cc
                   src/query.cc
                   #src/query.c
 	              src/query-key.c
-	              src/query-product.c
 	              src/context.cc
 	              src/operations.cc
 	              src/value.cc
@@ -157,7 +156,6 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
               include/hdql/internal-ifaces.h
               include/hdql/operations.h
               include/hdql/query-key.h
-              include/hdql/query-product.h
               include/hdql/query.h
               include/hdql/types.h
               include/hdql/value.h

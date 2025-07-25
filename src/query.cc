@@ -482,4 +482,69 @@ hdql_query_top_attr(const struct hdql_Query * q_) {
     #endif
 }
 
+extern "C" int
+hdql_query_product_reset( struct hdql_Query ** qs
+        , struct hdql_CollectionKey ** keys
+        , hdql_Datum_t * values
+        , hdql_Datum_t d
+        , size_t n
+        , hdql_Context_t ctx
+        ) {
+    int rc;
+    /* re-set all queries in list,  */
+    size_t i = 0;
+    for(struct hdql_Query ** q = qs; i < n; ++q, ++i) {
+        if(HDQL_ERR_CODE_OK != (rc = hdql_query_reset(*q, d, ctx))) return rc;
+    }
+    /* get 1st set of values */
+    struct hdql_CollectionKey ** k = keys ? keys : NULL;
+    hdql_Datum_t * v = values;
+    i = 0;
+    for(struct hdql_Query ** q = qs; i < n; ++q, ++v, ++i) {
+        if(NULL != (*v = hdql_query_get(*q, k ? *k : NULL, ctx))) {
+            if(k) ++k;
+            continue;  /* query yielded value */
+        }
+        /* Otherwise at least one query did not provide a value.
+         * That results in an empty set */
+        return HDQL_ERR_EMPTY_SET;  /* todo: shouldn't we re-set ones already iterated? */
+    }
+    return HDQL_ERR_CODE_OK;
+}
+
+extern "C" int
+hdql_query_product_advance( struct hdql_Query ** qs
+        , struct hdql_CollectionKey ** keys
+        , hdql_Datum_t * values
+        , hdql_Datum_t d
+        , size_t n
+        , hdql_Context_t ctx
+        ) {
+    int rc;
+    const size_t n1 = n-1;
+    /* iterate backward */
+    size_t i = n;
+    assert(i > 0);
+    struct hdql_CollectionKey ** k = keys ? keys + n1 : NULL;
+    hdql_Datum_t * v = values + n1;
+    for(struct hdql_Query ** q = qs + n1; 0 != i; --q, --v) {
+        --i;
+        if(NULL == (*v = hdql_query_get(*q, keys ? *k : NULL, ctx))) {
+            if(keys) --k;
+            continue;  /* i-th query did not yield a value */
+        }
+        /* otherwise, re-set ones to the right (with j > i) */
+        for(size_t j = i + 1; j < n; ++j) {
+            if(HDQL_ERR_CODE_OK != (rc = hdql_query_reset(qs[j], d, ctx))) {
+                assert(0);
+                return rc;
+            }
+            values[j] = hdql_query_get(qs[j], keys ? keys[j] : NULL, ctx);
+            assert(NULL != values[j]);  /* how did we passed first reset() then? */
+        }
+        return HDQL_ERR_CODE_OK;
+    }
+    /* none of queries in the list yielded values */
+    return HDQL_ERR_EMPTY_SET;
+}
 

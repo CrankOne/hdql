@@ -117,6 +117,47 @@ void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 /**\brief Dumps built query internals */
 void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
 
+/**\brief Re-sets a set of queries built on top of the same root object
+ *
+ * Used to initialize ground state and get first item in a cartesian product
+ * of a set of queries. \p keys can be NULL. \p values, \p qs (and \p keys, if
+ * not NULL) must be pre-allocated arrays of same size.
+ *
+ * Forwards error code if `hdql_query_reset()` from any query returned code
+ * other than `HDQL_ERR_CODE_OK`.
+ *
+ * \returns `HDQL_ERR_CODE_OK` on success
+ * \returns `HDQL_ERR_EMPTY_SET` if at least one query does not yield a value
+ * */
+int
+hdql_query_product_reset( struct hdql_Query ** qs
+        , struct hdql_CollectionKey ** keys
+        , hdql_Datum_t * values
+        , hdql_Datum_t d
+        , size_t n
+        , hdql_Context_t ctx
+        );
+
+/**\brief Obtains next value in a Cartesian product of queries.
+ *
+ * Advances Cartesian product state of set of queries built from same root
+ * object.
+ *
+ * Forwards error code if `hdql_query_reset()` from any query returned code
+ * other than `HDQL_ERR_CODE_OK`.
+ *
+ * \returns `HDQL_ERR_CODE_OK` on success
+ * \returns `HDQL_ERR_EMPTY_SET` when query product exhausted.
+ * */
+int
+hdql_query_product_advance( struct hdql_Query ** qs
+        , struct hdql_CollectionKey ** keys
+        , hdql_Datum_t * values
+        , hdql_Datum_t d
+        , size_t n
+        , hdql_Context_t ctx
+        );
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

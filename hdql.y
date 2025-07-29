@@ -81,6 +81,14 @@ _operation( struct hdql_Query * a
     int rc = _operation(op1, hdql_k ## opName, op2, &yyloc, ws, NULL, opDescr, &(R)); \
     if(0 != rc) return rc;
 
+#define M_TOP_COMPOUND_NAME(q, buf) \
+    const struct hdql_AttrDef * qAD = hdql_query_top_attr(q); \
+    assert(qAD); \
+    const struct hdql_Compound * c = hdql_attr_def_compound_type_info(qAD); \
+    assert(c); \
+    char buf [128]; \
+    hdql_compound_get_full_type_str(c, buf, sizeof( buf ));
+
 #define is_atomic(attr)     hdql_attr_def_is_atomic(attr)
 #define is_collection(attr) hdql_attr_def_is_collection(attr)
 #define is_static(attr)     hdql_attr_def_is_static_value(attr)
@@ -349,25 +357,24 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     hdql_parser_top_compound(ws), $2 );
                 if(NULL == attrDef) {
                     const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
-                    if(!hdql_compound_is_virtual(topCompound)) {
-                        hdql_error(&yyloc, ws, yyscanner
-                            , "type `%s' has no attribute \"%s\""
-                            , hdql_compound_get_name(topCompound), $2);
-                    } else {
-                        hdql_error(&yyloc, ws, yyscanner
-                            , "virtual compound based on type `%s' has no attribute \"%s\""
-                            , hdql_compound_get_name(hdql_virtual_compound_get_parent(topCompound)), $2);
-                    }
+                    char buf[128];
+                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
+                    hdql_error(&yyloc, ws, yyscanner
+                        , "type `%s' has no attribute \"%s\""
+                        , buf, $2);
                     free($2);
                     if($3.selectionExpression) free($3.selectionExpression);
                     if($3.label)               free($3.label);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
                 if(is_scalar(attrDef)) {
+                    const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
+                    char buf[128];
+                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
                     hdql_error(&yyloc, ws, yyscanner
                         , "attribute \"%s\" of `%s' is not a collection (can't"
                           " apply selection \"%s\")"
-                        , $2, hdql_compound_get_name(hdql_parser_top_compound(ws)), $3);
+                        , $2, buf, $3);
                     free($2);
                     if($3.selectionExpression) free($3.selectionExpression);
                     if($3.label)               free($3.label);
@@ -376,10 +383,14 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 const struct hdql_CollectionAttrInterface * iface
                         = hdql_attr_def_collection_iface(attrDef);
                 if(!iface->compile_selection) {
+                    const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
+                    char buf[128];
+                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
+
                     hdql_error(&yyloc, ws, yyscanner
-                        , "attribute \"%s\" of `%s' does not support selection"
+                        , "`%s:%s' does not support selection"
                           " (can't compile selection expression \"%s\")"
-                        , $2, hdql_compound_get_name(hdql_parser_top_compound(ws)), $3);
+                        , buf, $2, $3);
                     free($2);
                     if($3.selectionExpression) free($3.selectionExpression);
                     if($3.label)               free($3.label);
@@ -388,10 +399,13 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 hdql_SelectionArgs_t selection = iface->compile_selection($3.selectionExpression
                             , iface->definitionData, ws->context );
                 if(NULL == selection) {
+                    const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
+                    char buf[128];
+                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
                     hdql_error(&yyloc, ws, yyscanner
                         , "failed to translate selection expression \"%s\" of"
                         " collection attribute %s::%s."
-                        , $3, hdql_compound_get_name(hdql_parser_top_compound(ws)), $2);
+                        , $3, buf, $2);
                     free($2);
                     if($3.selectionExpression) free($3.selectionExpression);
                     if($3.label)               free($3.label);
@@ -435,46 +449,44 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
 
                 if(is_scalar(attrDef)) {
+                    M_TOP_COMPOUND_NAME($1, buf);
                     hdql_error(&yyloc, ws, yyscanner
-                        , "attribute `%s::%s' is not a collection (can't"
+                        , "`%s::%s' is not a collection (can't"
                           " apply selection expression \"%s\")"
-                        , hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
-                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
-                                )
-                        , $3, $4 );
+                        , buf, $3, $4 );
                     free($3);
                     if($4.selectionExpression) free($4.selectionExpression);
                     if($4.label)               free($4.label);
                     return HDQL_ERR_ATTRIBUTE;
                 }
 
-                const struct hdql_CollectionAttrInterface * iface
-                        = hdql_attr_def_collection_iface(attrDef);
-                if(!iface->compile_selection) {
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "attribute \"%s\" of `%s' does not support selection"
-                          " (can't compile selection expression \"%s\")"
-                        , $3, hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
-                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
-                                ), $4);
-                    free($3);
-                    if($4.selectionExpression) free($4.selectionExpression);
-                    if($4.label)               free($4.label);
-                    return HDQL_BAD_QUERY_EXPRESSION;
-                }
-                hdql_SelectionArgs_t selection = iface->compile_selection( $4.selectionExpression
-                            , iface->definitionData, ws->context);
-                if(NULL == selection) {
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "failed to translate selection expression \"%s\" of"
-                        " collection attribute %s::%s."
-                        , $4, hdql_compound_get_name(  // TODO: use hdql_compound_get_full_type_str()
-                                    hdql_attr_def_compound_type_info(hdql_attr_def_top_attr(attrDef))
-                                ), $3);
-                    free($3);
-                    if($4.selectionExpression) free($4.selectionExpression);
-                    if($4.label)               free($4.label);
-                    return HDQL_BAD_QUERY_EXPRESSION;
+                const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(attrDef);
+                hdql_SelectionArgs_t selection = NULL;
+                if('\0' != *$4.selectionExpression) {
+                    if(!iface->compile_selection) {
+                        M_TOP_COMPOUND_NAME($1, buf);
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "`%s::%s' does not support selection"
+                              " (can't compile selection expression \"%s\")"
+                            , buf, $3, $4);
+                        free($3);
+                        if($4.selectionExpression) free($4.selectionExpression);
+                        if($4.label)               free($4.label);
+                        return HDQL_BAD_QUERY_EXPRESSION;
+                    }
+                    selection = iface->compile_selection( $4.selectionExpression
+                                , iface->definitionData, ws->context);
+                    if(NULL == selection) {
+                        M_TOP_COMPOUND_NAME($1, buf);
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "failed to translate selection expression \"%s\" of"
+                            " collection attribute %s::%s."
+                            , $4, buf, $3);
+                        free($3);
+                        if($4.selectionExpression) free($4.selectionExpression);
+                        if($4.label)               free($4.label);
+                        return HDQL_BAD_QUERY_EXPRESSION;
+                    }
                 }
                 free($3);
                 if($4.selectionExpression) free($4.selectionExpression);
@@ -692,12 +704,7 @@ _resolve_query_top_as_compound( struct hdql_Query * q
                               , const struct hdql_AttrDef ** r
                               ) {
     const struct hdql_AttrDef * topAttrDef;
-    do {  /* TODO: isn't `hdql_query_top_attr()` a full substitution? */
-        topAttrDef = hdql_query_top_attr(q);
-        if(is_direct_query(topAttrDef)) break;
-        q = hdql_attr_def_fwd_query(topAttrDef);
-        assert(q);
-    } while(is_subquery(topAttrDef));
+    topAttrDef = hdql_query_top_attr(q);
     if(is_atomic(topAttrDef)) {  /* error if it's an atomic */
         const struct hdql_ValueInterface * vi
             = hdql_types_get_type(hdql_context_get_types(ws->context)

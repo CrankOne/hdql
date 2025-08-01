@@ -19,6 +19,7 @@
 #include <map>
 #include <typeinfo>
 #include <typeindex>
+#include <variant>
 
 #include <cassert>
 #include <cstdlib>
@@ -402,6 +403,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<AttrT> {
     static constexpr bool isCollection = false;
+    static constexpr bool isOneOf = false;
 
     static hdql_Datum_t
     dereference( hdql_Datum_t root  // owning object
@@ -433,6 +435,40 @@ struct IFace< ptr
             , typename std::enable_if<detail::IndirectAccessTraits<AttrT>::provides, void>::type>
         : public TypeInfoMixin<AttrT> {
     static constexpr bool isCollection = false;
+    static constexpr bool isOneOf = false;
+
+    static hdql_Datum_t
+    dereference( hdql_Datum_t root  // owning object
+               , hdql_Datum_t dynData  // allocated with `instantiate()`
+               , struct hdql_CollectionKey * // may be NULL
+               , const hdql_Datum_t  // may be NULL
+               , hdql_Context_t
+               ) {
+        auto p = detail::IndirectAccessTraits<AttrT>::get(reinterpret_cast<OwnerT *>(root)->*ptr);
+        return reinterpret_cast<hdql_Datum_t>(p);
+    }
+
+    static hdql_ScalarAttrInterface iface() {
+        return hdql_ScalarAttrInterface{
+                  .definitionData = NULL
+                , .instantiate = NULL
+                , .dereference = dereference
+                , .reset = NULL
+                , .destroy = NULL
+            };
+    }
+
+    static constexpr auto create_attr_def = detail::AttrDefCallback<true, false>::create_attr_def;
+};  // scalar compound attribute
+
+/// Implements oneof access interface
+template<typename OwnerT, typename AttrT, AttrT OwnerT::*ptr, typename ...ArgT>
+struct IFace< std::variant<ArgT...> OwnerT::*ptr
+            , void
+            , typename std::enable_if<detail::IndirectAccessTraits<AttrT>::provides, void>::type>
+        : public TypeInfoMixin<AttrT> {
+    static constexpr bool isCollection = false;
+    static constexpr bool isOneOf = true;
 
     static hdql_Datum_t
     dereference( hdql_Datum_t root  // owning object
@@ -473,6 +509,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<typename std::remove_extent<AttrT>::type> {
     static constexpr bool isCollection = true;
+    static constexpr bool isOneOf = false;
 
     typedef typename std::remove_extent<AttrT>::type ElementType;
     typedef size_t Key;
@@ -568,6 +605,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<typename std::remove_extent<AttrT>::type> {
     static constexpr bool isCollection = true;
+    static constexpr bool isOneOf = false;
     typedef SelectionTraits<SelectionT, AttrT> ConcreteSelectionTraits;
 
     typedef typename std::remove_extent<AttrT>::type ElementType;
@@ -689,6 +727,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType> {
     static constexpr bool isCollection = true;
+    static constexpr bool isOneOf = false;
     typedef typename detail::STLContainerTraits<AttrT>::Key Key;
 
     struct Iterator {
@@ -782,6 +821,7 @@ struct IFace< ptr
             >
         : public TypeInfoMixin<typename detail::STLContainerTraits<AttrT>::ValueType> {
     static constexpr bool isCollection = true;
+    static constexpr bool isOneOf = false;
     typedef SelectionTraits<SelectionT, AttrT> ConcreteSelectionTraits;
     typedef typename detail::STLContainerTraits<AttrT>::Key Key;
 
@@ -896,7 +936,7 @@ struct IFace< ptr
  * `hdql::Compounds` class benefits from C++ RTTI, it has to be logically
  * associated with context instance provided by C API. This class represents
  * an integration layer by combining `hdql::Compounds` and corresponding
- * context instance. It laso exposes a query-creation method assuring type
+ * context instance. It also exposes a query-creation method assuring type
  * compatibility.
  * */
 class CompoundTypes : public Compounds {
@@ -918,8 +958,11 @@ class CompoundTypes : public Compounds {
             , _context(context)
             {}
     public:
+        /// Specializes on collections, no selection
         template<auto ptr, typename SelectionT=void>
-        typename std::enable_if<helpers::IFace<ptr, SelectionT>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        typename std::enable_if< helpers::IFace<ptr, SelectionT>::isCollection
+                               , AttributeInsertionProxy<CompoundT>
+                               >::type &
         attr(const char * name) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
@@ -952,6 +995,7 @@ class CompoundTypes : public Compounds {
             throw std::runtime_error(errbf);
         }
 
+        /// Specializes on scalars
         template<auto ptr>
         typename std::enable_if< !helpers::IFace<ptr, void>::isCollection
                                , AttributeInsertionProxy<CompoundT>
@@ -978,7 +1022,40 @@ class CompoundTypes : public Compounds {
                     , name, rc);
             throw std::runtime_error(errbf);
         }
+        
+        /// One-of (std::variant) scalar
+        template<auto ptr>
+        typename std::enable_if< !helpers::IFace<ptr, void>::isOneOf
+                               , AttributeInsertionProxy<CompoundT>
+                               >::type &
+        attr(const char * name) {
+            #if 1
+            throw std::runtime_error("TODO: variant spec");
+            #else
+            hdql_ValueTypes * vts = hdql_context_get_types(&_context);
+            assert(vts);
+            auto typeInfo = helpers::IFace<ptr, void>::type_info(vts, _compounds);
+            auto iface = helpers::IFace<ptr, void>::iface();
+            hdql_AttrDef * ad = helpers::IFace<ptr, void>::create_attr_def(
+                          &typeInfo
+                        , &iface
+                        , 0x0
+                        , nullptr
+                        , &_context
+                    );
+            int rc = hdql_compound_add_attr( &_compound
+                                  , name
+                                  , ad
+                    );
+            if(HDQL_ERR_CODE_OK == rc) return *this;
+            char errbf[128];
+            snprintf(errbf, sizeof(errbf), "Failed to add attribute \"%s\": %d"
+                    , name, rc);
+            throw std::runtime_error(errbf);
+            #endif
+        }
 
+        /// Collections with selection
         template<auto ptr, typename SelectionT=void>
         typename std::enable_if< helpers::IFace<ptr, SelectionT>::isCollection
                                , AttributeInsertionProxy<CompoundT>

@@ -190,6 +190,7 @@ void hdql_attr_def_set_transient(struct hdql_AttrDef *
 
 bool hdql_attr_def_is_atomic(hdql_AttrDef_t);
 bool hdql_attr_def_is_compound(hdql_AttrDef_t);
+bool hdql_attr_def_is_union(hdql_AttrDef_t);
 bool hdql_attr_def_is_scalar(hdql_AttrDef_t);
 bool hdql_attr_def_is_collection(hdql_AttrDef_t);
 bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);

@@ -10,6 +10,10 @@
 #include <string.h>
 #include <assert.h>
 
+#define _M_HDQL_LAYOUT_ATOMIC   0x1
+#define _M_HDQL_LAYOUT_COMPOUND 0x2
+#define _M_HDQL_LAYOUT_UNION    0x3
+
 /**\brief Compound's attribute definition descriptor
  *
  * The *attribute definition* in HDQL is a special descriptive object, defining
@@ -19,13 +23,17 @@
  * this attribute definitions (see `hdql_Compound`).
  *
  * In terms of data access interface may define either:
- *  - (if `isAtomic` is set) -- atomic attribute, i.e. attribute of simple
+ *  - (if `layout` is 0x1) -- atomic attribute, i.e. attribute of simple
  *    arithmetic type; `typeInfo.atomic` struct instance defines
  *    data access interface
- *  - (if `isAtomic` is not set) -- a compound attribute, i.e. attribute
+ *  - (if `layout` is 0x2) -- a compound attribute, i.e. attribute
  *    consisting of multiple attributes (atomic or compounds);
  *    `typeInfo.compound` shall be used to access the data in term of
  *    sub-attributes.
+ *  - (if `layout` is 0x3) -- a union attribute, i.e. attribute
+ *    to one of optional items (atomic or compounds);
+ *    `typeInfo.compound` shall be used to access the data in term of
+ *    options, but only one of its AD is set at a time.
  *  - (if `isFwdQuery` is set) -- value retrieved using collection interface
  *    based on query object provided instead of atomic or compound interface
  * In terms of how the data is associated to owning object:
@@ -52,7 +60,7 @@
 struct hdql_AttrDef {
     /** If set, it attribute is of atomic type (int, float, etc), otherwise 
      * it is a compound */
-    unsigned int isAtomic:1;
+    unsigned int layout:2;
     /** If set, attribute is collection of values indexed by certain key,
      * otherwise it is a scalar (a single value) */
     unsigned int isCollection:1;
@@ -116,7 +124,7 @@ hdql_attr_def_create_atomic_scalar(
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
-    ad->isAtomic         = 0x1;
+    ad->layout           = _M_HDQL_LAYOUT_ATOMIC;
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
@@ -157,7 +165,7 @@ hdql_attr_def_create_atomic_collection(
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
-    ad->isAtomic         = 0x1;
+    ad->layout           = _M_HDQL_LAYOUT_ATOMIC;
     ad->isCollection     = 0x1;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
@@ -198,7 +206,7 @@ hdql_attr_def_create_compound_scalar(
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
-    ad->isAtomic         = 0x0;
+    ad->layout           = _M_HDQL_LAYOUT_COMPOUND;
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
@@ -239,7 +247,7 @@ hdql_attr_def_create_compound_collection(
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
-    ad->isAtomic         = 0x0;
+    ad->layout           = _M_HDQL_LAYOUT_COMPOUND;
     ad->isCollection     = 0x1;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x0;
@@ -283,7 +291,7 @@ hdql_attr_def_create_fwd_query(
 
     /* atomic/collection flags are inherited from what the fwded
      * query is supposed to fetch */
-    ad->isAtomic         = hdql_attr_def_is_atomic(fwdAD) ? 0x1 : 0x0;
+    ad->layout           = fwdAD->layout;
     ad->isCollection     = isFullyScalar ? 0x0 : 0x1;
     /* ^^^ we check here the full chain and consider
      *     fwd query as a scalar only if all the chained queries results in
@@ -337,7 +345,7 @@ hdql_attr_def_create_static_atomic_scalar_value(
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
-    ad->isAtomic         = 0x1;
+    ad->layout           = _M_HDQL_LAYOUT_ATOMIC;
     ad->isCollection     = 0x0;
     ad->isFwdQuery       = 0x0;
     ad->staticValueFlags = 0x1;  /* 0x1 means "const extern value" */
@@ -372,7 +380,12 @@ hdql_attr_def_create_dynamic_value(
         , void * userdata
         , hdql_Context_t
         ) {
+    #ifndef NDEBUG
     assert(0);  // TODO
+    #else
+    fputs("HDQL TODO: create dynamic value\n", stderr);
+    exit(1);
+    #endif
 }
 
 void
@@ -386,15 +399,21 @@ hdql_attr_def_set_transient(struct hdql_AttrDef * ad
 bool
 hdql_attr_def_is_atomic(const hdql_AttrDef_t ad) {
     if(ad->isFwdQuery) return false;
-    /* if(0x0 != ad->staticValueFlags) return false;  XXX ?! */
-    return ad->isAtomic;
+    return ad->layout == _M_HDQL_LAYOUT_ATOMIC;
 }
 
 bool
 hdql_attr_def_is_compound(const hdql_AttrDef_t ad) {
     if(ad->isFwdQuery) return false;
     if(0x0 != ad->staticValueFlags) return false;
-    return !ad->isAtomic;
+    return ad->layout == _M_HDQL_LAYOUT_COMPOUND;
+}
+
+bool
+hdql_attr_def_is_union(const hdql_AttrDef_t ad) {
+    if(ad->isFwdQuery) return false;
+    if(0x0 != ad->staticValueFlags) return false;
+    return ad->layout == _M_HDQL_LAYOUT_UNION;
 }
 
 bool hdql_attr_def_is_scalar(hdql_AttrDef_t ad) { return !ad->isCollection; }
@@ -406,7 +425,7 @@ bool hdql_attr_def_is_transient(hdql_AttrDef_t ad) { return ad->isTransient; }
 
 hdql_ValueTypeCode_t
 hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t ad) {
-    assert(ad->isAtomic || 0x0 != ad->staticValueFlags);  // unguarded type code
+    assert(ad->layout == _M_HDQL_LAYOUT_ATOMIC || 0x0 != ad->staticValueFlags);  // unguarded type code
     return ad->typeInfo.atomic.arithTypeCode;
 }
 
@@ -417,7 +436,7 @@ hdql_attr_def_get_key_type_code(const hdql_AttrDef_t ad) {
 
 const struct hdql_AtomicTypeFeatures *
 hdql_attr_def_atomic_type_info(const hdql_AttrDef_t ad) {
-    assert(ad->isAtomic);
+    assert(ad->layout == _M_HDQL_LAYOUT_ATOMIC);
     assert(!ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
     return &ad->typeInfo.atomic;
@@ -425,7 +444,7 @@ hdql_attr_def_atomic_type_info(const hdql_AttrDef_t ad) {
 
 const struct hdql_Compound *
 hdql_attr_def_compound_type_info(const hdql_AttrDef_t ad) {
-    assert(!ad->isAtomic);
+    assert(ad->layout == _M_HDQL_LAYOUT_COMPOUND);
     assert(!ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
     return ad->typeInfo.compound;
@@ -550,9 +569,12 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
               ? " query result of query forwarding to "
               : ( hdql_attr_def_is_atomic(subj)
                 ? " of atomic type"
-                : ( hdql_compound_is_virtual(hdql_attr_def_compound_type_info(subj))
-                  ? " of virtual compound type"
-                  : " of compound type"
+                : ( hdql_attr_def_is_compound(subj)
+                  ? ( hdql_compound_is_virtual(hdql_attr_def_compound_type_info(subj))
+                    ? " of virtual compound type"
+                    : " of compound type"
+                    )
+                  : " of union type"
                   )
                 )
             );
@@ -592,16 +614,17 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
         } else {
             _M_pr("?%p?", subj);
         }
-    } else {
+    } else if(hdql_attr_def_is_compound(subj)) {
         char buf[256];
         hdql_compound_get_full_type_str(hdql_attr_def_compound_type_info(subj), buf, sizeof(buf));
         // query 0x23fff34 is "[static ](collection|scalar) of [virtual] compound type [based on] <%s>"
-        _M_pr("<%s>", buf
-                //, hdql_compound_is_virtual(hdql_attr_def_compound_type_info(q->subject))
-                //? "based on "
-                //: ""
-                //, hdql_compound_get_name(hdql_attr_def_compound_type_info(q->subject))
-            );
+        _M_pr("<%s>", buf);
+    } else {
+        assert(hdql_attr_def_is_union(subj));
+        char buf[256];
+        hdql_union_get_full_type_str(hdql_attr_def_union_type_info(subj), buf, sizeof(buf));
+        // query 0x23fff34 is "[static ](collection|scalar) of union type <%s>"
+        _M_pr("<%s>", buf);
     }
     #undef _M_pr
     return 0;

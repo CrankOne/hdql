@@ -382,34 +382,37 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                 }
                 const struct hdql_CollectionAttrInterface * iface
                         = hdql_attr_def_collection_iface(attrDef);
-                if(!iface->compile_selection) {
-                    const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
-                    char buf[128];
-                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
+                hdql_SelectionArgs_t selection = NULL;
+                if($3.selectionExpression && '\0' != $3.selectionExpression[0]) {
+                    if(!iface->compile_selection) {
+                        const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
+                        char buf[128];
+                        hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
 
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "`%s:%s' does not support selection"
-                          " (can't compile selection expression \"%s\")"
-                        , buf, $2, $3);
-                    free($2);
-                    if($3.selectionExpression) free($3.selectionExpression);
-                    if($3.label)               free($3.label);
-                    return HDQL_BAD_QUERY_EXPRESSION;
-                }
-                hdql_SelectionArgs_t selection = iface->compile_selection($3.selectionExpression
-                            , iface->definitionData, ws->context );
-                if(NULL == selection) {
-                    const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
-                    char buf[128];
-                    hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "failed to translate selection expression \"%s\" of"
-                        " collection attribute %s::%s."
-                        , $3, buf, $2);
-                    free($2);
-                    if($3.selectionExpression) free($3.selectionExpression);
-                    if($3.label)               free($3.label);
-                    return HDQL_BAD_QUERY_EXPRESSION;
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "`%s::%s' does not support selection"
+                              " (can't compile selection expression \"%s\")"
+                            , buf, $2, $3);
+                        free($2);
+                        if($3.selectionExpression) free($3.selectionExpression);
+                        if($3.label)               free($3.label);
+                        return HDQL_BAD_QUERY_EXPRESSION;
+                    }
+                    selection = iface->compile_selection($3.selectionExpression
+                                , iface->definitionData, ws->context );
+                    if(NULL == selection) {
+                        const struct hdql_Compound * topCompound = hdql_parser_top_compound(ws);
+                        char buf[128];
+                        hdql_compound_get_full_type_str(topCompound, buf, sizeof(buf));
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "failed to translate selection expression \"%s\" of"
+                            " collection attribute %s::%s."
+                            , $3, buf, $2);
+                        free($2);
+                        if($3.selectionExpression) free($3.selectionExpression);
+                        if($3.label)               free($3.label);
+                        return HDQL_BAD_QUERY_EXPRESSION;
+                    }
                 }
                 free($2);
                 if($3.selectionExpression) free($3.selectionExpression);
@@ -462,7 +465,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 
                 const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(attrDef);
                 hdql_SelectionArgs_t selection = NULL;
-                if('\0' != *$4.selectionExpression) {
+                if($4.selectionExpression && '\0' != *$4.selectionExpression) {
                     if(!iface->compile_selection) {
                         M_TOP_COMPOUND_NAME($1, buf);
                         hdql_error(&yyloc, ws, yyscanner

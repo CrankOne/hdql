@@ -918,8 +918,13 @@ class CompoundTypes : public Compounds {
             , _context(context)
             {}
     public:
+        // method used for collection attributes (SFINAE)
         template<auto ptr, typename SelectionT=void>
-        typename std::enable_if<helpers::IFace<ptr, SelectionT>::isCollection, AttributeInsertionProxy<CompoundT>>::type &
+        typename std::enable_if< helpers::IFace< ptr
+                                    , SelectionT
+                                    >::isCollection
+                               , AttributeInsertionProxy<CompoundT>
+                               >::type &
         attr(const char * name) {
             hdql_ValueTypes * vts = hdql_context_get_types(&_context);
             assert(vts);
@@ -938,7 +943,7 @@ class CompoundTypes : public Compounds {
                           &typeInfo
                         , &iface
                         , keyTypeCode
-                        , nullptr
+                        , nullptr  // no special callback for key reserve
                         , &_context
                     );
             int rc = hdql_compound_add_attr( &_compound
@@ -952,6 +957,7 @@ class CompoundTypes : public Compounds {
             throw std::runtime_error(errbf);
         }
 
+        // method used for scalar attributes (SFINAE)
         template<auto ptr>
         typename std::enable_if< !helpers::IFace<ptr, void>::isCollection
                                , AttributeInsertionProxy<CompoundT>
@@ -979,6 +985,8 @@ class CompoundTypes : public Compounds {
             throw std::runtime_error(errbf);
         }
 
+        // Method used for collection attributes (SFINAE) with custom key
+        // reserve function
         template<auto ptr, typename SelectionT=void>
         typename std::enable_if< helpers::IFace<ptr, SelectionT>::isCollection
                                , AttributeInsertionProxy<CompoundT>

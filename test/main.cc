@@ -49,6 +49,8 @@ test_query_on_data( int nSample, const char * expression ) {
     }
     // add standard functions
     hdql_functions_add_standard_math(hdql_context_get_functions(ctx));
+    // add standard math constants
+    hdql_constants_define_standard_math(hdql_context_get_constants(ctx));
     // add standard type conversions
     hdql_converters_add_std(hdql_context_get_conversions(ctx), hdql_context_get_types(ctx));
 

@@ -159,6 +159,9 @@ hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
 enum hdql_ExternValueType
 hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
 
+int
+hdql_constants_define_standard_math(struct hdql_Constants *);
+
 /*                                                    ________________________
  * _________________________________________________/ External dynamic values
  */

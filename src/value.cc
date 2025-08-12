@@ -14,6 +14,8 @@
 #include <string>
 #include <cstring>
 
+#include <cmath>
+
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
 #   include <gtest/gtest.h>
 #endif
@@ -659,3 +661,18 @@ _hdql_constants_destroy(struct hdql_Constants * consts, struct hdql_Context * ct
     if(NULL == consts || NULL == ctx) return;
     delete consts;
 }
+
+int
+hdql_constants_define_standard_math(struct hdql_Constants * consts) {
+    assert(consts);
+    int rc;
+
+    rc = hdql_constants_define_float(consts, "pi", M_PI);
+    if(rc!= HDQL_ERR_CODE_OK) return rc;
+
+    rc = hdql_constants_define_float(consts, "e", M_E);
+    if(rc!= HDQL_ERR_CODE_OK) return rc;
+
+    return HDQL_ERR_CODE_OK;
+}
+

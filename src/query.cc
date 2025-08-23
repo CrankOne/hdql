@@ -79,7 +79,9 @@ struct QueryState {
  * */
 template<typename SelectionItemT>
 struct Query : public SelectionItemT {
-    Query * next;
+    Query * next
+        , * prev
+        ;
     hdql_Datum_t result;
 
     Query( const hdql_AttrDef * subject_
@@ -152,11 +154,15 @@ struct hdql_Query : public hdql::Query<hdql::QueryState> {
     char * label;
     hdql_Query( const hdql_AttrDef * subject_
               , const hdql_SelectionArgs_t selexpr_
+              , unsigned int relativeLevel=0
               ) : hdql::Query<hdql::QueryState>( subject_
-                                              , selexpr_
-                                              )
+                                               , selexpr_
+                                               //, relativeLevel
+                                               )
                 , label(nullptr)
-                {}
+                {
+        assert(relativeLevel == 0);  // TODO: support lookbehind query
+    }
 };
 
 namespace hdql {
@@ -339,6 +345,17 @@ hdql_query_create(
         ) {
     hdql_Datum_t bf = hdql_context_alloc(ctx, sizeof(hdql_Query));
     return new (bf) hdql_Query( attrDef, selArgs );
+}
+
+extern "C" hdql_Query *
+hdql_query_create_lookbehind(
+          const struct hdql_AttrDef * attrDef
+        , hdql_SelectionArgs_t selArgs
+        , hdql_Context_t ctx
+        , unsigned int relativeLevel
+        ) {
+    hdql_Datum_t bf = hdql_context_alloc(ctx, sizeof(hdql_Query));
+    return new (bf) hdql_Query( attrDef, selArgs, relativeLevel );
 }
 
 extern "C" hdql_Datum_t

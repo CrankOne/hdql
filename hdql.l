@@ -71,6 +71,7 @@ identifier  {L}({L}|{D})*
 "<<="           {return T_LBSHIFTE;}
 ","             {return T_COMMA;}
 "."             {return T_PERIOD;}
+"@"             {return T_AT;}
 ([[:digit:]]{-}[0])[[:digit:]]*       {   char * endptr;
                     long val = strtol( yytext, &endptr, 0 );
                     int ec = errno;

@@ -45,6 +45,14 @@ hdql_query_create(
         , hdql_Context_t ctx
         );
 
+struct hdql_Query *
+hdql_query_create_lookbehind(
+          const struct hdql_AttrDef * attrDef
+        , hdql_SelectionArgs_t selArgs
+        , hdql_Context_t ctx
+        , unsigned int
+        );
+
 const struct hdql_AttrDef *
 hdql_query_get_subject( const struct hdql_Query * );
 

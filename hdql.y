@@ -130,6 +130,7 @@ hdql_error( YYLTYPE * yylloc
 int _push_cmpd(struct Workspace *, const struct hdql_Compound * cmpd);
 int _pop_cmpd(struct Workspace *);
 const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
+const struct hdql_Compound * hdql_parser_parent_compound(struct Workspace * ws, int N);
 
 }
 
@@ -154,7 +155,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token T_AMP "&" T_PIPE "|" T_CAP "^"
 %token T_INCREMENT "++" T_DECREMENT "--"
 %token T_PLUSE "+=" T_MINUSE "-=" T_RBSHIFTE ">>=" T_LBSHIFTE "<<="
-%token T_SEMICOLON T_COMMA "," T_PERIOD "."
+%token T_SEMICOLON T_COMMA "," T_PERIOD "." T_AT "@"
 
 %token UNARYMINUS "unary minus (-)"
 %token T_INVALID_LITERAL "invalid literal"
@@ -546,6 +547,28 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                      * operator */
                     $$ = scopeQuery;
                 }
+            | T_AT T_PERIOD T_IDENTIFIER {  /* query to parent compound */
+                const struct hdql_Compound * c = hdql_parser_parent_compound(ws, 1);
+                assert(c);  /* TODO */
+                const struct hdql_AttrDef * attrDef = hdql_compound_get_attr(
+                    c, $3 );
+                if(NULL == attrDef) {
+                    if(!hdql_compound_is_virtual(c)) {
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "type `%s' has no attribute \"%s\""
+                            , hdql_compound_get_name(c), $3);
+                    } else {
+                        hdql_error(&yyloc, ws, yyscanner
+                            , "virtual compound based on type `%s' has no attribute \"%s\""
+                            , hdql_compound_get_name(hdql_virtual_compound_get_parent(c)), $3);
+                    }
+                    free($3);
+                    return HDQL_ERR_UNKNOWN_ATTRIBUTE;
+                }
+                $$ = hdql_query_create_lookbehind( attrDef, NULL, ws->context, 1);
+                free($3);
+                assert($$);
+            }
             ;
 
 scopedDefs : vCompoundDef {
@@ -695,6 +718,18 @@ const struct hdql_Compound *
 hdql_parser_top_compound(struct Workspace * ws) {
     assert(ws->compoundStack[ws->compoundStackTop].compoundPtr);
     return ws->compoundStack[ws->compoundStackTop].compoundPtr;
+}
+
+const struct hdql_Compound *
+hdql_parser_parent_compound(struct Workspace * ws, int N) {
+    if(N < 0 && -N > ws->compoundStackTop) {
+        return NULL;  /* requested N-th from bgn, has only ws->compoundStackTop */
+    }
+    if(N > ws->compoundStackTop) {
+        return NULL;  /* requested N-th (grand)parent, has only ws->compoundStackTop */
+    }
+    assert(ws->compoundStack[ws->compoundStackTop-N].compoundPtr);
+    return ws->compoundStack[ws->compoundStackTop-N].compoundPtr;
 }
 
 /* An utility function: resolves query list till the topmost compound,

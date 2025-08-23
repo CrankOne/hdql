@@ -138,6 +138,7 @@ _arith_op_collection_reset( hdql_It_t it_
                                      , NULL
                                      , ctx );
             if(NULL == state->b) state->isExhausted = true;
+            else state->isExhausted = false;
         }
     } else {
         assert(state->advance == _advance_b);
@@ -145,6 +146,7 @@ _arith_op_collection_reset( hdql_It_t it_
                                  , NULL
                                  , ctx );
         if(NULL == state->a) state->isExhausted = true;
+        else state->isExhausted = true;
     }
     state->advance(state);
     return (hdql_It_t) state;

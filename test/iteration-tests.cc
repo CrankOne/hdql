@@ -624,7 +624,8 @@ TEST_F(TestingEventStruct, iterationWorksOnDifferentLevelsOfRootObject) {
                 if( keysView.interface->get_as_int(keysView.keyPtr->pl.datum) != expectedQueryResults[i].key
                  ) continue;
                 found = true;
-                EXPECT_FALSE(expectedQueryResults[i].visited);
+                EXPECT_FALSE(expectedQueryResults[i].visited)
+                    << "Item is visited again: id=" << expectedQueryResults[i].key;
                 expectedQueryResults[i].visited = true;
                 break;
             }

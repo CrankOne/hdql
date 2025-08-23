@@ -21,6 +21,7 @@ fill_data_sample_1( Event & ev ) {
                        , h4 = std::make_shared<Hit>(Hit{ 4, 5, 6.7, 8.9, 0.5, /*no raw data*/})
                        , h5 = std::make_shared<Hit>(Hit{ 5, 6, 7.8, 9.0, 1.2, rawData5})
                        ;
+    ev.hits.clear();
     ev.hits.emplace(101, h1);
     ev.hits.emplace(102, h2);
     ev.hits.emplace(103, h3);
@@ -42,6 +43,7 @@ fill_data_sample_1( Event & ev ) {
     t3->hits.emplace(202, h4);
     t3->hits.emplace(301, h5);
 
+    ev.tracks.clear();
     ev.tracks.push_back(t1);
     ev.tracks.push_back(t2);
     ev.tracks.push_back(t3);
@@ -76,6 +78,7 @@ fill_data_sample_2( Event & ev ) {
                          , t3 = std::make_shared<Track>(Track{12.0, 1, 0.001 })
                          ;
 
+    ev.hits.clear();
     // t1 uses two early hits + one later hit
     t1->hits.emplace(401, h10);
     t1->hits.emplace(402, h11);
@@ -88,6 +91,7 @@ fill_data_sample_2( Event & ev ) {
     t3->hits.emplace(501, h13);
     // note: t3 intentionally does not include h14 to keep sets disjoint
 
+    ev.tracks.clear();
     ev.tracks.push_back(t1);
     ev.tracks.push_back(t2);
     ev.tracks.push_back(t3);
@@ -123,6 +127,7 @@ fill_data_sample_3( Event & ev ) {
                          , tD = std::make_shared<Track>(Track{ 1.0, 1, 0.20 })
                          ;
 
+    ev.hits.clear();
     // tA: three consecutive hits
     tA->hits.emplace(10, h20);
     tA->hits.emplace(11, h21);
@@ -136,6 +141,7 @@ fill_data_sample_3( Event & ev ) {
     // tD: the last hit only
     tD->hits.emplace(99, h24);
 
+    ev.tracks.clear();
     ev.tracks.push_back(tA);
     ev.tracks.push_back(tB);
     ev.tracks.push_back(tC);

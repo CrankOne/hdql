@@ -607,22 +607,23 @@ TEST_F(TestingEventStruct, iterationWorksOnDifferentLevelsOfRootObject) {
     hdql_KeyView keysView;
     hdql_keys_flat_view_update(q, keys, &keysView, _compounds.context_ptr());
     
-    hdql::test::Event ev;
     typedef void (*FillSampleCallback_t)(hdql::test::Event &);
     FillSampleCallback_t fs[] = { &hdql::test::fill_data_sample_1
-                , &hdql::test::fill_data_sample_2
-                , &hdql::test::fill_data_sample_3};
-    for(int i = 0; i < 3; ++i) {
-        fs[i](ev);
+                                , &hdql::test::fill_data_sample_2
+                                , &hdql::test::fill_data_sample_3
+                                };
+    for(int nExample = 0; nExample < 3; ++nExample) {
+        hdql::test::Event ev;
+        fs[nExample](ev);
         int rc = hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
         ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
         while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
             // locate and mark as visited, assuring it was not visited before
             bool found = false;
             ASSERT_TRUE(keysView.interface->get_as_int);
+            auto keyAsInt = keysView.interface->get_as_int(keysView.keyPtr->pl.datum);
             for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-                if( keysView.interface->get_as_int(keysView.keyPtr->pl.datum) != expectedQueryResults[i].key
-                 ) continue;
+                if(keyAsInt != expectedQueryResults[i].key) continue;
                 found = true;
                 EXPECT_FALSE(expectedQueryResults[i].visited)
                     << "Item is visited again: id=" << expectedQueryResults[i].key;

@@ -67,6 +67,7 @@ fill_data_sample_2( Event & ev ) {
                        , h14 = std::make_shared<Hit>(Hit{14, 24, 3.1, 4.1, 5.9, rawData5})
                        ;
 
+    ev.hits.clear();
     ev.hits.emplace(401, h10);
     ev.hits.emplace(402, h11);
     ev.hits.emplace(450, h12);
@@ -78,7 +79,6 @@ fill_data_sample_2( Event & ev ) {
                          , t3 = std::make_shared<Track>(Track{12.0, 1, 0.001 })
                          ;
 
-    ev.hits.clear();
     // t1 uses two early hits + one later hit
     t1->hits.emplace(401, h10);
     t1->hits.emplace(402, h11);
@@ -115,6 +115,7 @@ fill_data_sample_3( Event & ev ) {
                        , h24 = std::make_shared<Hit>(Hit{10, 11,  5.5,  6.6,  7.7, rawData5})
                        ;
 
+    ev.hits.clear();
     ev.hits.emplace( 10, h20);
     ev.hits.emplace( 11, h21);
     ev.hits.emplace( 12, h22);
@@ -127,8 +128,8 @@ fill_data_sample_3( Event & ev ) {
                          , tD = std::make_shared<Track>(Track{ 1.0, 1, 0.20 })
                          ;
 
-    ev.hits.clear();
     // tA: three consecutive hits
+    tA->hits.clear();
     tA->hits.emplace(10, h20);
     tA->hits.emplace(11, h21);
     tA->hits.emplace(12, h22);

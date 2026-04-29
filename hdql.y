@@ -21,10 +21,10 @@ struct hdql_AnnotatedSelection {
 typedef struct Workspace {
     struct {
         const struct hdql_Compound * compoundPtr;
-        char * newAttributeName;
+        char * newAttributeName;  /* XXX, unused */
+        unsigned int posCompoundNArg;
     } compoundStack[HDQL_COMPOUNDS_STACK_MAX_DEPTH];
     unsigned char compoundStackTop;
-    unsigned int posCompoundNArg;
     struct hdql_Context * context;
     struct hdql_Query * query;
     /* shortcuts */
@@ -587,6 +587,10 @@ vNamedCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 $$.compoundPtr = nvc;
             }
             | vNamedCompoundDef T_COMMA {
+                /* TODO: forgot, why we needed mid-rule action here. This is
+                 * porably related to define nested v-compounds, yet in principle,
+                 * compound stack push/pop should do this for us. See also same
+                 * note for vPositionalCompoundDef */
                 ws->compoundStack[ws->compoundStackTop].compoundPtr = $1.compoundPtr;
             } T_IDENTIFIER T_WALRUS aQExpr {
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
@@ -600,14 +604,15 @@ vPositionalCompoundDef : aQExpr {
                 char * attrName = strdup("#1");
                 struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, attrName, $1);
                 if(!nvc) { free(attrName); return HDQL_BAD_QUERY_EXPRESSION; }
-                ws->posCompoundNArg = 2;
+                ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 2;
                 $$.compoundPtr = nvc;
             }
             | vPositionalCompoundDef T_COMMA {
+                /* TODO: see same example for vNamedCompoundDef */
                 ws->compoundStack[ws->compoundStackTop].compoundPtr = $1.compoundPtr;
             } aQExpr {
                 char bf[32];
-                snprintf(bf, sizeof(bf), "#%u", ws->posCompoundNArg++);
+                snprintf(bf, sizeof(bf), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
                 char * attrName = strdup(bf);
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
                             , $1.compoundPtr, attrName, $4);
@@ -750,10 +755,12 @@ static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx
  *  
  * up to the closing `}' virtual compound has been composed already, we shall
  * provide the parser with query node attributed to this v-compound in order
- * it will be capable to resolve `.e'. Note, this query is always a scalar
- * instance (there is no way in HDQL currently to "split" single instance into
- * a collection of items within the "scope operator"). This scalar is optional
- * as filtering expression can result of the instance to be declined. */
+ * it will be capable to resolve `.e'.
+ *
+ * XXX Note, this query is always a scalar
+ * XXX instance (there is no way in HDQL currently to "split" single instance into
+ * XXX a collection of items within the "scope operator"). This scalar is optional
+ * XXX as filtering expression can result of the instance to be declined. */
 static struct hdql_Query *
 _new_virtual_compound_query( YYLTYPE * yylloc
                            , Workspace_t ws
@@ -761,21 +768,41 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Compound * vCompoundPtr
                            , struct hdql_Query * filterQuery
                            ) {
-    struct hdql_ScalarAttrInterface iface;
-    if(NULL == filterQuery) {
-        bzero(&iface, sizeof(iface));
-        iface.dereference = _trivial_dereference;
-    } else {
-        iface = _hdql_gFilteredCompoundIFace;
-        iface.definitionData = (hdql_Datum_t) filterQuery;
-    }
-    struct hdql_AttrDef * vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
+    struct hdql_AttrDef * vCompoundAttrDef;
+    #if 1
+        struct hdql_ScalarAttrInterface iface;
+        if(NULL == filterQuery) {
+            bzero(&iface, sizeof(iface));
+            iface.dereference = _trivial_dereference;
+        } else {
+            iface = _hdql_gFilteredCompoundIFace;
+            iface.definitionData = (hdql_Datum_t) filterQuery;
+        }
+        vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
                   vCompoundPtr  /* ... compound ptr */
                 , &iface  /* ......... scalar iface ptr */
                 , 0x0  /* ............ key type code */
                 , NULL  /* ........... key copy callback */
                 , ws->context  /* .... context */
                 );
+    #else
+        struct hdql_CollectionAttrInterface iface;
+        if(NULL == filterQuery) {
+            bzero(&iface, sizeof(iface));
+            iface.dereference = _trivial_dereference;
+        } else {
+            iface = ;  // TODO
+            iface.definitionData = (hdql_Datum_t) filterQuery;
+        }
+        vCompoundAttrDef = hdql_attr_def_create_compound_collection(
+                  vCompoundPtr  /* ... compound ptr */
+                , &iface  /* ......... scalar iface ptr */
+                , 0x0  /* ............ key type code */
+                , NULL  /* ........... key copy callback */
+                , ws->context  /* .... context */
+                );
+        // ...
+    #endif
     if(NULL == filterQuery) {
         hdql_attr_def_set_transient(vCompoundAttrDef, NULL);
     } else {

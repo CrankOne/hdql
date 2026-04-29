@@ -7,7 +7,7 @@ D           [0-9]
 L           [a-zA-Z_\\]
 UL          [A-Z_]
 DTNAME      {UL}
-identifier  {L}({L}|{D})*
+identifier  (({L}({L}|{D})*)|(#{D}+))
 
 %{
 #include <stdio.h>
@@ -71,6 +71,7 @@ identifier  {L}({L}|{D})*
 "<<="           {return T_LBSHIFTE;}
 ","             {return T_COMMA;}
 "."             {return T_PERIOD;}
+"@"             {return T_AT; }
 ([[:digit:]]{-}[0])[[:digit:]]*       {   char * endptr;
                     long val = strtol( yytext, &endptr, 0 );
                     int ec = errno;

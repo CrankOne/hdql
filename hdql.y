@@ -269,7 +269,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             }
             | argsList T_COMMA aQExpr
             {
-                $$->nextArgument = (struct hdql_FuncArgList*)
+                $$ = (struct hdql_FuncArgList*)
                         malloc(sizeof(struct hdql_FuncArgList));
                 $$->thisArgument = $3;
                 $$->nextArgument = $1;

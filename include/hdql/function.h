@@ -32,8 +32,10 @@ struct hdql_Functions;
 /**\brief Constructor instantiating function object for given queries 
  *
  * Shall return either a pointer to attribute definition performing certain
- * function call, or a null pointer. In the latter case, may set a message
- * in the given buffer explaining why failure reason. */
+ * function call, or a null pointer when this is not possible. In the latter
+ * case, may set a message in the given buffer explaining failure
+ * reason (legitimate way to deny function instantiation for overridden
+ * functions). */
 typedef struct hdql_AttrDef * (*hdql_FunctionConstructor_t)(
           struct hdql_Query ** args, void * userdata
         , char * failureBuffer
@@ -60,11 +62,21 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
 int
 hdql_functions_add_standard_math(struct hdql_Functions * functions);
 
-#if 0
-
 /*
  * Some common implementations
  */
+
+/**\brief Cartesian product function
+ *
+ * Results in a virtual compound with sub-queries matching exactly their
+ * collections
+ * */
+//struct hdql_AttrDef *
+//hdql_func_helper__try_instantiate_cartesian_product(struct hdql_Query **, void *
+//        , char * errbf, size_t errbfSize
+//        , hdql_Context_t);
+
+#if 0
 
 /**\brief Common constructor for single-argument math functions
  *

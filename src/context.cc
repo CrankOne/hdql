@@ -14,8 +14,6 @@
 #include <cstdarg>
 #include <unordered_map>
 
-#include <iostream>  // XXX
-
 // These functions are not defined in public headers, but still implemented
 
 // from src/values.cc:

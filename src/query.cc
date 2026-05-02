@@ -312,8 +312,9 @@ QueryState::reset( hdql_Datum_t newOwner
                         , ctx
                         );
                 if(NULL == state.scalar.dynamicSuppData) {
-                    throw std::runtime_error("Failed to instantiate"
-                            " access state object for scalar attribute");
+                    throw std::runtime_error("failed to instantiate"
+                            " access state object for scalar attribute"
+                            " (interface's instantiate() returned NULL)");
                 }
             }
             assert(iface->reset);  // provided `instantiate()`, but no `reset()`?
@@ -366,7 +367,7 @@ hdql_query_reset( struct hdql_Query * query
         query->reset(owner, ctx);
     } catch(std::runtime_error & e) {
         hdql_context_err_push(ctx, HDQL_ERR_BAD_QUERY_STATE
-                , "Can't re-set the query: %s", e.what());
+                , "can't re-set the query: %s", e.what());
         return HDQL_ERR_BAD_QUERY_STATE;
     }
     return HDQL_ERR_CODE_OK;
@@ -459,10 +460,11 @@ hdql_query_dump( FILE * outf
                ) {
     int rc;
     char buf[1024];
-    for(; q; q = static_cast<hdql_Query *>(q->next)) {
+    int nQ = 1;
+    for(; q; q = static_cast<hdql_Query *>(q->next), ++nQ) {
         rc = hdql_top_attr_str(q->subject, buf, sizeof(buf), context);
         if(0 != rc) return;
-        fputs(" * ", outf);
+        fprintf(outf, " %d) ", nQ);
         fputs(buf, outf);
         fputc('\n', outf);
     }

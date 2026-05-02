@@ -265,6 +265,7 @@ _hdql_reserve_keys_list_for_fwd_query(
 }
 
 static void _transient_dtr__fwd_query(hdql_Datum_t d, hdql_Context_t ctx) {
+    /* TODO: bound queries are special */
     if(d) {
         hdql_query_destroy((struct hdql_Query *) d, ctx);
     }
@@ -274,10 +275,19 @@ struct hdql_AttrDef *
 hdql_attr_def_create_fwd_query(
           struct hdql_Query * subquery
         , hdql_Context_t context
+        , int * rc
         ) {
+    assert(rc);
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
+    if(!ad) {
+        *rc = HDQL_ERR_MEMORY;
+        return NULL;
+    }
     const struct hdql_AttrDef * fwdAD = hdql_query_top_attr(subquery);
     bool isFullyScalar = hdql_query_is_fully_scalar(subquery);
+    /* ^^^ here we check here the full chain and consider
+     *     fwd query as a scalar only if all the chained queries results in
+     *     a scalar values */
 
     bzero((void*) ad, sizeof(struct hdql_AttrDef));
 
@@ -285,9 +295,6 @@ hdql_attr_def_create_fwd_query(
      * query is supposed to fetch */
     ad->isAtomic         = hdql_attr_def_is_atomic(fwdAD) ? 0x1 : 0x0;
     ad->isCollection     = isFullyScalar ? 0x0 : 0x1;
-    /* ^^^ we check here the full chain and consider
-     *     fwd query as a scalar only if all the chained queries results in
-     *     a scalar values */
     
     ad->isFwdQuery       = 0x1;
     ad->staticValueFlags = 0x0;
@@ -300,6 +307,7 @@ hdql_attr_def_create_fwd_query(
         ad->interface.collection = _hdql_gCollectionFwdQueryIFace;
         ad->interface.collection.definitionData = (hdql_Datum_t) subquery;
     }
+
     hdql_attr_def_set_transient(ad, _transient_dtr__fwd_query);
 
     ad->keyTypeCode = 0x0;
@@ -307,7 +315,6 @@ hdql_attr_def_create_fwd_query(
 
     return ad;
 }
-
 
 static hdql_Datum_t
 _static_atomic_scalar_dereference( hdql_Datum_t root
@@ -364,6 +371,46 @@ hdql_attr_def_create_static_atomic_scalar_value(
     return ad;
 }
 
+struct hdql_AttrDef *
+hdql_attr_def_create_bound(
+          struct hdql_Query * subquery
+        , hdql_Context_t context
+        , int * rc
+        ) {
+    assert(!hdql_query_is_fully_scalar(subquery));
+    *rc = 0;
+    const struct hdql_AttrDef * qTopAD = hdql_query_top_attr(subquery);
+    assert(qTopAD);
+    /* Bound attribute addresses external value provided by the query which is
+     * managed outside the compound this request is applied to. */
+    struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
+    if(!ad) {
+        *rc = HDQL_ERR_MEMORY;
+        return NULL;
+    }
+
+    /* `is-atomic' prop is inherited */
+    ad->isAtomic = qTopAD->isAtomic;
+    /* result is always a scalar */
+    ad->isCollection = 0x0;
+    /* static value is inherited (TODO: verify) */
+    ad->staticValueFlags = qTopAD->staticValueFlags;
+    /* always transient (TODO: implement dtr) */
+    ad->isTransient = 0x1;
+    ad->transient_dtr = NULL;  /* TODO: dtr should delete def data */
+    /* has no key (TODO: verify) */
+    ad->keyTypeCode = 0x0;
+    ad->reserveKeys = NULL;
+    /* inherit type info as is */
+    memcpy(&ad->typeInfo, &qTopAD->typeInfo, sizeof(qTopAD->typeInfo));
+
+    /* set interface to bound shim, initialized with query */
+    ad->interface.scalar = _hdql_gBoundQueryIFace;
+    ad->interface.scalar.definitionData
+        = hdql_bound_value_interface_definition_data_init(subquery, context);
+    
+    return ad;
+}
 
 struct hdql_AttrDef *
 hdql_attr_def_create_dynamic_value(
@@ -403,6 +450,20 @@ bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t ad) { return !ad->isFwdQuery; }
 bool hdql_attr_def_is_static_value(hdql_AttrDef_t ad) { return ad->staticValueFlags; }
 bool hdql_attr_def_is_transient(hdql_AttrDef_t ad) { return ad->isTransient; }
+
+bool hdql_attr_def_is_bound(hdql_AttrDef_t ad) {
+    if(!hdql_attr_def_is_scalar(ad)) return false;
+    /* ^^^ we do not have such thing as collection of collections in HDQL */
+    const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(ad);
+    /* TODO: can we have something more elegant than this here? */
+    if( iface->destroy == _hdql_gBoundQueryIFace.destroy ) {
+        assert(iface->instantiate == _hdql_gBoundQueryIFace.instantiate );
+        assert(iface->dereference == _hdql_gBoundQueryIFace.dereference );
+        assert(iface->reset       == _hdql_gBoundQueryIFace.reset       );
+        return true;
+    }
+    return false;
+}
 
 hdql_ValueTypeCode_t
 hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t ad) {

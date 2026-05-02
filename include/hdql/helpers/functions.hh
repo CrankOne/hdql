@@ -65,11 +65,11 @@ apply(RetT (*pf)(ArgsT...), struct hdql_Datum ** args) {
  *
  * Automatic implementation provided by this template is restricted with
  * following rules:
- *  - Number of arguments must be known
+ *  - Number of arguments must be fixed;
  *  - Considered C/C++ function should map N (N > 0) arguments of scalar atomic
- *    or non-virtual scalars into a scalar or non-virtual compound
+ *    or non-virtual scalars into a scalar or non-virtual compound.
  * Despite this is rather wide class of C/C++ functions (e.g. all maths,
- * trigonometric, etc), thisimplementation can be somewhat restrictive as it
+ * trigonometric, etc), this implementation can be somewhat restrictive as it
  * does not support variadic arguments, virtual compounds, etc.
  * */
 template<typename ResultT, typename ...ArgsT >

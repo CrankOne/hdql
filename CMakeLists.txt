@@ -40,6 +40,8 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
+                  src/ifaces/bound-value.c
+                  src/ifaces/bound-compound-collection.c
                   src/funcs/generic-logic.c
                   src/helpers/query.cc
                   src/helpers/query-results-handler.c

@@ -36,6 +36,9 @@ const struct hdql_Compound * hdql_virtual_compound_get_parent(const struct hdql_
 /**\brief Returns true if compound is virtual */
 int hdql_compound_is_virtual(const struct hdql_Compound * compound);
 
+/**\brief Returns true if virtual compound is bound */
+bool hdql_virtual_compound_is_bound(const struct hdql_Compound * compound);
+
 /**\brief Returns true if both compounds are of the same type */
 bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct hdql_Compound * compoundB);
 

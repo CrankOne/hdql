@@ -23,6 +23,7 @@
 #define HDQL_ERR_ATTR_FILTER              -16   /* filter can not be applied to result query of type */
 #define HDQL_ERR_FILTER_RET_TYPE          -17   /* filter query result type can not be evaluated to bool */
 #define HDQL_ERR_BAD_QUERY_STATE          -18   /* query instance is on unforeseen state */
+#define HDQL_ERR_NOT_A_COLLECTION         -19   /* query results in a scalar, collection expected */
 /* Arithmetic operations (definition or evaluation) errors */
 #define HDQL_ERR_OPERATION_NOT_SUPPORTED  -21   /* operation is not supported */
 #define HDQL_ERR_ARITH_OPERATION          -22   /* arithmetic operation error */

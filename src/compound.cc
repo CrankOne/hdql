@@ -78,6 +78,15 @@ hdql_compound_is_virtual(const hdql_Compound * compound) {
 }
 
 extern "C" bool
+hdql_virtual_compound_is_bound(const struct hdql_Compound * compound) {
+    for(auto & attrDef : compound->attrsByName ) {
+        if(hdql_attr_def_is_bound(attrDef.second))
+            return true;
+    }
+    return false;
+}
+
+extern "C" bool
 hdql_compound_is_same(const struct hdql_Compound * compoundA
         , const struct hdql_Compound * compoundB) {
     /* todo: reserved for further (possible) elaboration */

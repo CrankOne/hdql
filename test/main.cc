@@ -87,7 +87,7 @@ test_query_on_data( int nSample, const char * expression ) {
         free(expCpy);
     }
     assert(q);
-    puts("-- query composition:");
+    puts("-- query composition (final result goes last):");
     hdql_query_dump(stdout, q, ctx);
     const hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
     // iterate over query results
@@ -145,7 +145,7 @@ test_query_on_data( int nSample, const char * expression ) {
         }
         #endif
 
-        puts("-- query results:");
+        printf("-- sample #%d query results:", i);
         while(NULL != (r = hdql_query_get(q, keys, ctx))) {
             hadResult = true;
             if(flatKeyViewLength) {

@@ -842,7 +842,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                   vCompoundPtr  /* ... compound ptr */
                 , &iface  /* ......... collection iface ptr */
                 , 0x0  /* ............ key type code (TODO?) */
-                , NULL  /* ........... key copy callback (TODO?) */
+                , hdql_bound_compound_key_reserve  /* key reserve callback */
                 , ws->context  /* .... context */
                 );
         // ... TODO?

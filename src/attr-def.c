@@ -371,6 +371,7 @@ hdql_attr_def_create_static_atomic_scalar_value(
     return ad;
 }
 
+
 struct hdql_AttrDef *
 hdql_attr_def_create_bound(
           struct hdql_Query * subquery
@@ -398,7 +399,7 @@ hdql_attr_def_create_bound(
     /* always transient (TODO: implement dtr) */
     ad->isTransient = 0x1;
     ad->transient_dtr = NULL;  /* TODO: dtr should delete def data */
-    /* has no key (TODO: verify) */
+    /* attribute has no key  */
     ad->keyTypeCode = 0x0;
     ad->reserveKeys = NULL;
     /* inherit type info as is */
@@ -556,6 +557,8 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
                              ); 
         if(NULL == key->pl.keysList) return -1;
         key->isList = 0x1;
+        /* ^^^ we're in scalar AD, why do we assign a list flag here?!
+         *     this is sick... see issue #14 */
         return 0;
     }
     assert(0);  /* bad interface definition -- not a collection, nor a scalar */

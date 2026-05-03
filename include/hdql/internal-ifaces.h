@@ -64,7 +64,10 @@ hdql_Datum_t hdql_bound_compound_collection_interface_definition_data_init(
             , struct hdql_Query * filterQuery
             , hdql_Context_t context
         );
+
 void hdql_bound_compound_collection_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_t ctx);
+
+struct hdql_CollectionKey * hdql_bound_compound_key_reserve(const hdql_Datum_t defData_, hdql_Context_t ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

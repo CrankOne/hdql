@@ -224,3 +224,23 @@ hdql_compound_destroy(hdql_Compound * compound, hdql_Context_t context) {
     #endif
 }
 
+extern "C" size_t
+hdql_compound_for_each_own_attribute(const struct hdql_Compound * C
+        , int (*cllb)(const char *, size_t, const struct hdql_AttrDef *, void *)
+        , void * userdata) {
+    const size_t nAttrsOverall = hdql_compound_get_nattrs(C);
+    const char ** names = (const char **) alloca(sizeof(char*)*nAttrsOverall);
+    hdql_compound_get_attr_names(C, names);
+    size_t nBindingQueries = 0;
+    for(size_t nAttr = 0; nAttr < nAttrsOverall; ++nAttr) {
+        const struct hdql_AttrDef * attrAD = hdql_compound_get_attr(C, names[nAttr]);
+        if(!hdql_attr_def_is_bound(attrAD)) continue;
+        ++nBindingQueries;
+        if(cllb ) {
+            int rc = cllb(names[nAttr], nBindingQueries, attrAD, userdata);
+            if(0 != rc) return nBindingQueries;
+        }
+    }
+    return nBindingQueries;
+}
+

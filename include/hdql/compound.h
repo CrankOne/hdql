@@ -114,6 +114,18 @@ void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** 
  * */
 void hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, const char ** dest);
 
+/*\brief Iterates over all attributes within a compound with a callback
+ *
+ * Provided callback should return 0 to proceed iteration, otherwise loop
+ * stops.
+ *
+ * \returns number of attributes iterated.
+ * */
+size_t
+hdql_compound_for_each_own_attribute(const struct hdql_Compound * C
+        , int (*cllb)(const char *, size_t, const struct hdql_AttrDef *, void *)
+        , void * userdata);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

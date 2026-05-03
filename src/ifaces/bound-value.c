@@ -9,6 +9,7 @@
 
 #include <alloca.h>
 #include <assert.h>
+#include <strings.h>
 
 /* Bound value implements forwarded access interface over the object managed
  * externally. Perculiar feature is that these iface has two stages in its
@@ -41,8 +42,7 @@ struct BoundValueDefinitionData {
 
 hdql_Datum_t
 hdql_bound_value_interface_definition_data_init(struct hdql_Query * q, hdql_Context_t ctx) {
-    struct BoundValueDefinitionData * d = (struct BoundValueDefinitionData *)
-            hdql_context_alloc(ctx, sizeof(struct BoundValueDefinitionData));
+    struct BoundValueDefinitionData * d = hdql_alloc(ctx, struct BoundValueDefinitionData);
     d->q = q;
     d->value = NULL;
     return (hdql_Datum_t) d;
@@ -118,12 +118,58 @@ struct QueryProdIterator {
 
     struct hdql_Query ** boundQueries;
     hdql_Datum_t * values;
+    /* de-structured list of keys, a cache */
     struct hdql_CollectionKey ** keys;
 
     hdql_Datum_t owner;
     size_t nBindingQueries;
     hdql_Context_t context;
 };
+
+/* callback to count bound attributes, expect ud to be dest counter of size_t */
+static int
+_count_bound_attributes(const char *attrName
+        , size_t nAttr
+        , const struct hdql_AttrDef * ad
+        , void * ud
+) {
+    size_t * count = (size_t *) ud;
+    if(hdql_attr_def_is_bound(ad)) ++(*count);
+    return 0;
+}
+
+/* userdata type for _bind_query() callback */
+typedef struct {
+    size_t nBoundAttr;
+    struct QueryProdIterator * it;
+} _BindQueryUD_t;
+
+static int
+_bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrAD, void * ud_) {
+    _BindQueryUD_t * ud = (_BindQueryUD_t*) ud_;
+    if(!hdql_attr_def_is_bound(attrAD)) return 0;  /* continue */
+    const struct hdql_ScalarAttrInterface * boundAttrIFace
+            = hdql_attr_def_scalar_iface(attrAD);
+    assert(boundAttrIFace->dereference == _hdql_gBoundQueryIFace.dereference);
+    /* ^^^ otherwise, how come it became a "bound attribute"? */
+    assert(boundAttrIFace->definitionData);
+    /* ^^^ otherwise, how this iface was instantiated?
+     * hdql_bound_value_interface_definition_data_init() must be used */
+    struct BoundValueDefinitionData * bDefData
+        = (struct BoundValueDefinitionData*) boundAttrIFace->definitionData;
+    ud->it->boundQueries[ud->nBoundAttr] = bDefData->q;
+    #ifndef NDEBUG
+    int rc =
+    #endif
+        hdql_query_keys_reserve( bDefData->q
+                               , ud->it->keys + ud->nBoundAttr
+                               , ud->it->context
+                               );
+    assert(0 == rc);
+    bDefData->value = ud->it->values + ud->nBoundAttr;
+    ++(ud->nBoundAttr);
+    return 0;
+}
 
 static hdql_It_t
 _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
@@ -135,57 +181,29 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
             = hdql_cast(ctx, struct hdql_BindingCompoundCollectionDefData, defData_);
     /* allocate definition data for transient interface */
     struct QueryProdIterator * it = hdql_alloc(ctx, struct QueryProdIterator);
-
-    /*
-     * Init value interface and filtering
-     */
-
-
-
-    /*
-     * init Cartesian product
-     */
-
+    it->context = ctx;
     /* set filtering query (or NULL) */
     it->filterQuery = dd->filterQuery;
     /* populate bound queries refs for the attribute definition of
      * binding compound. Once query for binding compound gets reset
      * or advanced, the values get updated */
     it->nBindingQueries = 0;
-    const size_t nAttrsOverall = hdql_compound_get_nattrs(dd->vCompound);
-    const char ** names = alloca(sizeof(char*)*nAttrsOverall);
-    hdql_compound_get_attr_names(dd->vCompound, names);
-    for(size_t nAttr = 0; nAttr < nAttrsOverall; ++nAttr) {
-        const struct hdql_AttrDef * attrAD = hdql_compound_get_attr(dd->vCompound, names[nAttr]);
-        if(hdql_attr_def_is_bound(attrAD)) ++(it->nBindingQueries);
-    }
+    hdql_compound_for_each_own_attribute(dd->vCompound
+            , _count_bound_attributes
+            , &(it->nBindingQueries));
     assert(it->nBindingQueries > 0);  /* otherwise this compound could not be "bound" */
-
     /* allocate arrays for queries, value ptrs, keys */
     it->boundQueries = (struct hdql_Query **)
             hdql_context_alloc(ctx
-                , it->nBindingQueries * sizeof(struct hdql_Query *));
+                , it->nBindingQueries*sizeof(struct hdql_Query *));
+    /* see comments to issue #14 -- we currently have to allocate and maintain
+     * keys unconditionally, but that must be changed in the future */
+    it->keys = (struct hdql_CollectionKey **)
+            hdql_context_alloc(ctx
+                , it->nBindingQueries*sizeof(struct hdql_CollectionKey *));
     it->values = (hdql_Datum_t *) hdql_context_alloc(ctx, sizeof(hdql_Datum_t *)*it->nBindingQueries);
-
-    size_t nBoundAttr = 0;
-    for(size_t nAttr = 0; nAttr < nAttrsOverall; ++nAttr) {
-        const struct hdql_AttrDef * attrAD = hdql_compound_get_attr(dd->vCompound, names[nAttr]);
-        if(!hdql_attr_def_is_bound(attrAD)) continue;
-        const struct hdql_ScalarAttrInterface * boundAttrIFace
-                = hdql_attr_def_scalar_iface(attrAD);
-        assert(boundAttrIFace->dereference == _hdql_gBoundQueryIFace.dereference);
-        /* ^^^ otherwise, how come it became a "bound attribute"? */
-        assert(boundAttrIFace->definitionData);
-        /* ^^^ otherwise, how this iface was instantiated?
-         * hdql_bound_value_interface_definition_data_init() must be used */
-        struct BoundValueDefinitionData * bDefData
-            = (struct BoundValueDefinitionData*) boundAttrIFace->definitionData;
-        it->boundQueries[nBoundAttr] = bDefData->q;
-        bDefData->value = it->values + nBoundAttr;
-        ++nBoundAttr;
-    }
-    printf( "XXX Cartesian product initialized to handle %zu bound attributes\n"
-          , it->nBindingQueries );
+    _BindQueryUD_t bqud = {.it = it, .nBoundAttr = 0};
+    hdql_compound_for_each_own_attribute(dd->vCompound, _bind_query, &bqud);
     /* assign definition data to this transient interface */
     return (hdql_It_t) it;
 }
@@ -195,6 +213,23 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
                                 , struct hdql_CollectionKey * keyPtr
                                 ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
+    if(keyPtr) {
+        //printf("XXX received key ptr %p, 1st is %p \n"
+        //        , keyPtr->pl.keysList, keyPtr->pl.keysList[0].pl.keysList);  // XXX
+        // ^^^ we receive here key wrapping the keys list we returned
+        //     during a reserve, not the reserved instance (reserved are
+        //     under the keyPtr->pl.keysList -- what a mess... see #14)
+        assert(keyPtr->isList);
+        assert(keyPtr->pl.keysList[it->nBindingQueries-1].isTerminal);
+        for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
+            //assert(keyPtr->pl.keysList[nq].isList);
+            if(!it->keys[nq]) continue;
+            hdql_query_keys_copy( keyPtr->pl.keysList[nq].pl.keysList
+                                , it->keys[nq]
+                                , it->context
+                                );
+        }
+    }
     return it->owner;
 }
 
@@ -243,6 +278,61 @@ _hdql_cartesian_product_destroy( hdql_It_t it_
     // ...
 }
 
+
+/* userdata type for _reserve_keys_list_for_binding_query() callback */
+typedef struct {
+    size_t nBoundAttr;
+    struct hdql_CollectionKey * keysLists;
+    hdql_Context_t ctx;
+} _AllocKeysUD_t;
+
+static int
+_reserve_keys_list_for_binding_query(const char * attrName, size_t nAttr
+        , const struct hdql_AttrDef * ad, void * ud_) {
+    if(!hdql_attr_def_is_bound(ad)) return 0;  /* continue */
+    _AllocKeysUD_t * ud = (_AllocKeysUD_t *) ud_;
+
+    const struct hdql_ScalarAttrInterface * boundAttrIFace
+            = hdql_attr_def_scalar_iface(ad);
+
+    assert(boundAttrIFace->dereference == _hdql_gBoundQueryIFace.dereference);
+    /* ^^^ otherwise, how come it became a "bound attribute"? */
+    assert(boundAttrIFace->definitionData);
+    /* ^^^ otherwise, how this iface was instantiated?
+     * hdql_bound_value_interface_definition_data_init() must be used */
+    struct BoundValueDefinitionData * bDefData
+        = (struct BoundValueDefinitionData*) boundAttrIFace->definitionData;
+    hdql_query_keys_reserve(bDefData->q, &(ud->keysLists[ud->nBoundAttr].pl.keysList), ud->ctx);
+    assert(ud->keysLists[ud->nBoundAttr].pl.keysList);
+    ud->keysLists[ud->nBoundAttr].isList = 0x1;
+    ud->keysLists[ud->nBoundAttr].code = 0x0;
+    ++(ud->nBoundAttr);
+    return 0;
+}
+
+struct hdql_CollectionKey * hdql_bound_compound_key_reserve(
+            const hdql_Datum_t defData_, hdql_Context_t ctx) {
+    struct hdql_BindingCompoundCollectionDefData * dd
+            = hdql_cast(ctx, struct hdql_BindingCompoundCollectionDefData, defData_);
+    assert(dd->vCompound);
+    size_t nBindingQueries = 0;
+    hdql_compound_for_each_own_attribute(dd->vCompound
+            , _count_bound_attributes
+            , &nBindingQueries);
+    assert(nBindingQueries > 0);  /* otherwise this compound could not be "bound" */
+    _AllocKeysUD_t ud = {.nBoundAttr = 0, .ctx = ctx};
+    /* top-level key (always a body of the list), see implementation
+     * of `hdql_attr_def_reserve_keys()` in attr-def.c and issue #14 */
+    ud.keysLists = (struct hdql_CollectionKey *) hdql_context_alloc(ctx
+            , nBindingQueries*sizeof(struct hdql_CollectionKey));
+    bzero(ud.keysLists, nBindingQueries*sizeof(struct hdql_CollectionKey));
+    hdql_compound_for_each_own_attribute(dd->vCompound
+            , _reserve_keys_list_for_binding_query
+            , &ud );
+    /* todo: this is required as external code expects us to allocate a list */
+    ud.keysLists[nBindingQueries-1].isTerminal = 0x1;
+    return ud.keysLists;
+}
 
 const struct hdql_CollectionAttrInterface _hdql_gBindingCompoundCollectionIFace = {
     .definitionData = NULL,  /* set by caller to the instance of `hdql_BoundCompoundDefinitionData` struct */

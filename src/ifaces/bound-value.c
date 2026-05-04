@@ -6,6 +6,7 @@
 #include "hdql/query.h"
 #include "hdql/internal-ifaces.h"
 #include "hdql/types.h"
+#include "hdql/value.h"
 
 #include <alloca.h>
 #include <assert.h>
@@ -115,6 +116,9 @@ const struct hdql_ScalarAttrInterface _hdql_gBoundQueryIFace = {
 
 struct QueryProdIterator {
     struct hdql_Query * filterQuery;
+    const struct hdql_ValueInterface * filterVI;
+    hdql_Bool_t filterLogicResult;
+    hdql_TypeConverter toLogicFilterResultConverter;
 
     struct hdql_Query ** boundQueries;
     hdql_Datum_t * values;
@@ -183,7 +187,34 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
     struct QueryProdIterator * it = hdql_alloc(ctx, struct QueryProdIterator);
     it->context = ctx;
     /* set filtering query (or NULL) */
-    it->filterQuery = dd->filterQuery;
+    if(!!(it->filterQuery = dd->filterQuery)) {
+        const struct hdql_AttrDef * ad = hdql_query_top_attr(it->filterQuery);
+        assert(ad);
+        hdql_ValueTypeCode_t valueTCode = hdql_attr_def_get_atomic_value_type_code(ad);
+        it->filterVI = hdql_types_get_type( hdql_context_get_types(ctx)
+                , valueTCode);
+        /* allocate logic result */
+        struct hdql_ValueTypes * vts = hdql_context_get_types(ctx);
+        hdql_ValueTypeCode_t logicCode = hdql_types_get_type_code(vts, "hdql_Bool_t");
+        assert(0x0 != logicCode);
+        if(logicCode != valueTCode) {
+            /* get converter */
+            struct hdql_Converters * cnvs = hdql_context_get_conversions(ctx);
+            it->toLogicFilterResultConverter = hdql_converters_get(cnvs, logicCode, valueTCode);
+            if(NULL == it->toLogicFilterResultConverter) {
+                hdql_context_err_push( ctx, HDQL_ERR_CONVERSION
+                    , "Type <%s> can't be converted to boolean value (to be used"
+                      " in filter expression).", it->filterVI->name );
+                hdql_context_free(ctx, (hdql_Datum_t) it);
+                return NULL;
+            }
+        } else {
+            it->toLogicFilterResultConverter = NULL;
+        }
+    } else {
+        it->filterVI = NULL;
+    }
+
     /* populate bound queries refs for the attribute definition of
      * binding compound. Once query for binding compound gets reset
      * or advanced, the values get updated */
@@ -233,18 +264,36 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
     return it->owner;
 }
 
+
 static hdql_It_t
 _hdql_cartesian_product_as_collection_advance( hdql_It_t it_ ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
-    int rc = hdql_query_product_advance( it->boundQueries
-        , it->keys
-        , it->values
-        , it->owner
-        , it->nBindingQueries
-        , it->context
-        );
-    if(HDQL_ERR_CODE_OK != rc)
-        it->owner = NULL;
+    do {
+        int rc = hdql_query_product_advance( it->boundQueries
+            , it->keys
+            , it->values
+            , it->owner
+            , it->nBindingQueries
+            , it->context
+            );
+        if(HDQL_ERR_EMPTY_SET == rc) {
+            it->owner = NULL;
+            break;
+        }
+        if(it->filterQuery) {
+            hdql_query_reset(it->filterQuery, it->owner, it->context);
+            hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);
+            if(NULL == r) continue;
+            assert(r);
+            if(it->toLogicFilterResultConverter) {
+                int rc = it->toLogicFilterResultConverter(((hdql_Datum_t) &(it->filterLogicResult)), r);
+                assert(0 == rc); /*todo: handle rc != 0*/
+            } else {
+                it->filterLogicResult = *((hdql_Bool_t *) r);
+            }
+            if(it->filterLogicResult) break;
+        }
+    } while(it->filterQuery);
     return it_;
 }
 
@@ -267,7 +316,35 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
         , it->nBindingQueries
         , it->context = ctx
         );
-    assert(0 == rc);  /* TODO we have no means to forward errors here */
+    if(rc == HDQL_ERR_EMPTY_SET) {
+        it->owner = NULL;
+        return it_;
+    }
+    while(it->filterQuery && rc != HDQL_ERR_EMPTY_SET) {
+        hdql_query_reset(it->filterQuery, it->owner, it->context);
+        hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);
+        if(NULL == r) continue;
+        assert(r);
+        if(it->toLogicFilterResultConverter) {
+            int rc = it->toLogicFilterResultConverter(((hdql_Datum_t) &(it->filterLogicResult)), r);
+            assert(0 == rc); /*todo: handle rc != 0*/
+        } else {
+            it->filterLogicResult = *((hdql_Bool_t *) r);
+        }
+        if(it->filterLogicResult) break;
+
+        rc = hdql_query_product_advance( it->boundQueries
+            , it->keys
+            , it->values
+            , it->owner
+            , it->nBindingQueries
+            , it->context
+            );
+        if(HDQL_ERR_EMPTY_SET == rc) {
+            it->owner = NULL;
+            break;
+        }
+    };
     return it_;
 }
 
@@ -275,7 +352,19 @@ static void
 _hdql_cartesian_product_destroy( hdql_It_t it_
                             , hdql_Context_t ctx
                             ) {
-    // ...
+    struct QueryProdIterator * it = hdql_cast(ctx, struct QueryProdIterator, it_);
+    for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
+        if(it->keys) {
+            hdql_query_keys_destroy(it->keys[nq], ctx);
+        }
+        hdql_query_destroy(it->boundQueries[nq], ctx);
+    }
+    if(it->keys) {
+        hdql_context_free(ctx, (hdql_Datum_t) it->keys);
+    }
+    hdql_context_free(ctx, (hdql_Datum_t) it->values);
+    hdql_context_free(ctx, (hdql_Datum_t) it->boundQueries);
+    hdql_context_free(ctx, (hdql_Datum_t) it_);
 }
 
 

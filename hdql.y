@@ -589,59 +589,59 @@ vCompoundDef : vNamedCompoundDef
 
 vNamedCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
                 struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, $1, $3, false);
-                if(!nvc) { free($1); return HDQL_BAD_QUERY_EXPRESSION; }
+                free($1);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 $$.compoundPtr = nvc;
             }
             | T_IDENTIFIER T_WALRUS T_ASTERISK aQExpr {
                 struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, $1, $4, true);
-                if(!nvc) { free($1); return HDQL_BAD_QUERY_EXPRESSION; }
+                free($1);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 $$.compoundPtr = nvc;
             }
             | vNamedCompoundDef T_COMMA T_IDENTIFIER T_WALRUS aQExpr {
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
                             , $1.compoundPtr, $3, $5, false);
-                if(!vc) { free($3); return HDQL_BAD_QUERY_EXPRESSION; }
+                free($3);
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 $$.compoundPtr = vc;
             }
             | vNamedCompoundDef T_COMMA T_IDENTIFIER T_WALRUS T_ASTERISK aQExpr {
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
                             , $1.compoundPtr, $3, $6, true);
-                if(!vc) { free($3); return HDQL_BAD_QUERY_EXPRESSION; }
+                free($3); 
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 ws->compoundStack[ws->compoundStackTop].isBound = 0x1;
                 $$.compoundPtr = vc;
             }
             ;
 
 vPositionalCompoundDef : aQExpr {
-                char * attrName = strdup("#1");
-                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, attrName, $1, false);
-                if(!nvc) { free(attrName); return HDQL_BAD_QUERY_EXPRESSION; }
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, "#1", $1, false);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 2;
                 $$.compoundPtr = nvc;
             }
             | T_ASTERISK aQExpr {
-                char * attrName = strdup("#1");
-                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, attrName, $2, true);
-                if(!nvc) { free(attrName); return HDQL_BAD_QUERY_EXPRESSION; }
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, "#1", $2, true);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 2;
                 $$.compoundPtr = nvc;
             }
             | vPositionalCompoundDef T_COMMA aQExpr {
-                char bf[32];
-                snprintf(bf, sizeof(bf), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
-                char * attrName = strdup(bf);
+                char attrName[16];
+                snprintf(attrName, sizeof(attrName), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
                             , $1.compoundPtr, attrName, $3, false);
-                if(!vc) { free(attrName); return HDQL_BAD_QUERY_EXPRESSION; }
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 $$.compoundPtr = vc;
             }
             | vPositionalCompoundDef T_COMMA T_ASTERISK aQExpr {
-                char bf[32];
-                snprintf(bf, sizeof(bf), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
-                char * attrName = strdup(bf);
+                char attrName[16];
+                snprintf(attrName, sizeof(attrName), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
                 struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
                             , $1.compoundPtr, attrName, $4, true);
-                if(!vc) { free(attrName); return HDQL_BAD_QUERY_EXPRESSION; }
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
                 ws->compoundStack[ws->compoundStackTop].isBound = 0x1;
                 $$.compoundPtr = vc;
             }
@@ -772,6 +772,16 @@ static hdql_Datum_t _dereference_to_self( hdql_Datum_t d
 static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx) {
     hdql_query_destroy((struct hdql_Query *) q_, ctx);
 }
+
+static void _transient_dtr__bound_virtual_compound(hdql_Datum_t dd_, hdql_Context_t ctx) {
+    assert(dd_);
+    struct hdql_BindingCompoundCollectionDefData * dd
+                = hdql_cast(ws->context, struct hdql_BindingCompoundCollectionDefData, dd_);
+    //dd->vCompound = vCompoundPtr;
+    if(dd->filterQuery)
+        hdql_query_destroy(dd->filterQuery, ctx);
+    hdql_context_free(ctx, (hdql_Datum_t) dd);
+}
 /* This function gets called upon finalizing a new virtual compound with scope
  * operator (after `}' in `{...}' and produces filtering or trivial query node
  * that should return
@@ -784,12 +794,7 @@ static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx
  *  
  * up to the closing `}' virtual compound has been composed already, we shall
  * provide the parser with query node attributed to this v-compound in order
- * it will be capable to resolve `.e'.
- *
- * XXX Note, this query is always a scalar
- * XXX instance (there is no way in HDQL currently to "split" single instance into
- * XXX a collection of items within the "scope operator"). This scalar is optional
- * XXX as filtering expression can result of the instance to be declined. */
+ * it will be capable to resolve `.e'. */
 static struct hdql_Query *
 _new_virtual_compound_query( YYLTYPE * yylloc
                            , Workspace_t ws
@@ -845,9 +850,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                 , hdql_bound_compound_key_reserve  /* key reserve callback */
                 , ws->context  /* .... context */
                 );
-        // ... TODO?
-        // TODO: mark bound query as transient
-        printf("XXX created bound virtual compound\n");  // XXX
+        hdql_attr_def_set_transient(vCompoundAttrDef, _transient_dtr__bound_virtual_compound);
     }
     struct hdql_Query * q = hdql_query_create(vCompoundAttrDef, NULL, ws->context);
     hdql_query_set_transient_subject_ownership(q);
@@ -1117,7 +1120,6 @@ _vcompound_append_with_query(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yy
             return NULL;
         }
         newAttrDef = hdql_attr_def_create_bound(q, ws->context, &rc);
-        printf("XXX added bound attribute\n");  // XXX
     }
     if(!newAttrDef) {
         hdql_error(yyloc, ws, yyscanner

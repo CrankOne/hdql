@@ -371,6 +371,9 @@ hdql_attr_def_create_static_atomic_scalar_value(
     return ad;
 }
 
+static void _transient_dtr__binding_query(hdql_Datum_t d, hdql_Context_t ctx) {
+    hdql_bound_value_interface_definition_data_destroy(d, ctx);
+}
 
 struct hdql_AttrDef *
 hdql_attr_def_create_bound(
@@ -394,11 +397,13 @@ hdql_attr_def_create_bound(
     ad->isAtomic = qTopAD->isAtomic;
     /* result is always a scalar */
     ad->isCollection = 0x0;
+    /* bound is NOT forwarding */
+    ad->isFwdQuery = 0x0;
     /* static value is inherited (TODO: verify) */
     ad->staticValueFlags = qTopAD->staticValueFlags;
-    /* always transient (TODO: implement dtr) */
+    /* always transient */
     ad->isTransient = 0x1;
-    ad->transient_dtr = NULL;  /* TODO: dtr should delete def data */
+    ad->transient_dtr = _transient_dtr__binding_query;
     /* attribute has no key  */
     ad->keyTypeCode = 0x0;
     ad->reserveKeys = NULL;

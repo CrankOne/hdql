@@ -267,6 +267,7 @@ QueryState::get_value( hdql_Datum_t & value
 // sets iterator to next available item, if possible, or sets it to end
 void
 QueryState::advance( hdql_Context_t ctx ) {
+    ((void) ctx);
     assert(subject);
     assert(owner);  // otherwise missing reset()
     if(hdql_attr_def_is_collection(subject)) {

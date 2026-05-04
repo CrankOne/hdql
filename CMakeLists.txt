@@ -49,6 +49,7 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/fancy-print-err.c
                   )
 
+#add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
 add_compile_options(-Wall)
 
 #

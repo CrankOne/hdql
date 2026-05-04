@@ -306,10 +306,7 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
                           ) {
     assert(it_);
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
-    #ifndef NDEBUG
-    int rc =
-    #endif
-        hdql_query_product_reset( it->boundQueries
+    int rc = hdql_query_product_reset( it->boundQueries
         , it->keys
         , it->values
         , it->owner = newOwner

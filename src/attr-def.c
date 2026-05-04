@@ -322,6 +322,8 @@ _static_atomic_scalar_dereference( hdql_Datum_t root
         , struct hdql_CollectionKey * key
         , const hdql_Datum_t defData
         , hdql_Context_t ctx ) {
+    ((void) root);
+    ((void) ctx);
     assert(NULL == dynData);
     assert(NULL == key || NULL == key->pl.datum);
     assert(NULL != defData);
@@ -423,9 +425,14 @@ hdql_attr_def_create_dynamic_value(
           hdql_ValueTypeCode_t valueType
         , hdql_Datum_t (*get)(void *, hdql_Context_t)
         , void * userdata
-        , hdql_Context_t
+        , hdql_Context_t context
         ) {
-    assert(0);  // TODO
+    ((void) valueType);
+    ((void) get);
+    ((void) userdata);
+    ((void) context);
+    #warning "TODO: no support for dynamic values"
+    return NULL;
 }
 
 void
@@ -521,7 +528,7 @@ hdql_attr_def_collection_iface(const hdql_AttrDef_t ad) {
     return &ad->interface.collection;
 }
 
-const hdql_Datum_t
+hdql_Datum_t
 hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
     assert(0x1 == ad->staticValueFlags);  // TODO: dynamic extern values
     if(hdql_attr_def_is_collection(ad)) {
@@ -570,7 +577,7 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
     return -2;
 }
 
-const hdql_AttrDef_t
+hdql_AttrDef_t
 hdql_attr_def_top_attr(const hdql_AttrDef_t ad) {
     assert(ad);
     const struct hdql_AttrDef * topAD = ad;
@@ -627,7 +634,7 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
             );
     if(hdql_attr_def_is_fwd_query(subj)) {
         // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
-        _M_pr("%p which is ", hdql_attr_def_fwd_query(subj) );
+        _M_pr("%p which is ", (void*) hdql_attr_def_fwd_query(subj) );
         return hdql_top_attr_str( hdql_query_get_subject(hdql_attr_def_fwd_query(subj))
                 , strbuf + nUsed, buflen - nUsed, context );
     }
@@ -652,14 +659,14 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
                     if(0 == rc) {
                         _M_pr(" =%s", vBf);
                     } else {
-                        _M_pr(" =? at %p", hdql_attr_def_get_static_value(subj));
+                        _M_pr(" =? at %p", (void*) hdql_attr_def_get_static_value(subj));
                     }
                 } else {
-                    _M_pr(" at %p", hdql_attr_def_get_static_value(subj));
+                    _M_pr(" at %p", (void*) hdql_attr_def_get_static_value(subj));
                 }
             }
         } else {
-            _M_pr("?%p?", subj);
+            _M_pr("?%p?", (void*) subj);
         }
     } else {
         char buf[256];

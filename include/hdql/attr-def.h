@@ -244,7 +244,7 @@ const struct hdql_CollectionAttrInterface *
 hdql_attr_def_collection_iface(const hdql_AttrDef_t);
 
 /**\brief Returns ptr to referenced datum instance */
-const hdql_Datum_t
+hdql_Datum_t
 hdql_attr_def_get_static_value(const hdql_AttrDef_t);
 
 int
@@ -253,7 +253,7 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t, struct hdql_CollectionKey *, h
 /**\brief Retrieves attribute definition recursively, until it is not a fwd query
  *
  * Similar to `hdql_query_top_attr()`. */
-const hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
+hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
 
 void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 

@@ -253,14 +253,14 @@ _hdql_key_str(
             return 0;
         }
         snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-                , " (%zu:%zu:%p)", queryLevel, queryNoInLevel, key->pl.datum );
+                , " (%zu:%zu:%p)", queryLevel, queryNoInLevel, (void*) key->pl.datum );
         return 0;
     }
     struct hdql_ValueTypes * types = hdql_context_get_types(ctx);
     const struct hdql_ValueInterface * vi = hdql_types_get_type(types, key->code);
     if(!vi->get_as_string) {
         snprintf( pp->strBuf + cn, pp->strBufLen - cn - 1
-                , " (%zu:%zu:%s:%p)", queryLevel, queryNoInLevel, vi->name, key->pl.datum );
+                , " (%zu:%zu:%s:%p)", queryLevel, queryNoInLevel, vi->name, (void*) key->pl.datum );
         return 0;
     }
     char bf[64];
@@ -289,6 +289,9 @@ static int _count_flat_keys(
         , size_t queryLevel
         , size_t queryNoInLevel 
         ) {
+    ((void) ctx);
+    ((void) queryLevel);
+    ((void) queryNoInLevel);
     assert(count_);
     assert(keys);
     size_t * szPtr = (size_t *) count_;
@@ -319,6 +322,8 @@ static int _copy_flat_view_ptrs(
         , size_t queryLevel
         , size_t queryNoInLevel 
         ) {
+    ((void) queryLevel);
+    ((void) queryNoInLevel);
     assert(count_);
     assert(keys);
     struct KeysFlatViewParams * kcpPtr = (struct KeysFlatViewParams *) count_;
@@ -338,6 +343,7 @@ hdql_keys_flat_view_update( const struct hdql_Query * q
                           , const struct hdql_CollectionKey * keys
                           , struct hdql_KeyView * dest
                           , hdql_Context_t ctx ) {
+    ((void) q);
     struct KeysFlatViewParams kfvp = {dest};
     hdql_query_keys_for_each(keys, ctx, _copy_flat_view_ptrs, &kfvp);
     return 0;

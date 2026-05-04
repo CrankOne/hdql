@@ -118,7 +118,10 @@ if (BUILD_TESTS)
                           test/ht.test.cc
                           test/events-struct.cc
                           test/samples.cc
-                          test/iteration-tests.cc
+                          test/iteration-tests/singular-query.cc
+                          test/iteration-tests/arithmetics.cc
+                          test/iteration-tests/v-compound-fwd.cc
+                          test/iteration-tests/v-compound-bind.cc
                           test/cpp-api.cc
                           test/dsv.test.cc
                           test/query-product.test.cc

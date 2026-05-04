@@ -21,7 +21,8 @@ struct hdql_AnnotatedSelection {
 typedef struct Workspace {
     struct {
         const struct hdql_Compound * compoundPtr;
-        char * newAttributeName;
+        unsigned int posCompoundNArg:31;
+        unsigned int isBound:1;  /* XXX, user for debug purposes only */
     } compoundStack[HDQL_COMPOUNDS_STACK_MAX_DEPTH];
     unsigned char compoundStackTop;
     struct hdql_Context * context;
@@ -62,6 +63,18 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Compound * compoundPtr
                            , struct hdql_Query * filterPtr
                            );
+static struct hdql_Compound *
+_vcompound_append_with_query(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
+            , struct hdql_Compound * vCompound
+            , char * attrName, struct hdql_Query * q
+            , bool isBinding
+            );
+static struct hdql_Compound *
+_vcompound_def_start(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
+        , char * attrName, struct hdql_Query * firstQuery
+        , bool isBinding
+        );
+
 static struct hdql_Query *
 _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
              , const char * funcName
@@ -150,7 +163,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token T_DBL_CAP "^^" T_DBL_AMP "&&" T_DBL_PIPE "||"
 %token T_LBC "(" T_RBC ")" T_LCRLBC "{" T_RCRLBC "}"
 %token T_EXCLMM "!" T_QUESTIONMM "?" T_COLON ":"
-%token T_GT ">" T_GTE ">=" T_LT "<" T_LTE "<=" T_EQ "==" T_NE "!=" T_WALRUS ":="
+%token T_GT ">" T_GTE ">=" T_LT "<" T_LTE "<=" T_EQ "==" T_NE "!=" T_WALRUS ":=" T_AT "@"
 %token T_AMP "&" T_PIPE "|" T_CAP "^"
 %token T_INCREMENT "++" T_DECREMENT "--"
 %token T_PLUSE "+=" T_MINUSE "-=" T_RBSHIFTE ">>=" T_LBSHIFTE "<<="
@@ -165,7 +178,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token<fltStaticValue> T_FLT_STATIC_VALUE "floating point value"
 
 %type<queryPtr> queryExpr aOp aQExpr;
-%type<vCompound> vCompoundDef scopedDefs;
+%type<vCompound> vCompoundDef vPositionalCompoundDef vNamedCompoundDef scopedDefs;
 %type<funcArgsList> argsList;
 %type<annotatedSelection> selection;
 //%type<selectionBinOp> selExpr;
@@ -269,7 +282,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             }
             | argsList T_COMMA aQExpr
             {
-                $$->nextArgument = (struct hdql_FuncArgList*)
+                $$ = (struct hdql_FuncArgList*)
                         malloc(sizeof(struct hdql_FuncArgList));
                 $$->thisArgument = $3;
                 $$->nextArgument = $1;
@@ -523,6 +536,8 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     if(0 != rc) return rc;
                 } scopedDefs T_RCRLBC {
                     int rc;
+                    assert( (bool) hdql_virtual_compound_is_bound($4.compoundPtr)
+                         == (0x1 == ws->compoundStack[ws->compoundStackTop].isBound) ); /* XXX */
                     struct hdql_Query * scopeQuery = _new_virtual_compound_query(
                             &yyloc, ws, yyscanner,
                             $4.compoundPtr, $4.filter);
@@ -537,6 +552,8 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     assert($$ == $1);
                 }
             | T_LCRLBC scopedDefs T_RCRLBC {
+                    assert( (bool) hdql_virtual_compound_is_bound($2.compoundPtr)
+                         == (0x1 == ws->compoundStack[ws->compoundStackTop].isBound) ); /* XXX */
                     struct hdql_Query * scopeQuery = _new_virtual_compound_query(
                             &yyloc, ws, yyscanner,
                             $2.compoundPtr, $2.filter);
@@ -566,57 +583,67 @@ scopedDefs : vCompoundDef {
            }
            ;
 
-vCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
-                /* _substitute_ compound with new virtual one */
-                struct hdql_Compound * vCompound
-                            = hdql_virtual_compound_new(hdql_parser_top_compound(ws), ws->context);
-                hdql_context_add_virtual_compound(ws->context, vCompound);
-                assert(hdql_compound_is_virtual(vCompound));
-                /* define new attribute of a virtual compound,
-                 * named as T_IDENTIFIER with query as a result.
-                 * New (virtual) attribute definition inherits what is
-                 * provided by query's top attribute */
-                struct hdql_AttrDef * newAttrDef
-                    = hdql_attr_def_create_fwd_query($3, ws->context);
-                /* Add new attribute to virtual compound */
-                int rc = hdql_compound_add_attr(vCompound, $1, newAttrDef);
-                if(0 != rc) {
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "failed to define attribute \"%s\" for virtual"
-                          " compound type based on `%s'; error code %d"
-                        , $1
-                        , hdql_compound_get_name(hdql_virtual_compound_get_parent(vCompound))
-                        , rc );
-                    free($1);
-                    return HDQL_BAD_QUERY_EXPRESSION;
-                }
+vCompoundDef : vNamedCompoundDef
+             | vPositionalCompoundDef
+             ;
+
+vNamedCompoundDef : T_IDENTIFIER T_WALRUS aQExpr {
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, $1, $3, false);
                 free($1);
-                $$.compoundPtr = vCompound;
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                $$.compoundPtr = nvc;
             }
-            | vCompoundDef T_COMMA {
-                ws->compoundStack[ws->compoundStackTop].compoundPtr = $1.compoundPtr;
-            } T_IDENTIFIER T_WALRUS aQExpr {
-                assert(hdql_compound_is_virtual($1.compoundPtr));
-                /* define new attribute of a virtual compound,
-                 * named as T_IDENTIFIER with query as a result.
-                 * New (virtual) attribute definition inherits what is
-                 * provided by query's top attribute */
-                struct hdql_AttrDef * newAttrDef
-                    = hdql_attr_def_create_fwd_query($6, ws->context);
-                /* Add new attribute to virtual compound */
-                int rc = hdql_compound_add_attr($1.compoundPtr, $4, newAttrDef);
-                if(0 != rc) {
-                    hdql_error(&yyloc, ws, yyscanner
-                        , "failed to define attribute \"%s\" for virtual"
-                          " compound type based on `%s'; error code %d"
-                        , $4
-                        , hdql_compound_get_name(hdql_virtual_compound_get_parent($1.compoundPtr))
-                        , rc );
-                    free($4);
-                    return HDQL_BAD_QUERY_EXPRESSION;
-                }
-                free($4);
-                $$.compoundPtr = $1.compoundPtr;
+            | T_IDENTIFIER T_WALRUS T_ASTERISK aQExpr {
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, $1, $4, true);
+                free($1);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                $$.compoundPtr = nvc;
+            }
+            | vNamedCompoundDef T_COMMA T_IDENTIFIER T_WALRUS aQExpr {
+                struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
+                            , $1.compoundPtr, $3, $5, false);
+                free($3);
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                $$.compoundPtr = vc;
+            }
+            | vNamedCompoundDef T_COMMA T_IDENTIFIER T_WALRUS T_ASTERISK aQExpr {
+                struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
+                            , $1.compoundPtr, $3, $6, true);
+                free($3); 
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                ws->compoundStack[ws->compoundStackTop].isBound = 0x1;
+                $$.compoundPtr = vc;
+            }
+            ;
+
+vPositionalCompoundDef : aQExpr {
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, "#1", $1, false);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 2;
+                $$.compoundPtr = nvc;
+            }
+            | T_ASTERISK aQExpr {
+                struct hdql_Compound * nvc = _vcompound_def_start(&yyloc, ws, yyscanner, "#1", $2, true);
+                if(!nvc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 2;
+                $$.compoundPtr = nvc;
+            }
+            | vPositionalCompoundDef T_COMMA aQExpr {
+                char attrName[16];
+                snprintf(attrName, sizeof(attrName), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
+                struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
+                            , $1.compoundPtr, attrName, $3, false);
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                $$.compoundPtr = vc;
+            }
+            | vPositionalCompoundDef T_COMMA T_ASTERISK aQExpr {
+                char attrName[16];
+                snprintf(attrName, sizeof(attrName), "#%u", ws->compoundStack[ws->compoundStackTop].posCompoundNArg++);
+                struct hdql_Compound * vc = _vcompound_append_with_query(&yyloc, ws, yyscanner
+                            , $1.compoundPtr, attrName, $4, true);
+                if(!vc) { return HDQL_BAD_QUERY_EXPRESSION; }
+                ws->compoundStack[ws->compoundStackTop].isBound = 0x1;
+                $$.compoundPtr = vc;
             }
             ;
 
@@ -678,7 +705,8 @@ _push_cmpd(struct Workspace * ws, const struct hdql_Compound * cmpd) {
     }
     //++(ws->compoundStackTop); // xxx?
     ws->compoundStack[++(ws->compoundStackTop)].compoundPtr = cmpd /*topAttrDef->typeInfo.compound*/;
-    ws->compoundStack[   ws->compoundStackTop ].newAttributeName = NULL;
+    ws->compoundStack[  (ws->compoundStackTop)].posCompoundNArg = 0;
+    ws->compoundStack[  (ws->compoundStackTop)].isBound = 0;  /* XXX */
     return 0;
 }
 
@@ -697,7 +725,7 @@ hdql_parser_top_compound(struct Workspace * ws) {
     return ws->compoundStack[ws->compoundStackTop].compoundPtr;
 }
 
-/* An utility function: resolves query list till the topmost compound,
+/* An utility function: resolves forwarding queries till the topmost compound,
  * correctly accounting for recursive queries */
 static int
 _resolve_query_top_as_compound( struct hdql_Query * q
@@ -733,8 +761,9 @@ _resolve_query_top_as_compound( struct hdql_Query * q
     return 0;  // ok
 }  // _resolve_query_top_as_compound()
 
-static hdql_Datum_t _trivial_dereference( hdql_Datum_t d
-    , hdql_Datum_t dd
+/* returns "owner" as result */
+static hdql_Datum_t _dereference_to_self( hdql_Datum_t d
+    , hdql_Datum_t dynData
     , struct hdql_CollectionKey * key
     , const hdql_Datum_t defData
     , hdql_Context_t ctx
@@ -743,8 +772,19 @@ static hdql_Datum_t _trivial_dereference( hdql_Datum_t d
 static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx) {
     hdql_query_destroy((struct hdql_Query *) q_, ctx);
 }
-/* This function gets called upon finalizing scope operator (after `}'
- * in `{...}' and produces filtering or trivial query node that should return
+
+static void _transient_dtr__bound_virtual_compound(hdql_Datum_t dd_, hdql_Context_t ctx) {
+    assert(dd_);
+    struct hdql_BindingCompoundCollectionDefData * dd
+                = hdql_cast(ws->context, struct hdql_BindingCompoundCollectionDefData, dd_);
+    //dd->vCompound = vCompoundPtr;
+    if(dd->filterQuery)
+        hdql_query_destroy(dd->filterQuery, ctx);
+    hdql_context_free(ctx, (hdql_Datum_t) dd);
+}
+/* This function gets called upon finalizing a new virtual compound with scope
+ * operator (after `}' in `{...}' and produces filtering or trivial query node
+ * that should return
  * a virtual compound instance. Virtual compound itself is built and defined
  * up to the moment this function gets invoked, we just have to pack it into
  * a query node. Not-so-trivial case arises if filtering expression was given
@@ -754,10 +794,7 @@ static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx
  *  
  * up to the closing `}' virtual compound has been composed already, we shall
  * provide the parser with query node attributed to this v-compound in order
- * it will be capable to resolve `.e'. Note, this query is always a scalar
- * instance (there is no way in HDQL currently to "split" single instance into
- * a collection of items within the "scope operator"). This scalar is optional
- * as filtering expression can result of the instance to be declined. */
+ * it will be capable to resolve `.e'. */
 static struct hdql_Query *
 _new_virtual_compound_query( YYLTYPE * yylloc
                            , Workspace_t ws
@@ -765,25 +802,55 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Compound * vCompoundPtr
                            , struct hdql_Query * filterQuery
                            ) {
-    struct hdql_ScalarAttrInterface iface;
-    if(NULL == filterQuery) {
-        bzero(&iface, sizeof(iface));
-        iface.dereference = _trivial_dereference;
-    } else {
-        iface = _hdql_gFilteredCompoundIFace;
-        iface.definitionData = (hdql_Datum_t) filterQuery;
-    }
-    struct hdql_AttrDef * vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
+    struct hdql_AttrDef * vCompoundAttrDef;
+    if(!hdql_virtual_compound_is_bound(vCompoundPtr)) {
+        struct hdql_ScalarAttrInterface iface;
+        if(NULL == filterQuery) {
+            bzero(&iface, sizeof(iface));
+            iface.dereference = _dereference_to_self;
+        } else {
+            iface = _hdql_gFilteredCompoundIFace;
+            iface.definitionData = (hdql_Datum_t) filterQuery;
+        }
+        vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
                   vCompoundPtr  /* ... compound ptr */
                 , &iface  /* ......... scalar iface ptr */
                 , 0x0  /* ............ key type code */
                 , NULL  /* ........... key copy callback */
                 , ws->context  /* .... context */
                 );
-    if(NULL == filterQuery) {
-        hdql_attr_def_set_transient(vCompoundAttrDef, NULL);
+        if(NULL == filterQuery) {
+            hdql_attr_def_set_transient(vCompoundAttrDef, NULL);
+        } else {
+            hdql_attr_def_set_transient(vCompoundAttrDef, _transient_dtr__virtual_compound);
+        }
     } else {
-        hdql_attr_def_set_transient(vCompoundAttrDef, _transient_dtr__virtual_compound);
+        /* Binding compounds always results in a collection: {*.a} where .a is
+         * collection will create a collection of items of v-compound type, one
+         * item per each element from .a.
+         *
+         * Re-setting or advancing query to bound v-compound shall cause
+         * evaluation of the bound forwarding queries first, setting
+         * corresponding attributes. */
+        struct hdql_CollectionAttrInterface iface = _hdql_gBindingCompoundCollectionIFace;
+        /* filtering query and pointer to (not yet finalized) virtual compound
+         * definition have to be transferred to the iterator instantiation
+         * in order to compose (optionally filtered) sequence of Cartesian
+         * product results */
+        struct hdql_BindingCompoundCollectionDefData * dd
+                = hdql_alloc(ws->context, struct hdql_BindingCompoundCollectionDefData);
+        dd->vCompound = vCompoundPtr;
+        dd->filterQuery = filterQuery;
+        iface.definitionData = (hdql_Datum_t) dd;
+        /* create attribute definition */
+        vCompoundAttrDef = hdql_attr_def_create_compound_collection(
+                  vCompoundPtr  /* ... compound ptr */
+                , &iface  /* ......... collection iface ptr */
+                , 0x0  /* ............ key type code (TODO?) */
+                , hdql_bound_compound_key_reserve  /* key reserve callback */
+                , ws->context  /* .... context */
+                );
+        hdql_attr_def_set_transient(vCompoundAttrDef, _transient_dtr__bound_virtual_compound);
     }
     struct hdql_Query * q = hdql_query_create(vCompoundAttrDef, NULL, ws->context);
     hdql_query_set_transient_subject_ownership(q);
@@ -1000,6 +1067,110 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
     return q;
 }  /* _new_function() */
 
+/*
+ * Virtual compound definitons
+ */
+
+static struct hdql_Compound *
+_vcompound_append_with_query(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
+            , struct hdql_Compound * vCompound
+            , char * attrName, struct hdql_Query * q
+            , bool isBinding
+            ) {
+    assert(hdql_compound_is_virtual(vCompound));
+    int rc;
+    /* define new attribute of a virtual compound,
+     * named as T_IDENTIFIER with query as a result.
+     * New (virtual) attribute definition inherits what is
+     * provided by query's top attribute */
+    struct hdql_AttrDef * newAttrDef;
+    if(!isBinding) {
+        /* This is a "forwarding query" -- an attribute of virtual compound
+         * referencing some subquery (but not the result) */
+        newAttrDef = hdql_attr_def_create_fwd_query(q, ws->context, &rc);
+    } else {
+        /* This is bound attribute (value that is managed externally). This
+         * case is mainly meant to be applied to collections, resulting in an
+         * element type. For instance, consider `*.hits`, `*.tracks.hits`, etc.
+         *
+         * Note, that important case of applying filtering expression will
+         * result in a scalar top attribute: `*.hits{:.x>4}`, so we generally
+         * permit for last sub-query to be of scalar type (`*.hits.x` is ok),
+         * but we refuse binding fully scalar attributes (queries chain not
+         * containing collections at all, e.g. `*.eventID`).
+         *
+         * The attribute basically inherits what query results in, except for
+         * the interface, which will forward call to the Cartesian product
+         * result */
+        const struct hdql_AttrDef * queryTopAD = hdql_query_top_attr(q);
+        if(hdql_query_is_fully_scalar(q)) {
+            /* we print string of top attr, but this can be misleading, as it
+             * can be a scalar, actually (we're refusing to create only fully
+             * scalar queries; perhaps, we should reconsider this message? */
+            char buf[128];
+            hdql_top_attr_str(queryTopAD, buf, sizeof(buf), ws->context);
+            hdql_error(yyloc, ws, yyscanner
+                , "useless definition of binding attribute \"%s\" resulting in"
+                  " `%s' for virtual"
+                  " compound type based on `%s' since full corresponding"
+                  " sub-query does not contain any collection"
+                , attrName, buf
+                , hdql_compound_get_name(hdql_virtual_compound_get_parent(vCompound))
+                );
+            return NULL;
+        }
+        newAttrDef = hdql_attr_def_create_bound(q, ws->context, &rc);
+    }
+    if(!newAttrDef) {
+        hdql_error(yyloc, ws, yyscanner
+            , "failed to define %sattribute \"%s\" for virtual"
+              " compound type based on `%s'; error %d: %s"
+            , isBinding ? "binding " : ""
+            , attrName
+            , hdql_compound_get_name(hdql_virtual_compound_get_parent(vCompound))
+            , rc
+            , hdql_err_str(rc)
+            );
+        return NULL;
+    }
+    /* Add new attribute to virtual compound */
+    rc = hdql_compound_add_attr(vCompound, attrName, newAttrDef);
+    if(0 == rc) return vCompound;
+    hdql_error(yyloc, ws, yyscanner
+        , "failed to define attribute \"%s\" for virtual"
+          " compound type based on `%s'; error %d: %s"
+        , attrName
+        , hdql_compound_get_name(hdql_virtual_compound_get_parent(vCompound))
+        , rc
+        , hdql_err_str(rc)
+        );
+    /* TODO: destroy attr def? */
+    return NULL;
+}
+
+static struct hdql_Compound *
+_vcompound_def_start(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
+        , char * attrName, struct hdql_Query * firstQuery
+        , bool isBinding
+        ) {
+    /* _substitute_ compound with new virtual one */
+    struct hdql_Compound * vCompound
+                = hdql_virtual_compound_new(hdql_parser_top_compound(ws), ws->context);
+    hdql_context_add_virtual_compound(ws->context, vCompound);
+    struct hdql_Compound * nvc = _vcompound_append_with_query(
+            yyloc, ws, yyscanner, vCompound, attrName, firstQuery, isBinding);
+    if(nvc) {
+        ws->compoundStack[ws->compoundStackTop].compoundPtr = nvc;
+        ws->compoundStack[ws->compoundStackTop].posCompoundNArg = 0;
+        ws->compoundStack[ws->compoundStackTop].isBound = isBinding ? 0x1 : 0x0;
+    } else {
+        /* TODO: check that we're not ending with segfaults or leaks
+         * here (when query appending has failed) */
+        hdql_virtual_compound_destroy(vCompound, ws->context);
+    }
+    return nvc;
+}
+
 /* 
  * Main parser function
  */
@@ -1020,7 +1191,8 @@ hdql_compile_query( const char * strexpr
     ws.context = ctx;
     /* set data type lookup table */
     ws.compoundStack[0].compoundPtr = rootCompound;
-    ws.compoundStack[0].newAttributeName = NULL;
+    ws.compoundStack[0].posCompoundNArg = 0;
+    ws.compoundStack[0].isBound = 0x0;
     ws.compoundStackTop = 0;
     /* init result */
     ws.query = NULL;

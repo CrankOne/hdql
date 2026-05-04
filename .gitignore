@@ -1,5 +1,6 @@
 obj/*
 .cache/*
+build/*
 spec.txt
 hdql.tab.c
 hdql.tab.h

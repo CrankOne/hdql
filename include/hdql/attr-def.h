@@ -53,10 +53,11 @@ struct hdql_ScalarAttrInterface {
                    );
 };
 
-/**\brief Keys list allocation callback
+/**\brief Collection keys list allocation callback
  *
  * Although keys are explicitly typed, their length can depend on the
- * definition data for synthetic definitions (composed during compilation).
+ * definition data for synthetic definitions (composed during compilation --
+ * forwarding queries, bound attributes, etc).
  * This callback is used to allocate key lists when key type code is not set.
  * */
 typedef struct hdql_CollectionKey * (*hdql_ReserveKeysListCallback_t)(
@@ -73,8 +74,8 @@ struct hdql_CollectionAttrInterface {
                                     , hdql_SelectionArgs_t
                                     , hdql_Context_t
                                     );
-    /** Should dereference iterator object AND return NULL if it is not
-     * possible (no items available) */
+    /**\brief Dereferences iterator object, returning NULL if it is not
+     *        possible (no items available) */
     hdql_Datum_t   (*dereference)   ( hdql_It_t
                                     , struct hdql_CollectionKey *
                                     );
@@ -150,10 +151,31 @@ hdql_attr_def_create_compound_collection(
         , hdql_Context_t
         );
 
+/**\brief Create attribute definition forwarding to a query 
+ *
+ * This kind of attribute definitions created within virtual (transient)
+ * compounds in the expressions like `{h:=.hits}` (here `h` is the attribute
+ * forwarding query). I.e. forwarding attributes are just aliases, in the
+ * context of virtual compounds. */
 struct hdql_AttrDef *
 hdql_attr_def_create_fwd_query(
           struct hdql_Query * subquery
         , hdql_Context_t
+        , int * rc
+        );
+
+/**\brief Create definition bound to a query
+ *
+ * Attribute definition created here are bound to a query result managed
+ * externally in the expressions like `{h:=*.hits}` (here `h` is the bound
+ * attribute), typically within a Cartesian product within the virtual
+ * (transient) compound. In this case such AD behaves like a pivot, creating
+ * new virtual compound item per every item in the underlying subquery. */
+struct hdql_AttrDef *
+hdql_attr_def_create_bound(
+          struct hdql_Query * subquery
+        , hdql_Context_t context
+        , int * rc
         );
 
 struct hdql_AttrDef *
@@ -196,6 +218,7 @@ bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
 bool hdql_attr_def_is_static_value(hdql_AttrDef_t);
 bool hdql_attr_def_is_transient(hdql_AttrDef_t);
+bool hdql_attr_def_is_bound(hdql_AttrDef_t);
 
 /**\brief Returns type code for (optionally static) atomic value */
 hdql_ValueTypeCode_t
@@ -234,7 +257,10 @@ const hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
 
 void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 
-/**\brief Prints short one-line string describing attribute definition */
+/**\brief Puts short one-line string describing attribute definition into strbuf
+ *
+ * Named `top_attr_str` to reflect the fact that it will resolve forwarding
+ * queries, not just print plain AD (yet can be used for that). */
 int
 hdql_top_attr_str( const struct hdql_AttrDef * subj
               , char * strbuf, size_t buflen

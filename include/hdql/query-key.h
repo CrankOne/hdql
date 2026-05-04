@@ -7,27 +7,40 @@
 extern "C" {
 #endif
 
+/**\brief Identifies an element within a collection */
 struct hdql_CollectionKey {
-    /**\brief Collection key type
+    /**\brief Collection key type code
      *
      * HDQL manages key instance lifecycle, so key must be one of the
      * registered types.
      *
      * Zero code is reserved for empty key placeholders and key lists. */
     hdql_ValueTypeCode_t code:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
-    hdql_ValueTypeCode_t isList:1;
-    hdql_ValueTypeCode_t isTerminal:1;
-    /**\brief Ptr to actual key value */
+    hdql_ValueTypeCode_t isList:1;  /**< how to interpret payload */
+    hdql_ValueTypeCode_t isTerminal:1;  /**< marks last key in list when `isList` */
+    /**\brief Collection key item payload */
     union {
+        /**\brief Actual datum of the key when it is not a list */
         hdql_Datum_t datum;
+        /**\brief Array of keys
+         *
+         * Used only when `isList` is set. Sequence must be terminated with
+         * item with `isTerminal` set. */
         struct hdql_CollectionKey * keysList;
     } pl;
-    /**\brief Some keys may have a string label assigned*/
+    /**\brief Key may have a string label assigned */
     const char * label;
 };
 
 
-/**\brief Reserves keys for the query */
+/**\brief Reserves keys for the query
+ *
+ * \note This function reserves an entire key chain and must be called
+ *       on pre-allocated array of keys.
+ *
+ * \todo To avoid confusion, rename it, implement more consistent
+ *       key-allocation logic, see #14
+ * */
 int
 hdql_query_keys_reserve( struct hdql_Query * query
                        , struct hdql_CollectionKey ** keys

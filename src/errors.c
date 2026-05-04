@@ -29,6 +29,8 @@ hdql_err_str(hdql_Err_t code) {
             return "filter query result type can not be evaluated to bool";
         case HDQL_ERR_BAD_QUERY_STATE:
             return "query instance is on unforeseen state";
+        case HDQL_ERR_NOT_A_COLLECTION:
+            return "query results in a scalar, collection expected";
 
         case HDQL_ERR_OPERATION_NOT_SUPPORTED:
             return "operation is not supported";

@@ -7,7 +7,7 @@ D           [0-9]
 L           [a-zA-Z_\\]
 UL          [A-Z_]
 DTNAME      {UL}
-identifier  {L}({L}|{D})*
+identifier  (({L}({L}|{D})*)|(#{D}+))
 
 %{
 #include <stdio.h>

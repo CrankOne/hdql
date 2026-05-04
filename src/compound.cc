@@ -61,7 +61,7 @@ hdql_virtual_compound_new(const hdql_Compound * parent, struct hdql_Context * ct
 extern "C" void
 hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * ctx) {
     for(auto & attrDef : vCompound->attrsByName ) {
-        if(hdql_attr_def_is_fwd_query(attrDef.second))
+        if(hdql_attr_def_is_transient(attrDef.second))
             hdql_attr_def_destroy(attrDef.second, ctx);
     }
     #ifdef HDQL_CONTEXT_BASED_COMPOUNDS_CREATION
@@ -75,6 +75,15 @@ hdql_virtual_compound_destroy(hdql_Compound * vCompound, struct hdql_Context * c
 extern "C" int
 hdql_compound_is_virtual(const hdql_Compound * compound) {
     return NULL == compound->parent ? 0x0 : INT_MAX;
+}
+
+extern "C" bool
+hdql_virtual_compound_is_bound(const struct hdql_Compound * compound) {
+    for(auto & attrDef : compound->attrsByName ) {
+        if(hdql_attr_def_is_bound(attrDef.second))
+            return true;
+    }
+    return false;
 }
 
 extern "C" bool
@@ -213,5 +222,25 @@ hdql_compound_destroy(hdql_Compound * compound, hdql_Context_t context) {
     #else
     delete compound;
     #endif
+}
+
+extern "C" size_t
+hdql_compound_for_each_own_attribute(const struct hdql_Compound * C
+        , int (*cllb)(const char *, size_t, const struct hdql_AttrDef *, void *)
+        , void * userdata) {
+    const size_t nAttrsOverall = hdql_compound_get_nattrs(C);
+    const char ** names = (const char **) alloca(sizeof(char*)*nAttrsOverall);
+    hdql_compound_get_attr_names(C, names);
+    size_t nBindingQueries = 0;
+    for(size_t nAttr = 0; nAttr < nAttrsOverall; ++nAttr) {
+        const struct hdql_AttrDef * attrAD = hdql_compound_get_attr(C, names[nAttr]);
+        if(!hdql_attr_def_is_bound(attrAD)) continue;
+        ++nBindingQueries;
+        if(cllb ) {
+            int rc = cllb(names[nAttr], nBindingQueries, attrAD, userdata);
+            if(0 != rc) return nBindingQueries;
+        }
+    }
+    return nBindingQueries;
 }
 

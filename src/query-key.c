@@ -171,7 +171,7 @@ _hdql_for_each_key( const struct hdql_CollectionKey * keys
         else {
             assert(cKey->code == 0x0);
             assert(!cKey->isList);
-            assert(NULL == cKey->pl.keysList);
+            assert(NULL == cKey->pl.keysList);  /* list ptr is set, but is not a list and has 0 code */
         }
         #endif
         if(cKey->isTerminal) break;

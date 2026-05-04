@@ -85,7 +85,7 @@ _fwd_query_scalar_interface_destroy(
         , hdql_Context_t ctx
         ) {
     struct FwdQueryScalarState * dd = (struct FwdQueryScalarState *) dd_;
-    if(dd->keys) {
+    if(dd && dd->keys) {
         hdql_query_keys_destroy(dd->keys, ctx);
     }
     // NOTE: sub-queries get destroyed within virtual compound dtrs

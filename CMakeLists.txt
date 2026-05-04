@@ -40,6 +40,8 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
+                  src/ifaces/bound-value.c
+                  src/ifaces/bound-compound-collection.c
                   src/funcs/generic-logic.c
                   src/helpers/query.cc
                   src/helpers/query-results-handler.c
@@ -116,7 +118,10 @@ if (BUILD_TESTS)
                           test/ht.test.cc
                           test/events-struct.cc
                           test/samples.cc
-                          test/iteration-tests.cc
+                          test/iteration-tests/singular-query.cc
+                          test/iteration-tests/arithmetics.cc
+                          test/iteration-tests/v-compound-fwd.cc
+                          test/iteration-tests/v-compound-bind.cc
                           test/cpp-api.cc
                           test/dsv.test.cc
                           test/query-product.test.cc

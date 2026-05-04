@@ -141,7 +141,13 @@ public:
         }
         // otherwise, do parent lookup
         if(tierNo > _tier) {
-            throw std::runtime_error("Logic error: type of descendant context requested.");
+            char errbf[256];
+            snprintf(errbf, sizeof(errbf), "context integrity failure or"
+                    " malformed type ID: type id=%d of"
+                    " (apparently) descendant context requested from parent"
+                    " (type defined in tier %d, this tier is %d)"
+                    , code, (int) tierNo, (int) _tier);
+            throw std::runtime_error(errbf);
         }
         assert(_parent);
         return _parent->get_by_code(code);

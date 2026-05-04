@@ -65,6 +65,8 @@ _arith_op_collection_create( hdql_Datum_t owner
     bool bIsFullyScalar = state->defData->args[1] ? hdql_query_is_fully_scalar(state->defData->args[1]) : true;
     assert(aIsFullyScalar != bIsFullyScalar);  /* both scalars and both collections are prohibited */
     #endif
+    /* see comments to issue #14 -- we currently have to allocate and maintain
+     * keys unconditionally, but that must be changed in the future */
     if(!aIsFullyScalar) {
         /* first arg is collection */
         state->advance = _advance_a;

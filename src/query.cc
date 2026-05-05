@@ -74,13 +74,13 @@ struct QueryState {
 
 /**\brief Tree-item wrapper around single selection item
  *
- * \note currently implemented as linked list, in future can be extended to
- *       a tree (if we will introduce a destructuring querying syntax).
+ * Maintains a subject query, its last result and the iterator.
  * */
 template<typename SelectionItemT>
 struct Query : public SelectionItemT {
     Query * next;
     hdql_Datum_t result;
+    bool currentYielded;
 
     Query( const hdql_AttrDef * subject_
          , const hdql_SelectionArgs_t selexpr_
@@ -89,11 +89,24 @@ struct Query : public SelectionItemT {
                            )
            , next(NULL)
            , result(NULL)
+           , currentYielded(false)
            {}
 
     bool get( struct hdql_CollectionKey * keys
             , hdql_Context_t ctx
             ) {
+        if(!next) {  // last query in a chain
+            if(currentYielded) {  // already got, advance before return
+                SelectionItemT::advance(ctx);
+                currentYielded = true;
+            }
+            if(!SelectionItemT::get_value(result, keys, ctx)) {
+                return false;
+            }
+            currentYielded = true;
+            return true;  // got current and this is terminal query in the chain
+        }
+
         // try to get value using current selection
         if(!SelectionItemT::get_value( result  // destination
                                      , keys
@@ -101,10 +114,7 @@ struct Query : public SelectionItemT {
                                      ) ) {
             return false;  // not available
         }
-        if(!next) {
-            SelectionItemT::advance(ctx);
-            return true;  // got current and this is terminal
-        }
+
         // this is not a terminal query in the chain 
         while(!next->get(keys ? keys + 1 : NULL, ctx)) {  // try to get next and if failed, keep:
             SelectionItemT::advance(ctx);  // advance next one
@@ -133,6 +143,7 @@ struct Query : public SelectionItemT {
     }
 
     void reset( hdql_Datum_t owner, hdql_Context_t ctx ) {
+        currentYielded = false;
         SelectionItemT::reset(owner, ctx);
         if(!SelectionItemT::get_value(result, NULL, ctx))
             return;

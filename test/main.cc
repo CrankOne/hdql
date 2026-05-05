@@ -3,6 +3,7 @@
 #include "hdql/errors.h"
 #include "hdql/helpers/compounds.hh"
 #include "hdql/helpers/fancy-print-err.h"
+#include "hdql/helpers/print-tree.h"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -32,90 +33,6 @@ static void print_compound_instance_1st_tier(hdql_Datum_t d, hdql_AttrDef_t ad) 
         if(isFirst) isFirst = false; else fputs(", ", stdout);
         printf("`%s'", attrNames[nAttr]);
     }
-}
-
-static void shallow_print_value(hdql_Datum_t r, hdql_AttrDef_t topAttrDef
-        , hdql_Context_t ctx) {
-    hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
-    if(hdql_attr_def_is_static_value(topAttrDef)) {  // returns static value
-        // xxx, example: `2 + 3'
-        printf( "static value %p of type %d"
-              ,  hdql_attr_def_get_static_value(topAttrDef)
-              , (int) hdql_attr_def_get_atomic_value_type_code(topAttrDef)
-              );
-        if(hdql_attr_def_get_atomic_value_type_code(topAttrDef)) {
-            const hdql_ValueInterface * vi
-                = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
-            if(vi && vi->get_as_string) {
-                char bf[32];
-                vi->get_as_string(r, bf, sizeof(bf), ctx);
-                printf( "value=\"%s\"", bf );
-            } else {
-                fputs(" (no value interface)", stdout);
-            }
-        }
-    } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {  // forwarding query
-        printf("subquery %p", hdql_attr_def_fwd_query(topAttrDef));
-    } else if(!hdql_attr_def_is_atomic(topAttrDef)) {  // compound instance(s) of certain type
-        assert(hdql_attr_def_is_compound(topAttrDef));
-        const struct hdql_Compound * ct = hdql_attr_def_compound_type_info(topAttrDef);
-        if(!hdql_compound_is_virtual(ct)) {
-            printf( "compound %s instance %p of type `%s': "
-                  , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
-                  , r
-                  , hdql_compound_get_name(hdql_attr_def_compound_type_info(topAttrDef))
-                  );
-            print_compound_instance_1st_tier(r, topAttrDef);
-        } else {
-            char buf[128];
-            hdql_compound_get_full_type_str(ct, buf, sizeof(buf));
-            printf( "compound %s instance %p of type `%s': "
-                  , hdql_attr_def_is_collection(topAttrDef) ? "collection" : "scalar"
-                  , r
-                  , buf
-                  );
-            print_compound_instance_1st_tier(r, topAttrDef);
-        }
-    } else {  // atomic item
-        if(!hdql_attr_def_is_collection(topAttrDef)) {  // scalar compound attribute
-            // xxx, example: `.eventID', `.hits.x'
-            const hdql_ValueInterface * vi = hdql_types_get_type(valTypes
-                    , hdql_attr_def_get_atomic_value_type_code(topAttrDef) );
-            if(!vi) {
-                printf( "scalar instance %p of unknown type", r);
-            } else if(!vi->get_as_string) {
-                printf( "scalar instance %p of type <%s> (no to-string method)"
-                        , r, vi->name );
-            } else {
-                char valueBf[32];
-                vi->get_as_string(r, valueBf, sizeof(valueBf), ctx);
-                printf( "scalar instance %p of type <%s> with value \"%s\""
-                        , r, vi->name, valueBf );
-            }
-        } else {  // item from collection of atomic scalars (1d list or array)
-            // xxx, example: `.hits.rawData.samples'
-            #if 1
-            const hdql_ValueInterface * vi
-                = hdql_types_get_type(valTypes, hdql_attr_def_get_atomic_value_type_code(topAttrDef));
-            if(vi && vi->get_as_string) {
-                char bf[32];
-                vi->get_as_string(r, bf, sizeof(bf), ctx);
-                printf( "value=\"%s\"", bf );
-            } else {
-                fputs(" (no value interface)", stdout);
-            }
-            #else
-            // Query resulted in weird item
-            printf("??? (attr.def. provided, %s, %s, %s %s)"
-                  , topAttrDef->staticValueFlags ? "stat.val." : "not a static value"
-                  , topAttrDef->isSubQuery ? "subquery" : "not a subquery"
-                  , topAttrDef->isAtomic ? "atomic" : "compound"
-                  , topAttrDef->isCollection ? "collection" : "scalar"
-                  );
-            #endif
-        }
-    }
-    puts(".");
 }
 
 //
@@ -185,9 +102,11 @@ test_query_on_data( int nSample, const char * expression ) {
         free(expCpy);
     }
     assert(q);
-    puts("-- query composition (final result goes last):");
+    puts("*** query composition (final result goes last):");
     hdql_query_dump(stdout, q, ctx);
     const hdql_AttrDef * topAttrDef = hdql_query_top_attr(q);
+    puts("*** top attribute definition (recursive compounds expansion):");
+    hdql_attr_def_tree_print(topAttrDef, ctx, 128, stdout, 0x1);
     // iterate over query results
     size_t nResult = 0;
     hdql_Datum_t r;
@@ -218,12 +137,12 @@ test_query_on_data( int nSample, const char * expression ) {
             return -1;  // TODO: cleanup? details?
         }
 
-        //puts("-- uninit keys topology:");
+        //puts("*** uninit keys topology:");
         //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
         //puts(keyStrBf);
 
         #if 0
-        puts("-- query columns:"); {
+        puts("*** query columns:"); {
             char * colNames[256];
             size_t nColumns = 256;
             hdql_stream_column_names(q, colNames, &nColumns, '/');
@@ -243,7 +162,7 @@ test_query_on_data( int nSample, const char * expression ) {
         }
         #endif
 
-        printf("-- sample #%d query results:\n", i);
+        printf("*** sample #%d query results:\n", i);
         while(NULL != (r = hdql_query_get(q, keys, ctx))) {
             hadResult = true;
             if(flatKeyViewLength) {
@@ -273,7 +192,10 @@ test_query_on_data( int nSample, const char * expression ) {
                 fputs("??? (query did not provide attribute definition)", stdout);
             } else {  // valid result
                 fputs(flKStr, stdout);  // flat keys
-                shallow_print_value(r, topAttrDef, ctx);
+                if(hdql_attr_def_is_compound(topAttrDef)) {
+                    putc('\n', stdout);
+                }
+                hdql_attr_def_tree_data_print(topAttrDef, r, ctx, 127, stdout, 0x0);
             }  // end of valid result handling
 
             #if 0

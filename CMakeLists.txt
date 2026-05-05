@@ -47,6 +47,9 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/query-results-handler.c
                   src/helpers/query-results-handler-csv.c
                   src/helpers/fancy-print-err.c
+                  src/helpers/print-tree.c
+                  src/helpers/print-tree-attr-def.c
+                  src/helpers/print-tree-attr-def-w-data.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -171,6 +174,7 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
               include/hdql/helpers/compounds.hh
               include/hdql/helpers/functions.hh
               include/hdql/helpers/query.hh
+              include/hdql/helpers/print-tree.h
               )
     install (TARGETS hdql
         EXPORT ${CMAKE_PROJECT_NAME}Targets

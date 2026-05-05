@@ -3,7 +3,6 @@
 
 #include "hdql/types.h"
 #include "hdql/value.h"
-#include "hdql/errors.h"
 
 #ifdef __cplusplus
 extern "C" {

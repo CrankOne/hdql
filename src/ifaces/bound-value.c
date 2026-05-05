@@ -54,18 +54,6 @@ hdql_bound_value_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_
     hdql_context_free(ctx, d);
 }
 
-/* Query is provided as `definitionData` */
-static hdql_Datum_t
-_bound_query_scalar_interface_instantiate(
-          hdql_Datum_t ownerDatum
-        , const hdql_Datum_t definitionData
-        , hdql_Context_t ctx
-        ) {
-    assert(definitionData);  /* otherwise, bound to what query/value? */
-    assert(((const struct BoundValueDefinitionData *) (definitionData))->value);
-    return *((const struct BoundValueDefinitionData *) (definitionData))->value;
-}
-
 static hdql_Datum_t
 _bound_query_scalar_interface_dereference(
           hdql_Datum_t root
@@ -75,17 +63,7 @@ _bound_query_scalar_interface_dereference(
         , hdql_Context_t ctx
         ) {
     assert(definitionData);  /* otherwise, bound to what query/value? */
-    return *((const struct BoundValueDefinitionData *) (definitionData))->value;
-}
-
-static hdql_Datum_t
-_bound_query_scalar_interface_reset(
-          hdql_Datum_t newOwner
-        , hdql_Datum_t dd_
-        , const hdql_Datum_t definitionData
-        , hdql_Context_t ctx
-        ) {
-    assert(definitionData);  /* otherwise, bound to what query/value? */
+    assert(*((const struct BoundValueDefinitionData *) (definitionData))->value);
     return *((const struct BoundValueDefinitionData *) (definitionData))->value;
 }
 
@@ -100,9 +78,9 @@ _bound_query_scalar_interface_destroy(
 
 const struct hdql_ScalarAttrInterface _hdql_gBoundQueryIFace = {
     .definitionData = NULL,  /* : changed in copies keep target forwarding query ptr */
-    .instantiate = _bound_query_scalar_interface_instantiate,
+    .instantiate = NULL,  //_bound_query_scalar_interface_instantiate,
     .dereference = _bound_query_scalar_interface_dereference,
-    .reset = _bound_query_scalar_interface_reset,
+    .reset = NULL, // _bound_query_scalar_interface_reset,
     .destroy = _bound_query_scalar_interface_destroy
 };
 
@@ -245,11 +223,6 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
                                 ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     if(keyPtr) {
-        //printf("XXX received key ptr %p, 1st is %p \n"
-        //        , keyPtr->pl.keysList, keyPtr->pl.keysList[0].pl.keysList);  // XXX
-        // ^^^ we receive here key wrapping the keys list we returned
-        //     during a reserve, not the reserved instance (reserved are
-        //     under the keyPtr->pl.keysList -- what a mess... see #14)
         assert(keyPtr->isList);
         assert(keyPtr->pl.keysList[it->nBindingQueries-1].isTerminal);
         for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
@@ -261,6 +234,13 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
                                 );
         }
     }
+    #ifndef NDEBUG
+    if(it->owner) {
+        for(size_t i = 0; i < it->nBindingQueries; ++i) {
+            assert(it->values[i]);
+        }
+    }
+    #endif
     return it->owner;
 }
 
@@ -280,6 +260,11 @@ _hdql_cartesian_product_as_collection_advance( hdql_It_t it_ ) {
             it->owner = NULL;
             break;
         }
+        #ifndef NDEBUG
+        for(size_t i = 0; i < it->nBindingQueries; ++i) {
+            assert(it->values[i]);
+        }
+        #endif
         if(it->filterQuery) {
             hdql_query_reset(it->filterQuery, it->owner, it->context);
             hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);
@@ -317,6 +302,11 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
         it->owner = NULL;
         return it_;
     }
+    #ifndef NDEBUG
+    for(size_t i = 0; i < it->nBindingQueries; ++i) {
+        assert(it->values[i]);
+    }
+    #endif
     while(it->filterQuery && rc != HDQL_ERR_EMPTY_SET) {
         hdql_query_reset(it->filterQuery, it->owner, it->context);
         hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);

@@ -93,6 +93,16 @@ const struct hdql_ValueInterface * hdql_types_get_type_by_name(const struct hdql
  * Returns pointer to type definition on success or NULL on failure. */
 hdql_ValueTypeCode_t hdql_types_get_type_code(const struct hdql_ValueTypes *, const char *);
 
+/**\brief Implements usual arithmetic conversions
+ *
+ * Having two arithmetic types \p aType and \p bType, returns a type, following
+ * result type. This function is not used directly for binary or unary
+ * arithmetics (instead, a table for possible combinations is generated), but
+ * required by functions.
+ * */
+hdql_ValueTypeCode_t hdql_types_numeric_promote( const struct hdql_ValueTypes *
+        , hdql_ValueTypeCode_t aType, hdql_ValueTypeCode_t bType);
+
 /**\brief Useful function to add standard C/C++ types to table
  *
  * By default HDQL does not add these types in the table, but user code
@@ -150,17 +160,13 @@ enum hdql_ExternValueType {
     hdql_kExternValFltType = 2,
 };
 
-int
-hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
+int hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
 
-int
-hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
+int hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
 
-enum hdql_ExternValueType
-hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
+enum hdql_ExternValueType hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
 
-int
-hdql_constants_define_standard_math(struct hdql_Constants *);
+int hdql_constants_define_standard_math(struct hdql_Constants *);
 
 /*                                                    ________________________
  * _________________________________________________/ External dynamic values

@@ -51,10 +51,16 @@ struct hdql_ValueTypes {
     // tier code, max is 32 (4 bits)
     const uint8_t _tier;
     hdql_ValueTypes * _parent;
+
+    // numeric promotion rules, internal cache, gets invalidated each time type added
+    mutable std::vector<hdql_ValueTypeCode_t> _numPromotionOrder;
+    // flag controlling validity of `_numPromotionOrder`
+    mutable bool _isNumPromotionOrderValid;
 public:
     hdql_ValueTypes(hdql_ValueTypes * parent=nullptr)
         : _tier(parent ? parent->_tier + 1 : 1)
         , _parent(parent)
+        , _isNumPromotionOrderValid(false)
         {
         if((((hdql_ValueTypeCode_t) _tier) << 10) > gMaxTypeID) {
             throw std::runtime_error("Can't create more"
@@ -63,6 +69,7 @@ public:
     }
 
     int define(const hdql_ValueInterface & iface) {
+        _isNumPromotionOrderValid = false;
         if(NULL == iface.name || *iface.name == '\0') {
             return -1;  // bad name
         }
@@ -83,6 +90,7 @@ public:
     }
 
     int define_alias(hdql_ValueTypeCode_t tgtCode, const char * alias) {
+        _isNumPromotionOrderValid = false;
         assert(0 != tgtCode);  // we assume user code controlled it
         uint8_t tierNo = _get_tier_number(tgtCode);
         assert(tierNo);
@@ -152,6 +160,8 @@ public:
         assert(_parent);
         return _parent->get_by_code(code);
     }
+
+    const std::vector<hdql_ValueTypeCode_t> & numeric_types_promotion_order() const;
 };  // struct hdql_ValueTypes
 
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
@@ -481,6 +491,32 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
     m( "double",    double )                \
     // ... other standard types?
 
+const std::vector<hdql_ValueTypeCode_t> &
+hdql_ValueTypes::numeric_types_promotion_order() const {
+    if(_isNumPromotionOrderValid) return _numPromotionOrder;
+    hdql_ValueTypeCode_t tCode;
+
+    #define _M_push_back_type_code_promot(name, type) \
+    if(0x0 != (tCode = get_code_by_name(name))) { \
+        _numPromotionOrder.push_back(tCode); \
+    }
+    _M_hdql_for_each_std_type(_M_push_back_type_code_promot)
+    #undef _M_push_back_type_code_promot
+
+    _isNumPromotionOrderValid = true;
+    return _numPromotionOrder;
+}
+
+hdql_ValueTypeCode_t
+hdql_types_numeric_promote( const struct hdql_ValueTypes * vt
+        , hdql_ValueTypeCode_t aType, hdql_ValueTypeCode_t bType) {
+    const std::vector<hdql_ValueTypeCode_t> & order = vt->numeric_types_promotion_order();
+    const hdql_ValueTypeCode_t * aPtr = std::find(order.data(), order.data() + order.size(), aType);
+    if(aPtr == order.data() + order.size()) return 0x0;
+    const hdql_ValueTypeCode_t * bPtr = std::find(order.data(), order.data() + order.size(), bType);
+    if(bPtr == order.data() + order.size()) return 0x0;
+    return aType > bType ? aType : bType;
+}
 
 namespace {
 int

@@ -286,7 +286,7 @@ struct AutoFunction {
             const hdql_AttrDef * argTQDef = hdql_query_top_attr(*q);
             if(hdql_attr_def_is_compound(argTQDef)) {
                 // TODO: support for compound arguments? If implemented using
-                // RTTI would requires forwarding of helpers::Compounds
+                // RTTI would require forwarding of helpers::Compounds
                 // dictionary which makes this wrapper dependant on the API
                 // part that is somewhat optional (i.e. C++ compount type must
                 // be created via this helper to be resolved here)...

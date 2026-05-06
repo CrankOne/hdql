@@ -8,6 +8,12 @@
 #include <string.h>
 #include <assert.h>
 
+typedef struct {
+    struct hdql_Query ** queries;
+    hdql_TypeConverter * converters;
+    size_t nQueries;
+} AggFuncSumDefData_t;
+
 struct hdql_AttrDef *
 hdql_func_helper__try_instantiate_sum(
           struct hdql_Query ** args, void * userdata
@@ -55,5 +61,24 @@ hdql_func_helper__try_instantiate_sum(
     }
     assert(false);  /* TODO */
     /* allocate function "definition data" */
+    AggFuncSumDefData_t * dd = hdql_alloc(context, AggFuncSumDefData_t);
+    dd->nQueries = nArgs;
+    dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
+    dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);;
     /* assign queries and set up n-th type converter, if needed */
+    nArgs = 0;
+    for(struct hdql_Query **q = args; *q != NULL; ++q, ++nArgs) {
+        const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
+                                , *qAD  = hdql_attr_def_top_attr(qAD_);
+        const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
+        /* get result type code */
+        if(atf->arithTypeCode == rTypeCode) {
+            /* conversion is not needed */
+            dd->converters[nArgs] = NULL;
+            continue;
+        }
+        dd->converters[nArgs] = hdql_converters_get(converters, rTypeCode, atf->arithTypeCode);
+        if(!dd->converters[nArgs]) {
+        }
+    }
 }

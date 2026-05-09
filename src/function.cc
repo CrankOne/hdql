@@ -59,6 +59,7 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
         *r = it->second.try_instantiate(argsQueries, it->second.userdata
                 , errBf, sizeof(errBf), context);
         if(NULL != *r) return HDQL_ERR_CODE_OK;
+        /* TODO: communicate error reasons in a more elaborated way... */
         std::cerr << "  " << it->second.try_instantiate
                   << ": " << errBf
                   << std::endl;
@@ -97,6 +98,7 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions) {
 
     _M_ADD_STD_MATH_FUNC(log);
     _M_ADD_STD_MATH_FUNC(exp);
+    _M_ADD_STD_MATH_FUNC(log2);
     _M_ADD_STD_MATH_FUNC(log10);
 
     // ... other math functions?

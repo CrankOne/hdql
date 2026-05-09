@@ -59,25 +59,6 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
                       , hdql_Context_t context
                       );
 
-int
-hdql_functions_add_standard_math(struct hdql_Functions * functions);
-
-/*
- * Some common implementations
- */
-
-/**\brief Cartesian product function
- *
- * Results in a virtual compound with sub-queries matching exactly their
- * collections
- * */
-//struct hdql_AttrDef *
-//hdql_func_helper__try_instantiate_cartesian_product(struct hdql_Query **, void *
-//        , char * errbf, size_t errbfSize
-//        , hdql_Context_t);
-
-#if 0
-
 /**\brief Common constructor for single-argument math functions
  *
  * Constructor for simple 1-argument functions on real number like
@@ -85,9 +66,52 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  * scalar) or "collection of atomics" type (results in collection with
  * forwarded keys). Created `hdql_FuncDef` must have function of the signature
  * `double (*)(double)`. Examples:
- *  - trigonometric functions
- *  - exponentiation, logarithms
+ *  - trigonometric functions: sin, asin, sinh, cos, acos, cosh, tan, tanh,
+ *    atan, atan2.
+ *  - exponentiation, logarithms: sqrt, pow, floor, ceil, fabs, fmod, log, exp,
+ *    log2, log10.
  * */
+int
+hdql_functions_add_standard_math(struct hdql_Functions * functions);
+
+/**\briefe Adds simple monoid arithmetics (SMA)
+ *
+ * Aggreage functions featuring following traits:
+ * - receives one or more queries resulting in atomic arithmetic type;
+ * - results in a scalar real-valued convolution of all the query results;
+ * - Either have fixed result type, or usual type promotion is applied for
+ *   result type. I.e. sum of integers results in the larger integer, presense
+ *   of float makes the sum result to be of floating point, etc.
+ * - are not annotated with keys.
+ *
+ * Last feature makes this class of functions different from classic monoid
+ * definitions, which can result in element selection -- min(), max(),
+ * arbitrary() etc. Currently, SMA are:
+ *
+ *    Func. name  | Operation   | Neutral el. | Types           | Result type
+ *  --------------+-------------+-------------+-----------------+-------------
+ *      sum       | a + b       | 0           | all numeric     | promoted
+ *      product   | a * b       | 1           | all numeric     | promoted
+ *      count     | a += b? 0:1 | 0           | all             | uin64_t
+ *      each_of   | a && b      | true        | all             | bool
+ *      any_of    | a || b      | false       | all             | bool
+ *      none_of   | (!a) && (!b)| false       | all             | bool
+ *      bAND      | a & b       | ~0x0        | integer only    | promoted int
+ *      bOR       | a | b       | 0x0         | integer only    | promoted int
+ *      bXOR      | a ^ b       | 0x0         | integer only    | promoted int
+ *
+ * Additionally, there is also a `big_sum()` aggregate function implementing
+ * Kahan-Babuska precise summator resulting `double` value from numerical types.
+ *
+ * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
+ * yet one may imagine some practical applications still.
+ */
+int
+hdql_functions_add_simple_monoid_arithmetics(struct hdql_Functions * functions);
+
+
+#if 0
+
 struct hdql_AttrDef *
 hdql_func_helper__try_instantiate_unary_math(struct hdql_Query **, void *, hdql_Context_t);
 

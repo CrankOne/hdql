@@ -42,7 +42,6 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/filtered-v-compound.c
                   src/ifaces/bound-value.c
                   src/ifaces/bound-compound-collection.c
-                  #src/funcs/generic-logic.c
                   src/helpers/query.cc
                   src/helpers/query-results-handler.c
                   src/helpers/query-results-handler-csv.c
@@ -50,6 +49,7 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
+                  src/funcs/simple-arith-monoids.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs

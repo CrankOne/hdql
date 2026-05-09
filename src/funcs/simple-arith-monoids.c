@@ -1,5 +1,6 @@
 #include "hdql/attr-def.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/function.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
@@ -8,43 +9,14 @@
 #include <string.h>
 #include <assert.h>
 
-/* Simple monoid arithmetics (SMA)
- * ===============================
- *
- * - receives one or more queries resulting in atomic arithmetic type;
- * - results in a scalar real-valued convolution of all the query results;
- * - Usual type promotion is applied for result type. I.e. sum of integers
- *   results in the larger integer, presense of float makes the sum result to
- *   be of floating point, etc.
- * - are not annotated with keys.
- *
- * Last feature makes this class of functions different from classic monoid
- * definitions, which can result in element selection -- min(), max(),
- * arbitrary() etc. Currently, SMA are:
- *
- *    Func. name  | Operation   | Neutral el. | Types           | Result type
- *  --------------+-------------+-------------+-----------------+-------------
- *      sum       | a + b       | 0           | all numeric     | promoted
- *      product   | a * b       | 1           | all numeric     | promoted
- *      count     | a += b? 0:1 | 0           | all             | uin64_t
- *      each_of   | a && b      | true        | all             | bool
- *      any_of    | a || b      | false       | all             | bool
- *      none_of   | (!a) && (!b)| false       | all             | bool
- *      b_AND     | a & b       | ~0x0        | integer only    | promoted int
- *      b_OR      | a | b       | 0x0         | integer only    | promoted int
- *      b_XOR     | a ^ b       | 0x0         | integer only    | promoted int
- *
- * Additionally, there is also a `big_sum()` aggregate function implementing
- * Kahan-Babuska precise summator resulting `double` value from numerical types.
- *
- * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
- * yet one may imagine some practical applications still.
- */
-
 typedef struct {
+    /* returned result value type */
     hdql_ValueTypeCode_t rTypeCode;
+    /* list of queries (owned by definition data) */
     struct hdql_Query ** queries;
+    /* value converters (can be null if not needed) */
     hdql_TypeConverter * converters;
+    /* number of queries (arguments) */
     size_t nQueries;
 } SMADefData_t;
 
@@ -52,6 +24,78 @@ typedef struct {
     struct hdql_Datum ** convertedValues;
     struct hdql_Datum * result;
 } SMADynamicData_t;
+
+/*
+ * These interface implementations are agnostic to particular value type
+ */
+
+static hdql_Datum_t
+_SMA_common__instantiate
+            ( hdql_Datum_t newOwner
+            , const hdql_Datum_t defData_
+            , hdql_Context_t context
+            ) {
+    ((void) newOwner);  /* owner unused here */
+    const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
+    SMADynamicData_t *dynData = hdql_alloc(context, SMADynamicData_t);
+    /* allocate destinations */
+    dynData->convertedValues
+        = (struct hdql_Datum **) hdql_context_alloc(context, sizeof(struct hdql_Datum *)*defData->nQueries);
+    /* mark reserved values with zeros to conditionally free them on failure */
+    bzero(dynData->convertedValues, sizeof(struct hdql_Datum *)*defData->nQueries);
+    /* allocate destinations */
+    for(size_t nq = 0; nq < defData->nQueries; ++nq) {
+        const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(defData->queries[nq])
+                                , *qAD  = hdql_attr_def_top_attr(qAD_);
+        const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
+        if(atf->arithTypeCode == defData->rTypeCode) {
+            /* no conversion needed */
+            assert(defData->converters == NULL || NULL == defData->converters[nq]);
+            continue;
+        }
+        /* conversion is needed -- allocate destination */
+        dynData->convertedValues[nq] = hdql_create_value(defData->rTypeCode, context);
+        assert(dynData->convertedValues[nq]);  /* allocation error */
+    }
+    /* allocate result datum */
+    dynData->result = hdql_create_value(defData->rTypeCode, context);
+    assert(dynData->result);
+    return (struct hdql_Datum *) dynData;
+}
+
+static void
+_SMA_common__destroy
+            ( hdql_Datum_t dynData_
+            , const hdql_Datum_t defData_
+            , hdql_Context_t context
+            ) {
+    if(!defData_) return;
+    if(!dynData_) return;
+    const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
+    SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, dynData_);
+    if(dynData->convertedValues) {
+        for(size_t nq = 0; nq < defData->nQueries; ++nq) {
+            if(!dynData->convertedValues[nq]) continue;
+            hdql_context_free(context, dynData->convertedValues[nq]);
+        }
+        hdql_context_free(context, (hdql_Datum_t) dynData->convertedValues);
+    }
+    if(dynData->result) {
+        hdql_context_free(context, dynData->result);
+    }
+    hdql_context_free(context, (hdql_Datum_t) dynData);
+}
+
+static void
+_transient_dtr__simple_monoid_arith(hdql_Datum_t dd_, hdql_Context_t context) {
+    const SMADefData_t *dd = hdql_cast(context, const SMADefData_t, dd_);
+    for(size_t i = 0; i < dd->nQueries; ++i) {
+        hdql_query_destroy(dd->queries[i], context);
+    }
+    hdql_context_free(context, (hdql_Datum_t) dd->converters);
+    hdql_context_free(context, (hdql_Datum_t) dd->queries);
+    hdql_context_free(context, (hdql_Datum_t) dd);
+}
 
 /*
  * Interface functions
@@ -64,42 +108,8 @@ typedef struct {
 #define VALUE_TYPE float
 #define VALUE_SUFFIX i32
 
-#define _M_concat_name(a, b, c) a##_##b##__##c
+#define _M_concat_name(a, b, c) _##a##_##b##_##c
 #define _M_func_name(prefix, suffix, name) _M_concat_name(prefix, suffix, name)
-
-static hdql_Datum_t
-_M_func_name(SMA_PREFIX, VALUE_SUFFIX, __instantiate)
-            ( hdql_Datum_t newOwner
-            , const hdql_Datum_t defData_
-            , hdql_Context_t context
-            ) {
-    ((void) newOwner);  /* owner unused here */
-    const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
-    SMADynamicData_t *dynData = hdql_alloc(context, SMADynamicData_t);
-    /* allocate destinations */
-    dynData->convertedValues
-        = (struct hdql_Datum **) hdql_context_alloc(context, sizeof(struct hdql_Datum *)*defData->nQueries);
-    /* mark reserved values with zeros to conditionally free them on failure */
-    bzero(dynData->convertedValues, sizeof(struct hdql_Datum *));
-    /* allocate destinations */
-    for(size_t nq = 0; nq < defData->nQueries; ++nq) {
-        const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(defData->queries[nq])
-                                , *qAD  = hdql_attr_def_top_attr(qAD_);
-        const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
-        if(atf->arithTypeCode == defData->rTypeCode) {
-            /* no conversion needed */
-            assert(defData->converters == NULL || NULL != defData->converters[nq]);
-            continue;
-        }
-        /* conversion is needed -- allocate destination */
-        dynData->convertedValues[nq] = hdql_create_value(defData->rTypeCode, context);
-        assert(dynData->convertedValues[nq]);  /* allocation error */
-    }
-    /* allocate result datum */
-    dynData->result = hdql_create_value(defData->rTypeCode, context);
-    assert(dynData->result);
-    return (struct hdql_Datum *) dynData;
-}
 
 static hdql_Datum_t
 _M_func_name(SMA_PREFIX, VALUE_SUFFIX, __reset)
@@ -154,47 +164,12 @@ _M_func_name(SMA_PREFIX, VALUE_SUFFIX, __dereference)
     return dynData->result;
 }
 
-static void
-_M_func_name(SMA_PREFIX, VALUE_SUFFIX, __destroy)
-            ( hdql_Datum_t dynData_
-            , const hdql_Datum_t defData_
-            , hdql_Context_t context
-            ) {
-    if(!defData_) return;
-    if(!dynData_) return;
-    const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
-    SMADynamicData_t *dynData = hdql_alloc(context, SMADynamicData_t);
-    if(dynData->convertedValues) {
-        for(size_t nq = 0; nq < defData->nQueries; ++nq) {
-            if(!dynData->convertedValues[nq]) continue;
-            hdql_context_free(context, dynData->convertedValues[nq]);
-        }
-        hdql_context_free(context, (hdql_Datum_t) dynData->convertedValues);
-    }
-    if(dynData->result) {
-        hdql_context_free(context, dynData->result);
-    }
-    hdql_context_free(context, (hdql_Datum_t) dynData);
-}
-
 #undef VALUE_TYPE
 #undef VALUE_SUFFIX
 
 #undef SMA_PREFIX
 #undef SMA_OPERATION
 #undef SMA_NEUTRAL
-
-/*
- *
- */
-
-static void
-_transient_dtr__simple_monoid_arith(hdql_Datum_t dd_, hdql_Context_t context) {
-    const SMADefData_t *dd = hdql_cast(context, const SMADefData_t, dd_);
-    hdql_context_free(context, (hdql_Datum_t) dd->converters);
-    hdql_context_free(context, (hdql_Datum_t) dd->queries);
-    hdql_context_free(context, (hdql_Datum_t) dd);
-}
 
 /*
  * Instantiation (function constructor)
@@ -206,6 +181,7 @@ hdql_func_helper__try_instantiate_SMA(
         , char * failureBuffer, size_t failureBufferSize
         , hdql_Context_t context
         ) {
+    ((void) userdata);
     /* SMA type deduction should follow the rules:
      *  - integer type(s) result in largest int type
      *  - integer type(s) and/or float results in float
@@ -227,12 +203,12 @@ hdql_func_helper__try_instantiate_SMA(
     for(struct hdql_Query **q = args; *q != NULL; ++q, ++nArgs) {
         const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
                                 , *qAD  = hdql_attr_def_top_attr(qAD_);
-        if(hdql_attr_def_is_atomic(qAD)) {
+        if(!hdql_attr_def_is_atomic(qAD)) {
             snprintf( failureBuffer, failureBufferSize
-                    , "argument %zu is not of atomic type", nArgs );
+                    , "argument #%zu is not of atomic type", nArgs+1 );
             return NULL;
         }
-        if(hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
+        if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
         /* get result type code */
         const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
         if(0x0 != rTypeCode) {
@@ -260,6 +236,7 @@ hdql_func_helper__try_instantiate_SMA(
     dd->nQueries = nArgs;
     dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
     dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);
+    bzero(dd->converters, sizeof(hdql_TypeConverter)*nArgs);
 
     /* assign queries and set up type converters, if needed */
     nArgs = 0;
@@ -286,6 +263,11 @@ hdql_func_helper__try_instantiate_SMA(
 
     /* form interface */
     struct hdql_ScalarAttrInterface iface;
+    iface.definitionData = (hdql_Datum_t) dd;
+    iface.instantiate = _SMA_common__instantiate;
+    iface.dereference = _sum_i32___dereference;
+    iface.reset       = _sum_i32___reset;
+    iface.destroy     = _SMA_common__destroy;
 
     /* create (transient) attribute definition */
     struct hdql_AtomicTypeFeatures typeInfo;
@@ -307,3 +289,18 @@ onFailCleanup:
     hdql_context_free(context, (hdql_Datum_t) dd);
     return NULL;
 }
+
+
+/*
+ * Register function
+ */
+
+int
+hdql_functions_add_simple_monoid_arithmetics(struct hdql_Functions * functions) {
+    int rc;
+    rc = hdql_functions_define(functions, "sum", hdql_func_helper__try_instantiate_SMA, NULL );
+    // ...
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+    return 0;
+}
+

@@ -21,20 +21,6 @@
 #include <cstdio>
 #include <cassert>
 
-// aux function to print 1st level of compound item
-static void print_compound_instance_1st_tier(hdql_Datum_t d, hdql_AttrDef_t ad) {
-    assert(hdql_attr_def_is_compound(ad));
-    const hdql_Compound * c = hdql_attr_def_compound_type_info(ad);
-    size_t n = hdql_compound_get_nattrs(c);
-    const char ** attrNames = (const char **) alloca(sizeof(char*)*n);
-    hdql_compound_get_attr_names(c, attrNames);
-    bool isFirst = true;
-    for(size_t nAttr = 0; nAttr < n; ++nAttr) {
-        if(isFirst) isFirst = false; else fputs(", ", stdout);
-        printf("`%s'", attrNames[nAttr]);
-    }
-}
-
 //
 // Example of event structs
 
@@ -64,6 +50,8 @@ test_query_on_data( int nSample, const char * expression ) {
     }
     // add standard functions
     hdql_functions_add_standard_math(hdql_context_get_functions(ctx));
+    // add standard monoid arithmetic functions
+    hdql_functions_add_simple_monoid_arithmetics(hdql_context_get_functions(ctx));
     // add standard math constants
     hdql_constants_define_standard_math(hdql_context_get_constants(ctx));
     // add standard type conversions

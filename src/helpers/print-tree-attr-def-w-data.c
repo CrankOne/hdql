@@ -29,7 +29,7 @@ hdql_print_value_shallow( const struct hdql_Datum * r
     }
 
     struct hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
-    if(hdql_attr_def_is_static_value(topAttrDef)) {
+    if(hdql_attr_def_is_static_const_value(topAttrDef)) {
         /* static value, for instance `2', `2 + 3', etc */
         _M_append_strbuf( "static value %p of type %d"
               ,  hdql_attr_def_get_static_value(topAttrDef)

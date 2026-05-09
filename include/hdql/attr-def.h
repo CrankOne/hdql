@@ -25,12 +25,15 @@ struct hdql_AtomicTypeFeatures {
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
     hdql_Datum_t definitionData;
-    /**\brief Should instantiate selection supplementary data for scalar
-     *        attribute, can be NULL */
+    /**\brief Should instantiate supplementary dynamic data for scalar
+     *        attribute, can be NULL
+     *
+     * Dynamic data is used locally to hold some transient items like filtering
+     * query results, selection index cache, etc. */
     hdql_Datum_t (*instantiate)( hdql_Datum_t newOwner
                                , const hdql_Datum_t defData
                                , hdql_Context_t context
-                              );
+                               );
     /** Scalar item dereference callback, required */
     hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
                                , hdql_Datum_t dynData  // allocated with `instantiate()`
@@ -115,6 +118,11 @@ struct hdql_AttrDef;  /* opaque type */
 
 typedef const struct hdql_AttrDef * hdql_AttrDef_t;
 
+/**\brief Creates attribute definition for new atomic scalar attribute
+ *
+ * Instance gets allocated within the context, \p typeInfo and \p interface
+ * instances are copied.
+ * */
 struct hdql_AttrDef *
 hdql_attr_def_create_atomic_scalar(
           struct hdql_AtomicTypeFeatures        * typeInfo
@@ -199,9 +207,12 @@ hdql_attr_def_create_dynamic_value(
  * deleted by owner instances (usually queries). They refer to access
  * interfaces (scalar or collection) with dynamic data written in "definition
  * data" field that must be deleted
- * by such attr. def-s. */
+ * by such attr. def-s. 
+ *
+ * The \p dtr must expect definition data as 1st argument and free it using
+ * given context instance as 2nd argument. */
 void hdql_attr_def_set_transient(struct hdql_AttrDef *
-        , void (*)(hdql_Datum_t, hdql_Context_t) );
+        , void (*dtr)(hdql_Datum_t, hdql_Context_t) );
 
 //hdql_AttrDef_t
 //hdql_attr_def_create_static_atomic_scalar(
@@ -216,7 +227,8 @@ bool hdql_attr_def_is_scalar(hdql_AttrDef_t);
 bool hdql_attr_def_is_collection(hdql_AttrDef_t);
 bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
-bool hdql_attr_def_is_static_value(hdql_AttrDef_t);
+bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t);
+bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t);
 bool hdql_attr_def_is_transient(hdql_AttrDef_t);
 bool hdql_attr_def_is_bound(hdql_AttrDef_t);
 

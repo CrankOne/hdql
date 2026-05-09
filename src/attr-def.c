@@ -37,7 +37,7 @@
  *
  * There are also two orthogonal properties:
  * - a static value
- * - forwardign queries
+ * - forwarding queries
  *
  * A very special case is the *forwarding query attribute definition* that is
  * created during HDQL expression interpretation to be combined within a
@@ -59,8 +59,10 @@ struct hdql_AttrDef {
     /** If set, attribute should be interpreted as a sub-query */
     unsigned int isFwdQuery:1;
     /** If set, attribute has no owner:
-     *  0x1 -- constant value (parser should calculate simple arithmetics)
-     *  0x2 -- externally set variable (no arithmetics on parsing) */
+     *  0x1 -- constant value, usually a literal (parser calculates simple
+     *         arithmetics); can be some public constant as well (e.g. pi,
+     *         Avogadro number, etc);
+     *  0x2 -- externally set variable (no evaluation applied during the parsing) */
     unsigned int staticValueFlags:2;
     /** If set, scalar or collection iface's def. data is dynamic and has to
      * be deleted along with attr. def */
@@ -431,7 +433,7 @@ hdql_attr_def_create_dynamic_value(
     ((void) get);
     ((void) userdata);
     ((void) context);
-    #warning "TODO: no support for dynamic values"
+    #warning "TODO: support external values"
     return NULL;
 }
 
@@ -461,7 +463,8 @@ bool hdql_attr_def_is_scalar(hdql_AttrDef_t ad) { return !ad->isCollection; }
 bool hdql_attr_def_is_collection(hdql_AttrDef_t ad) { return ad->isCollection; }
 bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
 bool hdql_attr_def_is_direct_query(hdql_AttrDef_t ad) { return !ad->isFwdQuery; }
-bool hdql_attr_def_is_static_value(hdql_AttrDef_t ad) { return ad->staticValueFlags; }
+bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t ad) { return ad->staticValueFlags == 0x1; }
+bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t ad) { return ad->staticValueFlags == 0x2; }
 bool hdql_attr_def_is_transient(hdql_AttrDef_t ad) { return ad->isTransient; }
 
 bool hdql_attr_def_is_bound(hdql_AttrDef_t ad) {
@@ -530,7 +533,7 @@ hdql_attr_def_collection_iface(const hdql_AttrDef_t ad) {
 
 hdql_Datum_t
 hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
-    assert(0x1 == ad->staticValueFlags);  // TODO: dynamic extern values
+    assert(0x1 == ad->staticValueFlags);  /* const static, otherwise TODO: dynamic extern values */
     if(hdql_attr_def_is_collection(ad)) {
         return ad->interface.collection.definitionData;
     } else {
@@ -620,7 +623,7 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
         if(nUsed >= buflen - 1) return 1;
     // query 0x23fff34 is "[static ](collection|scalar) [of [atomic|compound]type] "
     _M_pr("%s%s%s "
-            , hdql_attr_def_is_static_value(subj) ? "static " : ""
+            , hdql_attr_def_is_static_const_value(subj) ? "const.static " : ""
             , hdql_attr_def_is_collection(subj) ? "collection" : "scalar"
             , hdql_attr_def_is_fwd_query(subj)
               ? " query result of query forwarding to "
@@ -649,7 +652,7 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
                                      );
             assert(NULL != vi);
             _M_pr("<%s>", vi->name);
-            if(hdql_attr_def_is_static_value(subj)) {
+            if(hdql_attr_def_is_static_const_value(subj)) {
                 assert(vi);
                 // "[static ](collection|scalar) of atomic type <%s> [=%s|at %p]"
                 if(vi->get_as_string) {

@@ -47,7 +47,8 @@ TEST_F(TestingEventStruct, forwardingAttribute_DataIterationWorksOnSample1) {
     ASSERT_TRUE( ad );
     ASSERT_FALSE( hdql_attr_def_is_collection(ad) );
     ASSERT_TRUE( hdql_attr_def_is_atomic(ad) );
-    ASSERT_FALSE( hdql_attr_def_is_static_value(ad) );
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
@@ -206,7 +207,8 @@ TEST_F(TestingEventStruct, virtualCompoundArithmeticsWorksOnSample1) {
     ASSERT_TRUE( ad );
     ASSERT_TRUE( hdql_attr_def_is_collection(ad) );
     ASSERT_TRUE( hdql_attr_def_is_atomic(ad) );
-    ASSERT_FALSE( hdql_attr_def_is_static_value(ad) );
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);

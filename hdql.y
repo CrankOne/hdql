@@ -104,12 +104,12 @@ _operation( struct hdql_Query * a
 
 #define is_atomic(attr)     hdql_attr_def_is_atomic(attr)
 #define is_collection(attr) hdql_attr_def_is_collection(attr)
-#define is_static(attr)     hdql_attr_def_is_static_value(attr)
+#define is_static(attr)     hdql_attr_def_is_static_const_value(attr)
 #define is_subquery(attr)   hdql_attr_def_is_fwd_query(attr)
 
 #define is_compound(attr)       hdql_attr_def_is_compound(attr)
 #define is_scalar(attr)         hdql_attr_def_is_scalar(attr)
-#define is_dynamic(attr)        (!hdql_attr_def_is_static_value(attr))
+#define is_dynamic(attr)        (!hdql_attr_def_is_static_const_value(attr))
 #define is_direct_query(attr)   hdql_attr_def_is_direct_query(attr)
 
 }

@@ -67,7 +67,7 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
-    ASSERT_FALSE(q.is_static_value());
+    ASSERT_FALSE(q.is_static_const_value());
     // - is not transient (syntetic) attribute created within a context
     ASSERT_FALSE(q.is_transient());
 
@@ -143,7 +143,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
-    ASSERT_FALSE(q.is_static_value());
+    ASSERT_FALSE(q.is_static_const_value());
     // - is not transient (syntetic) attribute created within a context
     ASSERT_FALSE(q.is_transient());
 
@@ -223,7 +223,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());
     // - is not a static value
-    ASSERT_FALSE(q.is_static_value());
+    ASSERT_FALSE(q.is_static_const_value());
     // - is not a transient (syntetic) attribute created within a context
     ASSERT_FALSE(q.is_transient());
 

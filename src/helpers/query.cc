@@ -475,8 +475,8 @@ Query::is_direct_query() const {
 }
 
 bool
-Query::is_static_value() const {
-    return hdql_attr_def_is_static_value(_topAttrDef);
+Query::is_static_const_value() const {
+    return hdql_attr_def_is_static_const_value(_topAttrDef);
 }
 
 bool

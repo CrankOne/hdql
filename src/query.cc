@@ -252,7 +252,7 @@ QueryState::get_value( hdql_Datum_t & value
               , hdql_CollectionKey * keyPtr
               , hdql_Context_t ctx
               ) {
-    if(hdql_attr_def_is_static_value(subject)) {
+    if(hdql_attr_def_is_static_const_value(subject) || hdql_attr_def_is_static_external_value(subject)) {
         owner = hdql_attr_def_get_static_value(subject);
     }
     assert(owner);  // otherwise missing `reset()`

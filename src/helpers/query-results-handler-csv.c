@@ -389,7 +389,8 @@ _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
     assert(!hdql_attr_def_is_collection(h->ad));
     assert(hdql_attr_def_is_scalar(h->ad));
     assert(hdql_attr_def_is_compound(h->ad));
-    assert(!hdql_attr_def_is_static_value(h->ad));
+    assert(!hdql_attr_def_is_static_const_value(h->ad));
+    assert(!hdql_attr_def_is_static_external_value(h->ad));
     assert(!hdql_attr_def_is_atomic(h->ad));
 
     /* Get item by dereferencing the owner with attribute definition */

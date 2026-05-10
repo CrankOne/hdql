@@ -53,15 +53,16 @@ struct hdql_ValueTypes {
     const uint8_t _tier;
     hdql_ValueTypes * _parent;
 
-    // numeric promotion rules, internal cache, gets invalidated each time type added
-    mutable std::vector<hdql_ValueTypeCode_t> _numPromotionOrder;
-    // flag controlling validity of `_numPromotionOrder`
-    mutable bool _isNumPromotionOrderValid;
+    // type promotions cache
+    mutable struct hdql_ArithTypePromotionTable * _promotions;
+    mutable bool _isPromotionsValid;
 public:
-    hdql_ValueTypes(hdql_ValueTypes * parent=nullptr)
+    hdql_ValueTypes(hdql_ValueTypes * parent=nullptr
+            , struct hdql_ArithTypePromotionTable * promotions=nullptr)
         : _tier(parent ? parent->_tier + 1 : 1)
         , _parent(parent)
-        , _isNumPromotionOrderValid(false)
+        , _promotions(promotions)
+        , _isPromotionsValid(false)
         {
         if((((hdql_ValueTypeCode_t) _tier) << 10) > gMaxTypeID) {
             throw std::runtime_error("Can't create more"
@@ -70,7 +71,7 @@ public:
     }
 
     int define(const hdql_ValueInterface & iface) {
-        _isNumPromotionOrderValid = false;
+        _isPromotionsValid = false;
         if(NULL == iface.name || *iface.name == '\0') {
             return -1;  // bad name
         }
@@ -91,7 +92,7 @@ public:
     }
 
     int define_alias(hdql_ValueTypeCode_t tgtCode, const char * alias) {
-        _isNumPromotionOrderValid = false;
+        _isPromotionsValid = false;
         assert(0 != tgtCode);  // we assume user code controlled it
         uint8_t tierNo = _get_tier_number(tgtCode);
         assert(tierNo);
@@ -142,6 +143,7 @@ public:
     }
 
     const hdql_ValueInterface * get_by_code(hdql_ValueTypeCode_t code) const {
+        assert(code != 0);
         uint8_t tierNo = _get_tier_number(code);
         if(tierNo == _tier) {
             auto it = _itemByCode.find(code);
@@ -162,7 +164,17 @@ public:
         return _parent->get_by_code(code);
     }
 
-    const std::vector<hdql_ValueTypeCode_t> & numeric_types_promotion_order() const;
+    const struct hdql_ArithTypePromotionTable & numeric_types_promotion_table() const {
+        if(!_isPromotionsValid) {
+            if(!_promotions) {
+                throw std::runtime_error("arithmetic type promotions lookup"
+                        " cache is not allocated for this types table");
+            }
+            hdql_arith_type_promotion_rebuild(this, _promotions);
+            _isPromotionsValid = true;
+        }
+        return *_promotions;
+    }
 };  // struct hdql_ValueTypes
 
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
@@ -274,15 +286,20 @@ hdql_types_get_type_code(const struct hdql_ValueTypes * vt, const char * name) {
 // NOT exposed to public header
 extern "C" struct hdql_ValueTypes *
 _hdql_value_types_table_create(struct hdql_ValueTypes * parent, hdql_Context_t ctx) {
+    struct hdql_ArithTypePromotionTable * promotions = hdql_arith_type_promotion_create(ctx);
     // todo: use ctx-based alloc? Seem to be used mostly during interpretation
     // stage, and if it won't affect performance, there is no need to keep
     // it in fast access area
-    return new hdql_ValueTypes(parent);
+    return new hdql_ValueTypes(parent, promotions);
 }
 
 // NOT exposed to public header
 extern "C" void
 _hdql_value_types_table_destroy(struct hdql_ValueTypes * vt, hdql_Context_t ctx) {
+    // todo: this is nasty, clean up, once migrated to pure C
+    if(vt->_promotions) {
+        hdql_arith_type_promotion_destroy(ctx, vt->_promotions);
+    }
     // todo: use ctx-based free, see note for _hdql_value_types_table_create()
     assert(vt);
     delete vt;
@@ -492,33 +509,6 @@ TEST(CommonTypes, ShortIntegerConversionsWorks) {
     m( "double",    double )                \
     // ... other standard types?
 
-const std::vector<hdql_ValueTypeCode_t> &
-hdql_ValueTypes::numeric_types_promotion_order() const {
-    if(_isNumPromotionOrderValid) return _numPromotionOrder;
-    hdql_ValueTypeCode_t tCode;
-
-    #define _M_push_back_type_code_promot(name, type) \
-    if(0x0 != (tCode = get_code_by_name(name))) { \
-        _numPromotionOrder.push_back(tCode); \
-    }
-    _M_hdql_for_each_std_type(_M_push_back_type_code_promot)
-    #undef _M_push_back_type_code_promot
-
-    _isNumPromotionOrderValid = true;
-    return _numPromotionOrder;
-}
-
-hdql_ValueTypeCode_t
-hdql_types_numeric_promote( const struct hdql_ValueTypes * vt
-        , hdql_ValueTypeCode_t aType, hdql_ValueTypeCode_t bType) {
-    const std::vector<hdql_ValueTypeCode_t> & order = vt->numeric_types_promotion_order();
-    const hdql_ValueTypeCode_t * aPtr = std::find(order.data(), order.data() + order.size(), aType);
-    if(aPtr == order.data() + order.size()) return 0x0;
-    const hdql_ValueTypeCode_t * bPtr = std::find(order.data(), order.data() + order.size(), bType);
-    if(bPtr == order.data() + order.size()) return 0x0;
-    return aType > bType ? aType : bType;
-}
-
 namespace {
 int
 _str_init( hdql_Datum_t
@@ -605,6 +595,13 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
     }
 
     return HDQL_ERR_CODE_OK;
+}
+
+hdql_ValueTypeCode_t
+hdql_types_numeric_promote(const struct hdql_ValueTypes * vt
+        , hdql_ValueTypeCode_t a, hdql_ValueTypeCode_t b) {
+    return hdql_arith_type_promote(&vt->numeric_types_promotion_table()
+            , a, b);
 }
 
 /*                                                            ________________

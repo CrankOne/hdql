@@ -74,40 +74,65 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
 int
 hdql_functions_add_standard_math(struct hdql_Functions * functions);
 
-/**\briefe Adds simple monoid arithmetics (SMA)
+/**\briefe Adds monoid functions
+ *
+ * Simple monoid arithmetics
+ * -------------------------
  *
  * Aggreage functions featuring following traits:
  * - receives one or more queries resulting in atomic arithmetic type;
  * - results in a scalar real-valued convolution of all the query results;
- * - Either have fixed result type, or usual type promotion is applied for
- *   result type. I.e. sum of integers results in the larger integer, presense
- *   of float makes the sum result to be of floating point, etc.
+ * - Either have fixed result type, or some kind of type promotion is applied
+ *   for result type. I.e. sum of integers results in the larger integer,
+ *   presense of float makes the sum result to be of floating point, etc.
  * - are not annotated with keys.
  *
  * Last feature makes this class of functions different from classic monoid
  * definitions, which can result in element selection -- min(), max(),
  * arbitrary() etc. Currently, SMA are:
  *
- *    Func. name  | Operation   | Neutral el. | Types           | Result type
- *  --------------+-------------+-------------+-----------------+-------------
- *      sum       | a + b       | 0           | all numeric     | promoted
- *      product   | a * b       | 1           | all numeric     | promoted
- *      count     | a += b? 0:1 | 0           | all             | uin64_t
- *      each_of   | a && b      | true        | all             | bool
- *      any_of    | a || b      | false       | all             | bool
- *      none_of   | (!a) && (!b)| false       | all             | bool
- *      bAND      | a & b       | ~0x0        | integer only    | promoted int
- *      bOR       | a | b       | 0x0         | integer only    | promoted int
- *      bXOR      | a ^ b       | 0x0         | integer only    | promoted int
- *
- * Additionally, there is also a `big_sum()` aggregate function implementing
- * Kahan-Babuska precise summator resulting `double` value from numerical types.
+ *   Func. name  | Operation    | Neutral el. | Types           | Result type
+ * --------------+--------------+-------------+-----------------+-------------
+ *     sum       | a + b        | 0           | all numeric     | promoted
+ *     product   | a * b        | 1           | all numeric     | promoted
+ *     count     | a += b? 0:1  | 0           | all             | uin64_t
+ *     each_of   | a && b       | true        | all             | bool
+ *     any_of    | a || b       | false       | all             | bool
+ *     none_of   | (!a) && (!b) | false       | all             | bool
+ *     bAND      | a & b        | ~0x0        | integer only    | promoted int
+ *     bOR       | a | b        | 0x0         | integer only    | promoted int
+ *     bXOR      | a ^ b        | 0x0         | integer only    | promoted int
  *
  * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
  * yet one may imagine some practical applications still.
+ *
+ * Selection monoids (TODO)
+ * -----------------
+ *
+ * min(), max(), arbitrary()
+ *
+ * Complex monoid arithmetics (TODO)
+ * --------------------------
+ *
+ * During the lifecycle, these monoids maintains more complex objects than
+ * simple atomic value.
+ * Although, they can be expressed by simpler monoids (and often algebraically
+ * used to), the underlying implementation allows to gain more precise results.
+ *
+ *      Func. name  | Types           | Result type
+ * -----------------+-----------------+-----------------
+ *     big_sum      | all numeric     | double
+ *     mean         | all numeric     | float or double
+ *     varinace     | all numeric     | float or double
+ *     median       | all numeric     | float or double
+ *     skewness     | all numeric     | float or double
+ *
+ * TODO: consider also compound-resulting monoids like moments(), quantiles()?
+ *       isn't it nice to have, say? {:.quantiles(a.b.c){q1 < .v < q2}}
+ *
  */
 int
-hdql_functions_add_simple_monoid_arithmetics(struct hdql_Functions * functions);
+hdql_functions_add_monoids(struct hdql_Functions * functions);
 
 
 #if 0

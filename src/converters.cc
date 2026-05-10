@@ -3,6 +3,9 @@
 
 #include <unordered_map>
 
+// TODO: reqrite similarly to hdql_ArithTypePromotionTable
+// TODO: utilize BFS for types lookup
+
 typedef int
 (*hdql_TypeConverter)( struct hdql_Datum * __restrict__ dest
                      , struct hdql_Datum * __restrict__ src

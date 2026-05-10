@@ -33,6 +33,7 @@ set (hdql_SOURCES src/types.cc
 	              src/value.cc
 	              src/function.cc
                   src/converters.cc
+                  src/type-promotion-table.c
                   src/hash-table.c
                   src/allocator.c
 	              src/ifaces/fwd-query-as-collection.c
@@ -49,7 +50,7 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
-                  src/funcs/simple-arith-monoids.c
+                  src/funcs/monoids.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -120,8 +121,10 @@ if (BUILD_TESTS)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES test/main.cc
                           test/ht.test.cc
+                          test/basic-context.cc
                           test/events-struct.cc
                           test/samples.cc
+                          test/value.cc
                           test/iteration-tests/singular-query.cc
                           test/iteration-tests/arithmetics.cc
                           test/iteration-tests/v-compound-fwd.cc
@@ -144,7 +147,7 @@ if (BUILD_TESTS)
     target_link_libraries(hdql-ht-benchmark PUBLIC hdql)
     set_target_properties(hdql-ht-benchmark PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
     # Dump test fixture
-    add_executable(hdql-csv-dump test/main.dump.cc test/samples.cc test/events-struct.cc)
+    add_executable(hdql-csv-dump test/main.dump.cc test/samples.cc test/basic-context.cc test/events-struct.cc)
     target_link_libraries(hdql-csv-dump PUBLIC hdql)
     set_target_properties(hdql-csv-dump PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
 endif (BUILD_TESTS)

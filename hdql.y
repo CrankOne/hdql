@@ -27,9 +27,6 @@ typedef struct Workspace {
     unsigned char compoundStackTop;
     struct hdql_Context * context;
     struct hdql_Query * query;
-    /* shortcuts */
-    //struct hdql_Operations * operations;
-    /* ... */
     char * errMsg;
     unsigned int errMsgSize;
     unsigned int errPos[4]; /* first column, first line, last column, last line */
@@ -1183,7 +1180,7 @@ hdql_compile_query( const char * strexpr
                   , int * errDetails
                   ) {
     struct Workspace ws;
-    /* inti buffer for error message */
+    /* init buffer for error message */
     ws.errMsg     = errBuf;
     if(ws.errMsg) *ws.errMsg  = '\0';
     ws.errMsgSize = errBufLength;

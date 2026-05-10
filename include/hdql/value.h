@@ -93,16 +93,6 @@ const struct hdql_ValueInterface * hdql_types_get_type_by_name(const struct hdql
  * Returns pointer to type definition on success or NULL on failure. */
 hdql_ValueTypeCode_t hdql_types_get_type_code(const struct hdql_ValueTypes *, const char *);
 
-/**\brief Implements usual arithmetic conversions
- *
- * Having two arithmetic types \p aType and \p bType, returns a type, following
- * result type. This function is not used directly for binary or unary
- * arithmetics (instead, a table for possible combinations is generated), but
- * required by functions.
- * */
-hdql_ValueTypeCode_t hdql_types_numeric_promote( const struct hdql_ValueTypes *
-        , hdql_ValueTypeCode_t aType, hdql_ValueTypeCode_t bType);
-
 /**\brief Useful function to add standard C/C++ types to table
  *
  * By default HDQL does not add these types in the table, but user code
@@ -147,6 +137,50 @@ hdql_converters_get( struct hdql_Converters *cnvs
 /**\brief Adds standard conversion functions*/
 void
 hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts);
+
+/*                                                  __________________________
+ * _______________________________________________/ Arithmetic types promotion
+ */
+
+/**\brief Implements usual arithmetic conversions
+ *
+ * Having two arithmetic types \p aType and \p bType, returns a type, following
+ * result type. This function is not used directly for binary or unary
+ * arithmetics (instead, a table for possible combinations is generated), but
+ * required by functions. */
+hdql_ValueTypeCode_t hdql_types_numeric_promote(const struct hdql_ValueTypes *
+        , hdql_ValueTypeCode_t, hdql_ValueTypeCode_t);
+
+/* 
+ * This is rather internal interface used by hdql_ValueTypes' routines. Should
+ * be hidden in future, once we'll move to pure C implem.
+ */
+
+/** Type promotion table instance */
+struct hdql_ArithTypePromotionTable;  /* opaque */
+
+/** Instantiates type promotion table */
+struct hdql_ArithTypePromotionTable *
+hdql_arith_type_promotion_create(hdql_Context_t context);
+
+/** Destroys type promotion table */
+void
+hdql_arith_type_promotion_destroy(hdql_Context_t context
+        , struct hdql_ArithTypePromotionTable *);
+
+/**\brief Initializes type promotion table with C-like conversion rules
+ *
+ * Expects standard types are available in the value types table. The
+ * conversion rules are hardcoded (yet, the codes are obtained dynamically. */
+int
+hdql_arith_type_promotion_rebuild(const struct hdql_ValueTypes * vt,
+        struct hdql_ArithTypePromotionTable * t);
+
+/** implements logic of hdql_types_numeric_promote(), except for cache mgmnt */
+hdql_ValueTypeCode_t
+hdql_arith_type_promote(const struct hdql_ArithTypePromotionTable * t
+        , hdql_ValueTypeCode_t a, hdql_ValueTypeCode_t b
+        );
 
 /*                                                            ________________
  * _________________________________________________________/ Constant values

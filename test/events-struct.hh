@@ -1,5 +1,6 @@
 #pragma once
 
+#include "basic-context.hh"
 #include "hdql/compound.h"
 #include "hdql/helpers/compounds.hh"
 
@@ -48,26 +49,22 @@ helpers::CompoundTypes define_compound_types(hdql_Context_t);
 
 //
 // G-Test testing fixture
-class TestingEventStruct : public ::testing::Test {
+class TestingEventStruct : public TestingContext {
 protected:
-    hdql_Context_t _ctx;
-    hdql_ValueTypes * _valueTypes;
-    hdql_Operations * _operations;
+
     hdql::helpers::CompoundTypes _compounds;
     hdql_Compound * _eventCompound;
 protected:
     TestingEventStruct()
-            : _valueTypes(nullptr)
-            , _operations(nullptr)
-            , _compounds(nullptr)
+            : _compounds(nullptr)
             , _eventCompound(nullptr)
             {}
-    TestingEventStruct(const TestingEventStruct & orig)
-            : _valueTypes(orig._valueTypes)
-            , _operations(orig._operations)
-            , _compounds(orig._compounds)
-            , _eventCompound(orig._eventCompound)
-            {}
+    //TestingEventStruct(const TestingEventStruct & orig)
+    //        : _valueTypes(orig._valueTypes)
+    //        , _operations(orig._operations)
+    //        , _compounds(orig._compounds)
+    //        , _eventCompound(orig._eventCompound)
+    //        {}
     void SetUp() override;
     void TearDown() override;
 };  // class TestingEventStruct

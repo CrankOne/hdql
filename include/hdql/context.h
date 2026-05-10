@@ -88,7 +88,6 @@ struct hdql_Converters * hdql_context_get_conversions(hdql_Context_t ctx);
 /**\brief Returns constant values definitions table */
 struct hdql_Constants * hdql_context_get_constants(hdql_Context_t ctx);
 
-
 /**\brief Used by parser routines to create virtual compound types */
 void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );
 

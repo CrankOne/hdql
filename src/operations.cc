@@ -1,6 +1,5 @@
 #include "hdql/operations.h"
 #include "hdql/context.h"
-#include "hdql/errors.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
 #include "hdql/compound.h"
@@ -9,7 +8,6 @@
 #include "hdql/helpers/compounds.hh"
 
 #include <sstream>
-#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 
@@ -17,8 +15,6 @@
 #include <cstring>
 #include <cstdio>
 #include <cmath>
-
-#include <iostream>  // XXX
 
 namespace hdql {
 

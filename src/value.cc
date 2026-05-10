@@ -573,6 +573,7 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
 
     _M_add_alias(uint8_t, unsigned char);
     _M_add_alias(int8_t, char);
+    _M_add_alias(int8_t, signed char);
     _M_add_alias(uint16_t, unsigned short);
     _M_add_alias(int16_t, short);
     _M_add_alias(uint32_t, unsigned int);

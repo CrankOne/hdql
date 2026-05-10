@@ -401,9 +401,11 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
             if(!cnvFAndBuf.first) {
                 char errbf[128];
                 snprintf(errbf, sizeof(errbf), "No conversion defined for case"
-                        " %s -> %s"
+                        " %s (%u) -> %s (%u)"
                         , hdql_types_get_type(vts, srcTypeCode)->name
+                        , srcTypeCode
                         , hdql_types_get_type(vts, destTypeCode)->name
+                        , destTypeCode
                         );
                 throw std::runtime_error(errbf);
             }  // if conversion not found

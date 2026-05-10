@@ -32,7 +32,7 @@ set (hdql_SOURCES src/types.cc
 	              src/operations.cc
 	              src/value.cc
 	              src/function.cc
-                  src/converters.cc
+                  src/converters.c
                   src/type-promotion-table.c
                   src/hash-table.c
                   src/allocator.c

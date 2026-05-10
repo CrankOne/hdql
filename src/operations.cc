@@ -8,6 +8,7 @@
 #include "hdql/helpers/compounds.hh"
 
 #include <sstream>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
 
@@ -96,14 +97,26 @@ struct Converter {
         return 0;
     }
     static int
-    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs, hdql_Context_t context) {
+        if(std::is_same<T1, T2>::value) return 0;
         hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T1>::name)
                            , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T2>::name)
                            ;
+        if(0 == toVTC || 0 == fromVTC) {
+            char errbuf[128];
+            snprintf(errbuf, sizeof(errbuf), "can't add automatic converter"
+                    " from %s (type code %d) to %s (type code %d): unknown type(s)"
+                    , hdql::helpers::detail::ArithTypeNames<T1>::name, toVTC
+                    , hdql::helpers::detail::ArithTypeNames<T2>::name, fromVTC
+                    );
+            throw std::runtime_error(errbuf);
+        }
         return hdql_converters_add( &cnvs
                                   , toVTC
                                   , fromVTC
-                                  , convert );
+                                  , convert
+                                  , context
+                                  );
     }
 };  // struct Converter
 
@@ -124,14 +137,16 @@ struct Converter<hdql_StrPtr_t, T2> {
         return 0;
     }
     static int
-    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs, hdql_Context_t context) {
         hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_StrPtr_t>::name)
                            , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<T2>::name)
                            ;
         return hdql_converters_add( &cnvs
                                   , toVTC
                                   , fromVTC
-                                  , convert );
+                                  , convert
+                                  , context
+                                  );
     }
 };  // struct Converter<hdql_StrPtr_t, ...>
 
@@ -147,22 +162,24 @@ struct Converter<hdql_StrPtr_t, hdql_Bool_t> {
         return 0;
     }
     static int
-    add(hdql_ValueTypes * vts, hdql_Converters & cnvs) {
+    add(hdql_ValueTypes * vts, hdql_Converters & cnvs, hdql_Context_t context) {
         hdql_ValueTypeCode_t toVTC   = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_StrPtr_t>::name)
                            , fromVTC = hdql_types_get_type_code(vts, hdql::helpers::detail::ArithTypeNames<hdql_Bool_t>::name)
                            ;
         return hdql_converters_add( &cnvs
                                   , toVTC
                                   , fromVTC
-                                  , convert );
+                                  , convert
+                                  , context
+                                  );
     }
 };  // struct Converter<hdql_StrPtr_t, bool>
 
 }  // empty ns
 
 extern "C" void
-hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts) {
-    #define _M_add_conversion_implem(t1, t2) Converter<t1, t2>::add(vts, *cnvs);
+hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts, hdql_Context_t context) {
+    #define _M_add_conversion_implem(t1, t2) Converter<t1, t2>::add(vts, *cnvs, context);
     // NOTE: we do not add here bool -> int conversion to prevent unintended
     // mistakes when boolean result is provided to a numerical function.
     _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_add_conversion_implem));

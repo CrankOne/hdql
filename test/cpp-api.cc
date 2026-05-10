@@ -4,7 +4,9 @@
 #include "events-struct.hh"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
+#include "hdql/value.h"
 #include "samples.hh"
 
 #include "hdql/helpers/query.hh"
@@ -122,10 +124,9 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
 }
 
 TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
-    
-    //_thisContext;
     // add standard type conversions
-    hdql_converters_add_std(hdql_context_get_conversions(_thisContext), hdql_context_get_types(_thisContext));
+    hdql_converters_add_std(hdql_context_get_conversions(_thisContext)
+            , hdql_context_get_types(_thisContext), _thisContext);
 
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event

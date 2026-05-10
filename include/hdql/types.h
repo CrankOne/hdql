@@ -54,8 +54,8 @@ typedef HDQL_STRING_TYPE hdql_StrPtr_t;
  * Affects maximum number of permitted type definitions and structure packing.
  * Important notes:
  *  - to simplify indexing of the converter functions it is better to keep
- *    the size of containing type at least twice lesser than largest largest
- *    unsigned int number.
+ *    the size of containing type at least twice less than the unsigned int
+ *    number.
  *  - to keep tiers in the containing type for type table, it is better to
  *    foresee some bits at the beginning of containing type
  *  - reserve at least one bit in the containing type to keep scalar features

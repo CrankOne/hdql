@@ -119,24 +119,51 @@ typedef int
 /**\brief Dictionary of value conversion functions */
 struct hdql_Converters;
 
-/**\brief Adds new value conversion */
+/**\brief Adds new value conversion
+ *
+ * \returns
+ *  HDQL_ERR_CODE_OK new converter added;
+ *  HDQL_ERR_MEMORY can't add new record because of memory issue;
+ *  HDQL_ERR_NAME_COLLISION converter with such name already exists.
+ *
+ * \todo Consider more elaborated algorithm, relying on preserving the sorted
+ *       order. Currently suboptimal since linear search is used to detect
+ *       collisions.
+ * */
 int
 hdql_converters_add( struct hdql_Converters *cnvs
                    , hdql_ValueTypeCode_t to
                    , hdql_ValueTypeCode_t from
                    , hdql_TypeConverter cnvf
+                   , hdql_Context_t
                    );
 
-/**\brief Returns value converter function or NULL if conversion is forbidden */
+/**\brief Returns value converter function or NULL if conversion is forbidden
+ *
+ * Recursively expands converters till root. */
 hdql_TypeConverter
-hdql_converters_get( struct hdql_Converters *cnvs
+hdql_converters_get( const struct hdql_Converters *cnvs
                    , hdql_ValueTypeCode_t to
                    , hdql_ValueTypeCode_t from
                    );
 
+/* \brief Computes conversion chain
+ *
+ * Among existing converters (if any), calculates the shortest conversion
+ * chain.
+ * */
+//int
+//hdql_converters_get_chained(
+//                     const struct hdql_Converters *cnvs
+//                   , hdql_ValueTypeCode_t to
+//                   , hdql_ValueTypeCode_t from
+//                   , hdql_TypeConverterList * conversions
+//                   , hdql_Context_t context
+//                   );
+
 /**\brief Adds standard conversion functions*/
 void
-hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts);
+hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts, hdql_Context_t);
 
 /*                                                  __________________________
  * _______________________________________________/ Arithmetic types promotion

@@ -14,14 +14,28 @@ typedef struct {
     void (*set_neutral)(hdql_Datum_t);
     /* Applies operation */
     void (*operation)(hdql_Datum_t, hdql_Datum_t);
-    /* Should infer return type and initialize converters, based on
-     * null-terminated argument queries array */
-    int (*infer_return_type)(struct hdql_Query ** queries
-            , hdql_TypeConverter **
-            , hdql_ValueTypeCode_t * rTypeCode
-            );
 } MonoidDefinition_t;
 
+typedef struct {
+    /* Result type name (to be resolved into code by types table); used
+     * for lookup */
+    const char * resultTypeName;
+    /* Properly typed definition in use: neutral element and operation routine */
+    const MonoidDefinition_t definition;
+} MonoidRecord_t;
+
+typedef struct {
+    MonoidRecord_t records[16];
+    /* Should infer return type and initialize converters, based on
+     * null-terminated argument queries array */
+    int (*infer_result_type)(struct hdql_Query ** args
+        , struct hdql_ValueTypes * types
+        , char * failureBuffer, size_t failureBufferSize
+        , hdql_ValueTypeCode_t * rTypeCode
+        );
+} MonoidRecords_t;
+
+/* Static definition data */
 typedef struct {
     /* returned result value type */
     hdql_ValueTypeCode_t rTypeCode;
@@ -35,6 +49,7 @@ typedef struct {
     const MonoidDefinition_t * monoidDef;
 } SMADefData_t;
 
+/* Dynamic definition data */
 typedef struct {
     struct hdql_Datum ** convertedValues;
     struct hdql_Datum * result;
@@ -166,35 +181,6 @@ _transient_dtr__simple_monoid_arith(hdql_Datum_t dd_, hdql_Context_t context) {
     hdql_context_free(context, (hdql_Datum_t) dd);
 }
 
-/* 
- * Monoid definition 
- */
-
-#define _M_implement_sum(suffix, type)  \
-static void _SMA_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = 0; }  \
-static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) += *((type *) v); }
-
-#define _M_implement_prod(suffix, type)  \
-static void _SMA_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = 1; }  \
-static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) *= *((type *) v); }
-
-#define _M_implement_bAND(suffix, type)  \
-static void _SMA_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = ~((type) 0x0); }  \
-static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) &= *((type *) v); }
-
-#define _M_implement_bOR(suffix, type)  \
-static void _SMA_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) =  ((type) 0x0); }  \
-static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) |= *((type *) v); }
-
-#define _M_implement_bXOR(suffix, type)  \
-static void _SMA_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) =  ((type) 0x0); }  \
-static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) |= *((type *) v); }
-
 /*
  * Monoid argument type inference
  */
@@ -204,9 +190,9 @@ static void _SMA_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
  * - result type obeys usual promotion rules
  *
  * Returns:
- * -1 on failure with reason written to failureBuffer
- *  0 on suceess
- *  1 on case when all the arguments are static arithmetic const
+ * <-1 on failure with reason written to failureBuffer
+ *  -1 on case when all the arguments are static arithmetic const
+ *  >0 on suceess
  */
 static int
 _infer_simple_arithmetic_type(struct hdql_Query ** args
@@ -214,7 +200,6 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         ) {
-    *rTypeCode = 0x0;
     /* iterate over queries, find out appropriate type and check we can use it
      * in arithmetics */
     size_t nArgs = 0;
@@ -223,9 +208,10 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
         const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
                                 , *qAD  = hdql_attr_def_top_attr(qAD_);
         if(!hdql_attr_def_is_atomic(qAD)) {
-            snprintf( failureBuffer, failureBufferSize
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
                     , "argument #%zu is not of atomic type", nArgs+1 );
-            return -1;
+            return -2;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
         /* promote result type code */
@@ -235,13 +221,14 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
             if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
             hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
             if(0x0 == newRtypeCode) {
-                snprintf( failureBuffer, failureBufferSize
-                    , "can not combine %s and %s into arithmetic type (at argument #%zu)"
-                    , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
-                    , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
-                    , nArgs
-                    );
-                return -1;
+                if(failureBufferSize)
+                    snprintf( failureBuffer, failureBufferSize
+                        , "can not combine %s and %s into arithmetic type (at argument #%zu)"
+                        , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
+                        , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
+                        , nArgs
+                        );
+                return -3;
             }
             *rTypeCode = newRtypeCode;
         } else {
@@ -249,8 +236,8 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
         }
     }
     assert(0 != *rTypeCode);
-    if(allIsStaticConst) return 1;
-    return 0;
+    if(allIsStaticConst) return -1;
+    return nArgs;
 }
 
 /* Checks, that all the arguments are of numeric 
@@ -268,7 +255,6 @@ _infer_check_arithmetic_type(struct hdql_Query ** args
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         ) {
-    *rTypeCode = 0x0;
     /* iterate over queries, find out appropriate type and check we can use it
      * in arithmetics */
     size_t nArgs = 0;
@@ -277,8 +263,9 @@ _infer_check_arithmetic_type(struct hdql_Query ** args
         const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
                                 , *qAD  = hdql_attr_def_top_attr(qAD_);
         if(!hdql_attr_def_is_atomic(qAD)) {
-            snprintf( failureBuffer, failureBufferSize
-                    , "argument #%zu is not of atomic type", nArgs+1 );
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                        , "argument #%zu is not of atomic type", nArgs+1 );
             return -1;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
@@ -289,12 +276,13 @@ _infer_check_arithmetic_type(struct hdql_Query ** args
             if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
             hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
             if(0x0 == newRtypeCode) {
-                snprintf( failureBuffer, failureBufferSize
-                    , "can not combine %s and %s into arithmetic type (at argument #%zu)"
-                    , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
-                    , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
-                    , nArgs
-                    );
+                if(failureBufferSize)
+                    snprintf( failureBuffer, failureBufferSize
+                        , "can not combine %s and %s into arithmetic type (at argument #%zu)"
+                        , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
+                        , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
+                        , nArgs
+                        );
                 return -1;
             }
             *rTypeCode = newRtypeCode;
@@ -323,7 +311,6 @@ _infer_integer_only_type(struct hdql_Query ** args
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         ) {
-    *rTypeCode = 0x0;
     hdql_ValueTypeCode_t floatTC = hdql_types_get_type_code(types, "float")
                        , doubleTC = hdql_types_get_type_code(types, "double");
     /* iterate over queries, find out appropriate type and check we can use it
@@ -334,8 +321,9 @@ _infer_integer_only_type(struct hdql_Query ** args
         const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
                                 , *qAD  = hdql_attr_def_top_attr(qAD_);
         if(!hdql_attr_def_is_atomic(qAD)) {
-            snprintf( failureBuffer, failureBufferSize
-                    , "argument #%zu is not of atomic type", nArgs+1 );
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                        , "argument #%zu is not of atomic type", nArgs+1 );
             return -1;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
@@ -344,20 +332,22 @@ _infer_integer_only_type(struct hdql_Query ** args
         assert(atf->arithTypeCode != 0x0);
         if( (0 != floatTC  && atf->arithTypeCode == floatTC)
          || (0 != doubleTC && atf->arithTypeCode == doubleTC)) {
-            snprintf( failureBuffer, failureBufferSize
-                    , "argument #%zu is of floating point type", nArgs+1 );
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                        , "argument #%zu is of floating point type", nArgs+1 );
             return -1;
         }
         if(0x0 != *rTypeCode) {
             if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
             hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
             if(0x0 == newRtypeCode) {
-                snprintf( failureBuffer, failureBufferSize
-                    , "can not combine %s and %s into integer type (at argument #%zu)"
-                    , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
-                    , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
-                    , nArgs
-                    );
+                if(failureBufferSize)
+                    snprintf( failureBuffer, failureBufferSize
+                        , "can not combine %s and %s into integer type (at argument #%zu)"
+                        , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
+                        , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
+                        , nArgs
+                        );
                 return -1;
             }
             *rTypeCode = newRtypeCode;
@@ -376,11 +366,13 @@ _infer_integer_only_type(struct hdql_Query ** args
  */
 
 struct hdql_AttrDef *
-hdql_func_helper__try_instantiate_SMA(
+hdql_func_helper__try_monoid(
           struct hdql_Query ** args, void * userdata
         , char * failureBuffer, size_t failureBufferSize
         , hdql_Context_t context
         ) {
+    assert(userdata);
+    MonoidRecords_t * monoidRecords = (MonoidRecords_t *) userdata;
     /* SMA type deduction should follow the rules:
      *  - integer type(s) result in largest int type
      *  - integer type(s) and/or float results in float
@@ -392,20 +384,45 @@ hdql_func_helper__try_instantiate_SMA(
     }
     struct hdql_Converters * converters = hdql_context_get_conversions(context);
     struct hdql_ValueTypes * types = hdql_context_get_types(context);
-    size_t nArgs = 0;
     hdql_ValueTypeCode_t rTypeCode = 0x0;
 
-    assert(false);  // TODO
-    /* ^^^ TODO: monoid def data should handle result type promotion/creation
-     *     here (to handle cases like count, median, average, etc */
+    int rc = monoidRecords->infer_result_type(args, types
+                , failureBuffer, failureBufferSize
+                , &rTypeCode
+                );
+    if(rc < -1) { return NULL; }
+    if(rc == -1) {
+        /* TODO: is there any practical value for that? E.g. sum(1.23, 4.56) */
+        if(failureBufferSize)
+            snprintf( failureBuffer, failureBufferSize
+                    , "handling all static arguments is not implemented" );
+        return NULL;
+    }
+    size_t nArgs = (size_t) rc;
 
-    //if(allIsStaticConst) {
-    //    assert(0);  /* TODO: result can be computed right away */
-    //}
+    /* find properly typed monoid definition */
+    const MonoidDefinition_t * monoidDefPtr = NULL;
+    for(MonoidRecord_t * mrec = monoidRecords->records; '\0' != *mrec->resultTypeName; ++mrec) {
+        hdql_ValueTypeCode_t code = hdql_types_get_type_code(types, mrec->resultTypeName);
+        if(code != rTypeCode) continue;
+        monoidDefPtr = &mrec->definition;
+        break;
+    }
+    if(!monoidDefPtr) {
+        if(failureBufferSize) {
+            const struct hdql_ValueInterface * rTypeIFace = hdql_types_get_type(types, rTypeCode);
+            snprintf( failureBuffer, failureBufferSize
+                    , "no appropriately typed monoid defined for inferred"
+                      " result type \"%s\""
+                    , (rTypeIFace && rTypeIFace->name) ? rTypeIFace->name : "???"
+                    );
+        }
+        return NULL;
+    }
 
     /* allocate function "definition data" */
     SMADefData_t * dd = hdql_alloc(context, SMADefData_t);
-    /*dd->monoidDef = ...; TODO */
+    dd->monoidDef = monoidDefPtr;
     dd->nQueries = nArgs;
     dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
     dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);
@@ -422,12 +439,13 @@ hdql_func_helper__try_instantiate_SMA(
         if(atf->arithTypeCode != rTypeCode) {
             dd->converters[nArgs] = hdql_converters_get(converters, rTypeCode, atf->arithTypeCode);
             if(!dd->converters[nArgs]) {
-                snprintf( failureBuffer, failureBufferSize
-                    , "no converter from %s to %s (at argument #%zu)"
-                    , hdql_types_get_type(types, atf->arithTypeCode)->name
-                    , hdql_types_get_type(types, rTypeCode         )->name
-                    , nArgs
-                    );
+                if(failureBufferSize)
+                    snprintf( failureBuffer, failureBufferSize
+                        , "no converter from %s to %s (at argument #%zu)"
+                        , hdql_types_get_type(types, atf->arithTypeCode)->name
+                        , hdql_types_get_type(types, rTypeCode         )->name
+                        , nArgs
+                        );
                 goto onFailCleanup;
             }
         }
@@ -464,6 +482,58 @@ onFailCleanup:
     return NULL;
 }
 
+/* 
+ * Monoid definition 
+ */
+
+#define _M_implement_sum(suffix, type)  \
+static void _sum_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = 0; }  \
+static void _sum_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { *((type *) r) += *((type *) v); }
+
+#define _M_implement_prod(suffix, type)  \
+static void _prod_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = 1; }  \
+static void _prod_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { *((type *) r) *= *((type *) v); }
+
+#define _M_implement_bAND(suffix, type)  \
+static void _bAND_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = ~((type) 0x0); }  \
+static void _bAND_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { *((type *) r) &= *((type *) v); }
+
+#define _M_implement_bOR(suffix, type)  \
+static void _bOR_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) =  ((type) 0x0); }  \
+static void _bOR_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { *((type *) r) |= *((type *) v); }
+
+#define _M_implement_bXOR(suffix, type)  \
+static void _bXOR_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) =  ((type) 0x0); }  \
+static void _bXOR_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { *((type *) r) |= *((type *) v); }
+
+#define _M_for_each_integer_type(m) \
+    m(i8,   int8_t  ) \
+    m(ui8,  uint8_t ) \
+    m(i16,  int16_t ) \
+    m(ui16, uint16_t) \
+    m(i32,  int32_t ) \
+    m(ui32, uint32_t) \
+    m(i64,  int64_t ) \
+    m(ui64, uint64_t)
+
+#define _M_for_each_fp_type(m) \
+    m(float,    float ) \
+    m(double,   double)
+
+_M_for_each_integer_type(_M_implement_sum);
+_M_for_each_fp_type(_M_implement_sum);
+
+_M_for_each_integer_type(_M_implement_prod);
+_M_for_each_fp_type(_M_implement_prod);
+
+//_M_for_each_integer_type(_M_implement_bAND);
+//_M_for_each_integer_type(_M_implement_bOR);
+//_M_for_each_integer_type(_M_implement_bXOR);
 
 /*
  * Register function
@@ -471,9 +541,39 @@ onFailCleanup:
 
 int
 hdql_functions_add_monoids(struct hdql_Functions * functions) {
+    /* sum */
+    static const MonoidRecords_t _sumArithMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _sum_ ## suffix ## _set_neutral, _sum_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_simple_arithmetic_type
+    };
+    /* sum */
+    static const MonoidRecords_t _prodArithMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _prod_ ## suffix ## _set_neutral, _prod_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_simple_arithmetic_type
+    };
+
     int rc;
-    rc = hdql_functions_define(functions, "sum", hdql_func_helper__try_instantiate_SMA, NULL );
-    // ...
+    rc = hdql_functions_define(functions, "sum"
+            , hdql_func_helper__try_monoid
+            , (void *) &_sumArithMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+    rc = hdql_functions_define(functions, "prod"
+            , hdql_func_helper__try_monoid
+            , (void *) &_prodArithMonoidRecords );
     if(HDQL_ERR_CODE_OK != rc) return rc;
     return 0;
 }

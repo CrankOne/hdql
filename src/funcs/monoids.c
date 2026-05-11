@@ -9,6 +9,8 @@
 #include <string.h>
 #include <assert.h>
 
+/* Basic monoid definition interface for numerical set(s): neutral element
+ * and operation */
 typedef struct {
     /* Sets neutral element (initializes value) */
     void (*set_neutral)(hdql_Datum_t);
@@ -16,6 +18,7 @@ typedef struct {
     void (*operation)(hdql_Datum_t, hdql_Datum_t);
 } MonoidDefinition_t;
 
+/* Entry type for monoid definition of proper type */
 typedef struct {
     /* Result type name (to be resolved into code by types table); used
      * for lookup */
@@ -24,7 +27,9 @@ typedef struct {
     const MonoidDefinition_t definition;
 } MonoidRecord_t;
 
+/* Records collection for monoids with promoted type */
 typedef struct {
+    /* Records: type name and monoid deginition */
     MonoidRecord_t records[16];
     /* Should infer return type and initialize converters, based on
      * null-terminated argument queries array */
@@ -35,7 +40,8 @@ typedef struct {
         );
 } MonoidRecords_t;
 
-/* Static definition data */
+
+/* Static definition data for monoid's result as a scalar */
 typedef struct {
     /* returned result value type */
     hdql_ValueTypeCode_t rTypeCode;
@@ -49,9 +55,11 @@ typedef struct {
     const MonoidDefinition_t * monoidDef;
 } SMADefData_t;
 
-/* Dynamic definition data */
+/* Dynamic definition data for monoid's result as a scalar */
 typedef struct {
+    /* converters destinations */
     struct hdql_Datum ** convertedValues;
+    /* result datum instance ptr; (not necessarily a single value!) */
     struct hdql_Datum * result;
 } SMADynamicData_t;
 
@@ -200,6 +208,7 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         ) {
+    hdql_ValueTypeCode_t logicTC = hdql_types_get_type_code(types, "bool");
     /* iterate over queries, find out appropriate type and check we can use it
      * in arithmetics */
     size_t nArgs = 0;
@@ -210,13 +219,21 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
         if(!hdql_attr_def_is_atomic(qAD)) {
             if(failureBufferSize)
                 snprintf( failureBuffer, failureBufferSize
-                    , "argument #%zu is not of atomic type", nArgs+1 );
+                        , "argument #%zu is not of atomic type", nArgs+1 );
             return -2;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
         /* promote result type code */
         const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
         assert(atf->arithTypeCode != 0x0);
+        if(logicTC != atf->arithTypeCode) {
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                    , "argument #%zu is of logic type"
+                    , nArgs
+                    );
+            return -4;
+        }
         if(0x0 != *rTypeCode) {
             if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
             hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
@@ -240,23 +257,31 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
     return nArgs;
 }
 
-/* Checks, that all the arguments are of numeric 
- * - takes numerical (no bool)
- * - result type obeys usual promotion rules
+/* Checks, that all the argument queries result in a numeric or logic values.
+ * Used for each()/any()/none() monoids.
+ * - takes numerical and boolean
+ * - result type is boolean
  *
  * Returns:
- * -1 on failure with reason written to failureBuffer
- *  0 on suceess
- *  1 on case when all the arguments are static arithmetic const
+ * <-1 on failure with reason written to failureBuffer
+ *  -1 on case when all the arguments are static arithmetic const
+ *  >0 on suceess
  */
 static int
-_infer_check_arithmetic_type(struct hdql_Query ** args
+_infer_check_atomic_type_to_logic(struct hdql_Query ** args
         , struct hdql_ValueTypes * types
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         ) {
-    /* iterate over queries, find out appropriate type and check we can use it
-     * in arithmetics */
+    /* retrieve logic type */
+    hdql_ValueTypeCode_t boolTC = hdql_types_get_type_code(types, "bool");
+    if(0x0 == boolTC) {
+        if(failureBufferSize)
+            snprintf( failureBuffer, failureBufferSize
+                    , "no \"bool\" type defined in the evaluation context");
+        return -2;
+    }
+    /* iterate over queries, make converters */
     size_t nArgs = 0;
     bool allIsStaticConst = true;
     for(struct hdql_Query **q = args; *q != NULL; ++q, ++nArgs) {
@@ -266,44 +291,24 @@ _infer_check_arithmetic_type(struct hdql_Query ** args
             if(failureBufferSize)
                 snprintf( failureBuffer, failureBufferSize
                         , "argument #%zu is not of atomic type", nArgs+1 );
-            return -1;
+            return -2;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
-        /* promote result type code */
-        const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
-        assert(atf->arithTypeCode != 0x0);
-        if(0x0 != *rTypeCode) {
-            if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
-            hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
-            if(0x0 == newRtypeCode) {
-                if(failureBufferSize)
-                    snprintf( failureBuffer, failureBufferSize
-                        , "can not combine %s and %s into arithmetic type (at argument #%zu)"
-                        , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
-                        , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
-                        , nArgs
-                        );
-                return -1;
-            }
-            *rTypeCode = newRtypeCode;
-        } else {
-            *rTypeCode = atf->arithTypeCode;
-        }
     }
     assert(0 != *rTypeCode);
-    if(allIsStaticConst) return 1;
-    return 0;
+    if(allIsStaticConst) return -1;
+    return nArgs;
 }
 
 /* Result type inference for monoids expecting integer only values (bitwise
  * operations):
- * - takes integral types only (no bool, float and double)
+ * - takes integral types only (no bool, float, double)
  * - result type obeys usual promotion rules
  *
  * Returns:
- * -1 on failure with reason written to failureBuffer
- *  0 on suceess
- *  1 on case when all the arguments are static arithmetic const
+ * <-1 on failure with reason written to failureBuffer
+ *  -1 on case when all the arguments are static arithmetic const
+ *   0 on suceess
  */
 static int
 _infer_integer_only_type(struct hdql_Query ** args
@@ -525,15 +530,17 @@ static void _bXOR_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
     m(float,    float ) \
     m(double,   double)
 
+/* sum() */
 _M_for_each_integer_type(_M_implement_sum);
 _M_for_each_fp_type(_M_implement_sum);
-
+/* prod() */
 _M_for_each_integer_type(_M_implement_prod);
 _M_for_each_fp_type(_M_implement_prod);
 
-//_M_for_each_integer_type(_M_implement_bAND);
-//_M_for_each_integer_type(_M_implement_bOR);
-//_M_for_each_integer_type(_M_implement_bXOR);
+/* bAND */
+_M_for_each_integer_type(_M_implement_bAND);
+_M_for_each_integer_type(_M_implement_bOR);
+_M_for_each_integer_type(_M_implement_bXOR);
 
 /*
  * Register function
@@ -553,7 +560,7 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
         },
         .infer_result_type = _infer_simple_arithmetic_type
     };
-    /* sum */
+    /* product */
     static const MonoidRecords_t _prodArithMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
@@ -565,6 +572,39 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
         },
         .infer_result_type = _infer_simple_arithmetic_type
     };
+    /* bitwise AND monoid */
+    static const MonoidRecords_t _bANDMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _bAND_ ## suffix ## _set_neutral, _bAND_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_integer_only_type
+    };
+    /* bitwise OR monoid */
+    static const MonoidRecords_t _bORMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _bOR_ ## suffix ## _set_neutral, _bOR_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_integer_only_type
+    };
+    /* bitwise XOR monoid */
+    static const MonoidRecords_t _bXORMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _bXOR_ ## suffix ## _set_neutral, _bXOR_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_integer_only_type
+    };
 
     int rc;
     rc = hdql_functions_define(functions, "sum"
@@ -574,6 +614,18 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
     rc = hdql_functions_define(functions, "prod"
             , hdql_func_helper__try_monoid
             , (void *) &_prodArithMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+    rc = hdql_functions_define(functions, "bAND"
+            , hdql_func_helper__try_monoid
+            , (void *) &_bANDMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+    rc = hdql_functions_define(functions, "bOR"
+            , hdql_func_helper__try_monoid
+            , (void *) &_bORMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+    rc = hdql_functions_define(functions, "bXOR"
+            , hdql_func_helper__try_monoid
+            , (void *) &_bXORMonoidRecords );
     if(HDQL_ERR_CODE_OK != rc) return rc;
     return 0;
 }

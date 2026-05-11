@@ -38,7 +38,7 @@ test_query_on_data( int nSample, const char * expression ) {
     // add std types arithmetics
     hdql_op_define_std_arith(operations, valTypes);
     // emit testing compound types definitions
-    hdql::helpers::Compounds compounds = hdql::test::define_compound_types(ctx);
+    hdql::helpers::Compounds compounds = hdql::test::define_test_event_compound(ctx);
     if(compounds.empty()) return -1;
     hdql_Compound * eventCompound;
     {

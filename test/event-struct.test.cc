@@ -67,7 +67,8 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     struct hdql::test::RawData rawDataInstance = { .time = 1.23
         , .samples = {1, 2, 3, 4} };
@@ -161,7 +162,8 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     struct hdql::test::RawData rawDataInstance[2] = {
           { .time = 1.23, .samples = {1, 2, 3, 4} }
@@ -282,7 +284,8 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     struct hdql::test::RawData rawDataInstance[2] = {
           { .time = 1.23, .samples = {1, 2, 3, 4} }
@@ -423,7 +426,8 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     std::shared_ptr<hdql::test::Hit>
         hit1 = std::make_shared<hdql::test::Hit>(hdql::test::Hit{.energyDeposition=1.23}),
@@ -573,7 +577,8 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     std::shared_ptr<hdql::test::Hit>
         hit1 = std::make_shared<hdql::test::Hit>(hdql::test::Hit{.energyDeposition=1.23}),
@@ -708,7 +713,8 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
     ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
-    ASSERT_FALSE(hdql_attr_def_is_static_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
     std::shared_ptr<hdql::test::Track>
         track1 = std::make_shared<hdql::test::Track>(hdql::test::Track{.ndf=1}),

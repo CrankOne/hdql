@@ -123,6 +123,7 @@ if (BUILD_TESTS)
                           test/ht.test.cc
                           test/basic-context.cc
                           test/events-struct.cc
+                          test/event-struct.test.cc
                           test/samples.cc
                           test/value.cc
                           test/iteration-tests/singular-query.cc
@@ -132,6 +133,8 @@ if (BUILD_TESTS)
                           test/cpp-api.cc
                           test/dsv.test.cc
                           test/query-product.test.cc
+                          test/monoids/monoids.cc
+                          test/monoids/sum.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -45,7 +45,7 @@ struct Event {
 };
 
 // Register testing types
-helpers::CompoundTypes define_compound_types(hdql_Context_t);
+helpers::CompoundTypes define_test_event_compound(hdql_Context_t);
 
 //
 // G-Test testing fixture

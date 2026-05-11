@@ -96,9 +96,8 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  *     sum       | a + b        | 0           | all numeric     | promoted
  *     product   | a * b        | 1           | all numeric     | promoted
  *     count     | a += b? 0:1  | 0           | all             | uin64_t
- *     each_of   | a && b       | true        | all             | bool
- *     any_of    | a || b       | false       | all             | bool
- *     none_of   | (!a) && (!b) | false       | all             | bool
+ *     all       | a && b       | true        | all             | bool
+ *     any       | a || b       | false       | all             | bool
  *     bAND      | a & b        | ~0x0        | integer only    | promoted int
  *     bOR       | a | b        | 0x0         | integer only    | promoted int
  *     bXOR      | a ^ b        | 0x0         | integer only    | promoted int
@@ -121,14 +120,14 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  *
  *      Func. name  | Types           | Result type
  * -----------------+-----------------+-----------------
- *     big_sum      | all numeric     | double
+ *     fsum         | all numeric     | double
  *     mean         | all numeric     | float or double
  *     varinace     | all numeric     | float or double
  *     median       | all numeric     | float or double
  *     skewness     | all numeric     | float or double
  *
  * TODO: consider also compound-resulting monoids like moments(), quantiles()?
- *       isn't it nice to have, say? {:.quantiles(a.b.c){q1 < .v < q2}}
+ *       isn't it nice to have, say? {:.quantiles(a.b.c){.q1 < .v < .q2}}
  *
  */
 int

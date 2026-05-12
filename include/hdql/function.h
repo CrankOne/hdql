@@ -95,12 +95,12 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  * --------------+--------------+-------------+-----------------+-------------
  *     sum       | a + b        | 0           | all numeric     | promoted
  *     product   | a * b        | 1           | all numeric     | promoted
- *     count     | a += b? 0:1  | 0           | all             | uin64_t
- *     all       | a && b       | true        | all             | bool
- *     any       | a || b       | false       | all             | bool
  *     bAND      | a & b        | ~0x0        | integer only    | promoted int
  *     bOR       | a | b        | 0x0         | integer only    | promoted int
  *     bXOR      | a ^ b        | 0x0         | integer only    | promoted int
+ *     all       | a && b       | true        | all             | bool
+ *     any       | a || b       | false       | all             | bool
+ *     count     | a += b? 0:1  | 0           | all             | uin64_t
  *
  * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
  * yet one may imagine some practical applications still.

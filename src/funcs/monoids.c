@@ -39,6 +39,8 @@ typedef struct {
         , char * failureBuffer, size_t failureBufferSize
         , hdql_ValueTypeCode_t * rTypeCode
         );
+    /* Overridden result type (set to empty string if inferred) */
+    const char * overrideRType;
 } MonoidRecords_t;
 
 
@@ -371,6 +373,20 @@ _infer_check_atomic_type_to_logic(struct hdql_Query ** args
     return nArgs;
 }
 
+static int
+_infer_check_atomic_type_to_logic_as_logic(struct hdql_Query ** args
+        , struct hdql_ValueTypes * types
+        , char * failureBuffer, size_t failureBufferSize
+        , hdql_ValueTypeCode_t * rTypeCode
+        ) {
+    *rTypeCode = hdql_types_get_type_code(types, "bool");
+    if(0x0 == *rTypeCode) {
+        strncpy(failureBuffer, "no \"bool\" type defined", failureBufferSize);
+        return -10;
+    }
+    return _infer_check_atomic_type_to_logic(args, types, failureBuffer,
+                failureBufferSize, rTypeCode);
+}
 
 /* Trivial result retrieve -- used for monoids when internal state is the
  * results itself (sum, product, bitwise convolutions) */
@@ -422,11 +438,15 @@ hdql_func_helper__try_monoid(
 
     /* find properly typed monoid definition */
     const MonoidDefinition_t * monoidDefPtr = NULL;
-    for(MonoidRecord_t * mrec = monoidRecords->records; '\0' != *mrec->resultTypeName; ++mrec) {
-        hdql_ValueTypeCode_t code = hdql_types_get_type_code(types, mrec->resultTypeName);
-        if(code != rTypeCode) continue;
-        monoidDefPtr = &mrec->definition;
-        break;
+    if('*' != *monoidRecords->records[0].resultTypeName) {
+        for(MonoidRecord_t * mrec = monoidRecords->records; '\0' != *mrec->resultTypeName; ++mrec) {
+            hdql_ValueTypeCode_t code = hdql_types_get_type_code(types, mrec->resultTypeName);
+            if(code != rTypeCode) continue;
+            monoidDefPtr = &mrec->definition;
+            break;
+        }
+    } else {
+        monoidDefPtr = &monoidRecords->records[0].definition;
     }
     if(!monoidDefPtr) {
         if(failureBufferSize) {
@@ -448,7 +468,7 @@ hdql_func_helper__try_monoid(
     dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
     dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);
     bzero(dd->converters, sizeof(hdql_TypeConverter)*nArgs);
-    dd->instantiate_result = hdql_create_value;  // TODO: should be overridden by count(), etc
+    dd->instantiate_result = hdql_create_value;  // TODO: should be overridden by fsum(),fmean(), etc
     dd->retrieve_result = _trivial_retrive_result;  // TODO: should be overridden by fsum(),fmean(), etc
 
     /* assign queries and set up type converters, if needed */
@@ -473,7 +493,19 @@ hdql_func_helper__try_monoid(
             }
         }
     }
-    dd->rTypeCode = rTypeCode;
+    if(monoidRecords->overrideRType == NULL) {
+        dd->rTypeCode = rTypeCode;
+    } else {
+        dd->rTypeCode = hdql_types_get_type_code(types, monoidRecords->overrideRType);
+        if(0x0 == dd->rTypeCode) {
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                    , "no type \"%s\" defined in the context to use as monoid result"
+                    , monoidRecords->overrideRType
+                    );
+            goto onFailCleanup;
+        }
+    }
 
     /* form interface */
     struct hdql_ScalarAttrInterface iface;
@@ -609,7 +641,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_simple_arithmetic_type
+        .infer_result_type = _infer_simple_arithmetic_type,
+        .overrideRType = NULL
     };
     /* product */
     static const MonoidRecords_t _prodArithMonoidRecords = {
@@ -621,7 +654,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_simple_arithmetic_type
+        .infer_result_type = _infer_simple_arithmetic_type,
+        .overrideRType = NULL
     };
     /* bitwise AND monoid */
     static const MonoidRecords_t _bANDMonoidRecords = {
@@ -632,7 +666,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_integer_only_type
+        .infer_result_type = _infer_integer_only_type,
+        .overrideRType = NULL
     };
     /* bitwise OR monoid */
     static const MonoidRecords_t _bORMonoidRecords = {
@@ -643,7 +678,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_integer_only_type
+        .infer_result_type = _infer_integer_only_type,
+        .overrideRType = NULL
     };
     /* bitwise XOR monoid */
     static const MonoidRecords_t _bXORMonoidRecords = {
@@ -654,7 +690,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_integer_only_type
+        .infer_result_type = _infer_integer_only_type,
+        .overrideRType = NULL
     };
     /* all */
     static const MonoidRecords_t _allMonoidRecords = {
@@ -662,7 +699,8 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             { "*", { _all_set_neutral, _all_operation } },
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_check_atomic_type_to_logic
+        .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
+        .overrideRType = NULL
     };
     /* any */
     static const MonoidRecords_t _anyMonoidRecords = {
@@ -670,16 +708,17 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             { "*", { _any_set_neutral, _any_operation } },
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_check_atomic_type_to_logic
+        .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
+        .overrideRType = NULL
     };
     /* count */
-    // TODO: how to override return type here?
     static const MonoidRecords_t _countMonoidRecords = {
         .records = {
             { "*", { _count_set_neutral, _count_operation } },
             { "", {NULL, NULL} }
         },
-        .infer_result_type = _infer_check_atomic_type_to_logic
+        .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
+        .overrideRType = "uint64_t"
     };
 
     int rc;

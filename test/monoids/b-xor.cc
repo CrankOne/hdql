@@ -152,6 +152,18 @@ TEST_F(TestAggFuncs, bXORRefusesBooleanType) {
              );
 }
 
+TEST_F(TestAggFuncs, bXORRefusesCompoundType) {
+    using namespace hdql::test;
+    RootItem root;
+    char errBuf[128]; int errDetails[5];
+    _query = hdql_compile_query("bXOR(.a)", _rootCompound, _compounds.context_ptr()
+            , errBuf, sizeof(errBuf), errDetails );
+    EXPECT_FALSE(_query);
+    ASSERT_EQ( errDetails[0]
+             , HDQL_ERR_TRANSLATION_FAILURE
+             );
+}
+
 // Result value tests
 //
 

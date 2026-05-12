@@ -6,6 +6,7 @@
 #include "hdql/types.h"
 #include "hdql/value.h"
 
+#include <float.h>
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
@@ -142,7 +143,7 @@ _monoid__dereference
             ) {
     assert(defData_);
     assert(dynData_);
-    ((void) keys);  /* unused as SMA results in a scalar by defintion */
+    ((void) keys);  /* unused for convolutional monoids (no element to return) */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, dynData_);
     assert(dynData->result);
@@ -468,8 +469,8 @@ hdql_func_helper__try_monoid(
     dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
     dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);
     bzero(dd->converters, sizeof(hdql_TypeConverter)*nArgs);
-    dd->instantiate_result = hdql_create_value;  // TODO: should be overridden by fsum(),fmean(), etc
-    dd->retrieve_result = _trivial_retrive_result;  // TODO: should be overridden by fsum(),fmean(), etc
+    dd->instantiate_result = hdql_create_value;  // TODO: should be overridden by fsum(), (f)mean(), etc
+    dd->retrieve_result = _trivial_retrive_result;  // TODO: should be overridden by fsum(), (f)mean(), etc
 
     /* assign queries and set up type converters, if needed */
     nArgs = 0;
@@ -551,6 +552,14 @@ static void _prod_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) 
 static int  _prod_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
     { *((type *) r) *= *((type *) v); return 0; }
 
+#define _M_implement_min(suffix, type)  \
+static int  _min_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { if(*((type *) r) > *((type *) v)) *((type *) r) = *((type *) v); return 0; }
+
+#define _M_implement_max(suffix, type)  \
+static int  _max_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
+    { if(*((type *) r) < *((type *) v)) *((type *) r) = *((type *) v); return 0; }
+
 #define _M_implement_bAND(suffix, type)  \
 static void _bAND_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) = ~((type) 0x0); }  \
 static int  _bAND_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
@@ -586,6 +595,34 @@ _M_for_each_fp_type(_M_implement_sum);
 /* prod() */
 _M_for_each_integer_type(_M_implement_prod);
 _M_for_each_fp_type(_M_implement_prod);
+
+/*min*/
+static void _min_i8_set_neutral    (hdql_Datum_t d) { *((int8_t *)   d) = INT8_MAX; }
+static void _min_ui8_set_neutral   (hdql_Datum_t d) { *((uint8_t *)  d) = UINT8_MAX; }
+static void _min_i16_set_neutral   (hdql_Datum_t d) { *((int16_t *)  d) = INT16_MAX; }
+static void _min_ui16_set_neutral  (hdql_Datum_t d) { *((uint16_t *) d) = UINT16_MAX; }
+static void _min_i32_set_neutral   (hdql_Datum_t d) { *((int32_t *)  d) = INT32_MAX; }
+static void _min_ui32_set_neutral  (hdql_Datum_t d) { *((uint32_t *) d) = UINT32_MAX; }
+static void _min_i64_set_neutral   (hdql_Datum_t d) { *((int64_t *)  d) = INT64_MAX; }
+static void _min_ui64_set_neutral  (hdql_Datum_t d) { *((uint64_t *) d) = UINT64_MAX; }
+static void _min_float_set_neutral (hdql_Datum_t d) { *((float *)    d) = FLT_MAX; }
+static void _min_double_set_neutral(hdql_Datum_t d) { *((float *)    d) = FLT_MAX; }
+_M_for_each_integer_type(_M_implement_min);
+_M_for_each_fp_type(_M_implement_min);
+
+/*max*/
+static void _max_i8_set_neutral    (hdql_Datum_t d) { *((int8_t *)   d) = INT8_MIN; }
+static void _max_ui8_set_neutral   (hdql_Datum_t d) { *((uint8_t *)  d) = 0x0; }
+static void _max_i16_set_neutral   (hdql_Datum_t d) { *((int16_t *)  d) = INT16_MIN; }
+static void _max_ui16_set_neutral  (hdql_Datum_t d) { *((uint16_t *) d) = 0x0; }
+static void _max_i32_set_neutral   (hdql_Datum_t d) { *((int32_t *)  d) = INT32_MIN; }
+static void _max_ui32_set_neutral  (hdql_Datum_t d) { *((uint32_t *) d) = 0x0; }
+static void _max_i64_set_neutral   (hdql_Datum_t d) { *((int64_t *)  d) = INT64_MIN; }
+static void _max_ui64_set_neutral  (hdql_Datum_t d) { *((uint64_t *) d) = 0x0; }
+static void _max_float_set_neutral (hdql_Datum_t d) { *((float *)    d) = FLT_MIN; }
+static void _max_double_set_neutral(hdql_Datum_t d) { *((float *)    d) = FLT_MIN; }
+_M_for_each_integer_type(_M_implement_max);
+_M_for_each_fp_type(_M_implement_max);
 
 /* bitwise convolutions */
 _M_for_each_integer_type(_M_implement_bAND);
@@ -649,6 +686,32 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
         .records = {
             #define _M_implement_record(suffix, type) \
             { #type , { _prod_ ## suffix ## _set_neutral, _prod_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_simple_arithmetic_type,
+        .overrideRType = NULL
+    };
+    /* min */
+    static const MonoidRecords_t _minArithMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _min_ ## suffix ## _set_neutral, _min_ ## suffix ## _operation }  },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_simple_arithmetic_type,
+        .overrideRType = NULL
+    };
+    /* max */
+    static const MonoidRecords_t _maxArithMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _max_ ## suffix ## _set_neutral, _max_ ## suffix ## _operation }  },
             _M_for_each_integer_type(_M_implement_record)
             _M_for_each_fp_type(_M_implement_record)
             #undef _M_implement_record
@@ -730,6 +793,16 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
     rc = hdql_functions_define(functions, "prod"
             , hdql_func_helper__try_monoid
             , (void *) &_prodArithMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "min"
+            , hdql_func_helper__try_monoid
+            , (void *) &_minArithMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "max"
+            , hdql_func_helper__try_monoid
+            , (void *) &_maxArithMonoidRecords );
     if(HDQL_ERR_CODE_OK != rc) return rc;
 
     rc = hdql_functions_define(functions, "bAND"

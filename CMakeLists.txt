@@ -142,6 +142,8 @@ if (BUILD_TESTS)
                           test/monoids/all.cc
                           test/monoids/any.cc
                           test/monoids/count.cc
+                          test/monoids/min.cc
+                          test/monoids/max.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -74,7 +74,7 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
 int
 hdql_functions_add_standard_math(struct hdql_Functions * functions);
 
-/**\briefe Adds monoid functions
+/**\briefe Adds simple monoid functions
  *
  * Simple monoid arithmetics
  * -------------------------
@@ -93,8 +93,10 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  *
  *   Func. name  | Operation    | Neutral el. | Types           | Result type
  * --------------+--------------+-------------+-----------------+-------------
- *     sum       | a + b        | 0           | all numeric     | promoted
- *     product   | a * b        | 1           | all numeric     | promoted
+ *     sum       | a += b       | 0           | all numeric     | promoted
+ *     product   | a *= b       | 1           | all numeric     | promoted
+ *     min       | a= a<b ? a:b | max of type | all numeric     | promoted
+ *     max       | a= a>b ? a:b | min of type | all numeric     | promoted
  *     bAND      | a & b        | ~0x0        | integer only    | promoted int
  *     bOR       | a | b        | 0x0         | integer only    | promoted int
  *     bXOR      | a ^ b        | 0x0         | integer only    | promoted int
@@ -104,14 +106,12 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  *
  * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
  * yet one may imagine some practical applications still.
- *
- * Selection monoids (TODO)
- * -----------------
- *
- * min(), max(), arbitrary()
- *
- * Complex monoid arithmetics (TODO)
- * --------------------------
+ */
+int
+hdql_functions_add_monoids(struct hdql_Functions * functions);
+
+/* Statistics
+ * ----------
  *
  * During the lifecycle, these monoids maintains more complex objects than
  * simple atomic value.
@@ -120,19 +120,21 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  *
  *      Func. name  | Types           | Result type
  * -----------------+-----------------+-----------------
+ *     arb          | all*            | inherited / promoted
  *     fsum         | all numeric     | double
- *     mean         | all numeric     | float or double
- *     varinace     | all numeric     | float or double
- *     median       | all numeric     | float or double
- *     skewness     | all numeric     | float or double
+ *     (f)mean      | all numeric     | float or double
+ *     (f)varinace  | all numeric     | float or double
+ *     (f)median    | all numeric     | float or double
+ *
+ * *) arb() is applicable if either all queries result in the same type, or
+ *    all are numeric. In first case, the resulting type matches the arguments,
+ *    at the second the type is promoted.
  *
  * TODO: consider also compound-resulting monoids like moments(), quantiles()?
  *       isn't it nice to have, say? {:.quantiles(a.b.c){.q1 < .v < .q2}}
- *
  */
-int
-hdql_functions_add_monoids(struct hdql_Functions * functions);
-
+//int
+//hdql_functions_add_basic_statistical(struct hdql_Functions * functions);
 
 #if 0
 

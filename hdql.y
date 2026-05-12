@@ -357,7 +357,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     free($2);
                     return HDQL_ERR_UNKNOWN_ATTRIBUTE;
                 }
-                $$ = hdql_query_create( attrDef, NULL, ws->context);
+                $$ = hdql_query_create(attrDef, NULL, ws->context);
                 free($2);
                 assert($$);
             }
@@ -1027,7 +1027,7 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
         if(NULL == cArg->nextArgument) break;
     }
     /* build plain temporary array of arguments */
-    struct hdql_Query ** argsArray = malloc(sizeof(struct hdql_Query *)*(nArgs + 1));
+    struct hdql_Query ** argsArray = alloca(sizeof(struct hdql_Query *)*(nArgs + 1));
     size_t nArg = 0;
     for(struct hdql_FuncArgList * cArg = argsList; NULL != cArg; ) {
         argsArray[nArg++] = cArg->thisArgument;
@@ -1042,7 +1042,7 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
     struct hdql_AttrDef * fAD;
     int rc = hdql_functions_resolve(fDict, funcName
             , argsArray, &fAD, ws->context);
-    free(argsArray);  /* free tmp args array */
+    
     /* Functions construction may fail, in this case we should provide the
      * user with explainatory information on which arguments were lookup
      * performed */
@@ -1053,8 +1053,14 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
                   , "Failed to instantiate function object %s(...): %s"
                   , funcName, hdql_err_str(rc)
                   );
+        /* destroy queries (emergency exit) */
+        for(struct hdql_Query ** q = argsArray; *q; ++q) {
+            hdql_query_destroy(*q, ws->context);
+        }
+        /*free(argsArray);  // free tmp args array */
         return NULL;
     }
+    /*free(argsArray);  // free tmp args array */
     assert(fAD);
     assert(hdql_attr_def_is_transient(fAD));
     /* Otherwise, create a new query object wrapping "function attribute

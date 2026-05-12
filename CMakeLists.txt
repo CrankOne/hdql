@@ -135,6 +135,8 @@ if (BUILD_TESTS)
                           test/query-product.test.cc
                           test/monoids/monoids.cc
                           test/monoids/sum.cc
+                          test/monoids/product.cc
+                          test/monoids/b-and.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -1,4 +1,6 @@
+
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
 #include "monoids.hh"
@@ -10,10 +12,10 @@ using ::hdql::test::TestAggFuncs;
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("sum(.a.i32f)");
+    CompileQuery("bAND(.a.i32f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -45,10 +47,10 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("sum(.b.u16f)");
+    CompileQuery("bAND(.b.u16f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -80,10 +82,10 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
-    CompileQuery("sum(.b.u16f, .a.i64f)");
+    CompileQuery("bAND(.b.u16f, .a.i64f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -115,89 +117,112 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
+TEST_F(TestAggFuncs, bANDRefusesFloatingPointTypes) {
+    using namespace hdql::test;
+    RootItem root;
+    char errBuf[128]; int errDetails[5];
+    _query = hdql_compile_query("bAND(.a.df)", _rootCompound, _compounds.context_ptr()
+            , errBuf, sizeof(errBuf), errDetails );
+    EXPECT_FALSE(_query);
+    EXPECT_EQ( errDetails[0]
+             , HDQL_ERR_TRANSLATION_FAILURE
+             );
+    _query = hdql_compile_query("bAND(.a.ff)", _rootCompound, _compounds.context_ptr()
+            , errBuf, sizeof(errBuf), errDetails );
+    EXPECT_FALSE(_query);
+    ASSERT_EQ( errDetails[0]
+             , HDQL_ERR_TRANSLATION_FAILURE
+             );
+}
+
 // Result value tests
 //
 
-TEST_F(TestAggFuncs, sumOfAnEmptyCollectionIsZero) {
+TEST_F(TestAggFuncs, bANDOfAnEmptyCollectionIsMaxVal) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("sum(.a.u32f)");
+    CompileQuery("bAND(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0, vi->get_as_int(r));
+    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
+             , hdql_types_get_type_code(_valueTypes, "uint32_t")
+             );
+    EXPECT_EQ(((uint32_t)~0), *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, sumOfASingleElement) {
+TEST_F(TestAggFuncs, bANDOfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
-    item1->u32f = 123;
+    item1->u32f = 0xfffae;
     root.a.push_back(item1);
-    CompileQuery("sum(.a.u32f)");
+    CompileQuery("bAND(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(123, vi->get_as_int(r));
+    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
+             , hdql_types_get_type_code(_valueTypes, "uint32_t")
+             );
+    EXPECT_EQ(0xfffae, *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, sumOfASingleCollectionArgument) {
+TEST_F(TestAggFuncs, bANDOfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
-    item1->i32f = 123;
+    item1->i32f = 0xff;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->i32f = -122;
+    item2->i32f = 0x1e;
     root.a.push_back(item2);
-    CompileQuery("sum(.a.i32f)");
+    CompileQuery("bAND(.a.i32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(1, vi->get_as_int(r));
+    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
+             , hdql_types_get_type_code(_valueTypes, "int32_t")
+             );
+    EXPECT_EQ(0x1e, *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, sumOfEmptyCollections) {
+TEST_F(TestAggFuncs, bANDOfEmptyCollections) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("sum(.a.i32f, .b.u16f)");
+    CompileQuery("bAND(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0, vi->get_as_int(r));
+    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
+             , hdql_types_get_type_code(_valueTypes, "int32_t")
+             );
+    EXPECT_EQ(((int32_t)~0), *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, sumOfCollections) {
+TEST_F(TestAggFuncs, bANDOfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
-    item1->i32f = -120;
+    item1->i32f = 0xff;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->u16f = 123;
+    item2->u16f = 0x1e;
     root.b.push_back(item2);
     std::shared_ptr<Item> item3 = std::make_shared<Item>();
-    item3->i32f = -13;
+    item3->i32f = 0xfa;
     root.a.push_back(item3);
-    CompileQuery("sum(.a.i32f, .b.u16f)");
+    CompileQuery("bAND(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(-10, vi->get_as_int(r));
+    EXPECT_EQ(0x1a, vi->get_as_int(r));
 }
+
 

@@ -270,7 +270,7 @@ _infer_simple_arithmetic_type(struct hdql_Query ** args
  * Returns:
  * <-1 on failure with reason written to failureBuffer
  *  -1 on case when all the arguments are static arithmetic const
- *   0 on suceess
+ *  >0 on suceess
  */
 static int
 _infer_integer_only_type(struct hdql_Query ** args
@@ -291,7 +291,7 @@ _infer_integer_only_type(struct hdql_Query ** args
             if(failureBufferSize)
                 snprintf( failureBuffer, failureBufferSize
                         , "argument #%zu is not of atomic type", nArgs+1 );
-            return -1;
+            return -2;
         }
         if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
         /* promote result type code */
@@ -302,7 +302,7 @@ _infer_integer_only_type(struct hdql_Query ** args
             if(failureBufferSize)
                 snprintf( failureBuffer, failureBufferSize
                         , "argument #%zu is of floating point type", nArgs+1 );
-            return -1;
+            return -3;
         }
         if(0x0 != *rTypeCode) {
             if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
@@ -315,7 +315,7 @@ _infer_integer_only_type(struct hdql_Query ** args
                         , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
                         , nArgs
                         );
-                return -1;
+                return -4;
             }
             *rTypeCode = newRtypeCode;
         } else {
@@ -324,8 +324,8 @@ _infer_integer_only_type(struct hdql_Query ** args
     }
     assert(*rTypeCode != 0x0);
     assert( (0 == floatTC  || *rTypeCode != floatTC) || (0 == doubleTC || *rTypeCode != doubleTC));
-    if(allIsStaticConst) return 1;
-    return 0;
+    if(allIsStaticConst) return -1;
+    return nArgs;
 }
 
 /* Checks, that all the argument queries result in a numeric or logic values.
@@ -441,6 +441,7 @@ hdql_func_helper__try_monoid(
     }
 
     /* allocate function "definition data" */
+    assert(nArgs > 0);
     SMADefData_t * dd = hdql_alloc(context, SMADefData_t);
     dd->monoidDef = monoidDefPtr;
     dd->nQueries = nArgs;

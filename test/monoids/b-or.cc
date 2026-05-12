@@ -11,10 +11,10 @@ using ::hdql::test::TestAggFuncs;
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("bAND(.a.i32f)");
+    CompileQuery("bOR(.a.i32f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -46,10 +46,10 @@ TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("bAND(.b.u16f)");
+    CompileQuery("bOR(.b.u16f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -81,10 +81,10 @@ TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestAggFuncs, bORTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
-    CompileQuery("bAND(.b.u16f, .a.i64f)");
+    CompileQuery("bOR(.b.u16f, .a.i64f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -116,11 +116,11 @@ TEST_F(TestAggFuncs, bANDTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bANDRefusesFloatingPointType) {
+TEST_F(TestAggFuncs, bORRefusesFloatingPointType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("bAND(.a.ff)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("bOR(.a.ff)", _rootCompound, _compounds.context_ptr()
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     ASSERT_EQ( errDetails[0]
@@ -128,11 +128,11 @@ TEST_F(TestAggFuncs, bANDRefusesFloatingPointType) {
              );
 }
 
-TEST_F(TestAggFuncs, bANDRefusesDoubleType) {
+TEST_F(TestAggFuncs, bORRefusesDoubleType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("bAND(.a.df)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("bOR(.a.df)", _rootCompound, _compounds.context_ptr()
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     EXPECT_EQ( errDetails[0]
@@ -140,11 +140,11 @@ TEST_F(TestAggFuncs, bANDRefusesDoubleType) {
              );
 }
 
-TEST_F(TestAggFuncs, bANDRefusesBooleanType) {
+TEST_F(TestAggFuncs, bORRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("bAND(.a.bf)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("bOR(.a.bf)", _rootCompound, _compounds.context_ptr()
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     EXPECT_EQ( errDetails[0]
@@ -155,10 +155,10 @@ TEST_F(TestAggFuncs, bANDRefusesBooleanType) {
 // Result value tests
 //
 
-TEST_F(TestAggFuncs, bANDOfAnEmptyCollectionIsMaxVal) {
+TEST_F(TestAggFuncs, bOROfAnEmptyCollectionIsZero) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("bAND(.a.u32f)");
+    CompileQuery("bOR(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
@@ -166,16 +166,16 @@ TEST_F(TestAggFuncs, bANDOfAnEmptyCollectionIsMaxVal) {
     ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
              , hdql_types_get_type_code(_valueTypes, "uint32_t")
              );
-    EXPECT_EQ(((uint32_t)~0), *((uint32_t*) r));
+    EXPECT_EQ(0x0, *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bANDOfASingleElement) {
+TEST_F(TestAggFuncs, bOROfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
     item1->u32f = 0xfffae;
     root.a.push_back(item1);
-    CompileQuery("bAND(.a.u32f)");
+    CompileQuery("bOR(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
@@ -186,7 +186,7 @@ TEST_F(TestAggFuncs, bANDOfASingleElement) {
     EXPECT_EQ(0xfffae, *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bANDOfASingleCollectionArgument) {
+TEST_F(TestAggFuncs, bOROfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -195,7 +195,7 @@ TEST_F(TestAggFuncs, bANDOfASingleCollectionArgument) {
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
     item2->i32f = 0x1e;
     root.a.push_back(item2);
-    CompileQuery("bAND(.a.i32f)");
+    CompileQuery("bOR(.a.i32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
@@ -203,13 +203,13 @@ TEST_F(TestAggFuncs, bANDOfASingleCollectionArgument) {
     ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
              , hdql_types_get_type_code(_valueTypes, "int32_t")
              );
-    EXPECT_EQ(0x1e, *((int32_t*) r));
+    EXPECT_EQ(0xff, *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bANDOfEmptyCollections) {
+TEST_F(TestAggFuncs, bOROfEmptyCollections) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("bAND(.a.i32f, .b.u16f)");
+    CompileQuery("bOR(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
@@ -217,53 +217,55 @@ TEST_F(TestAggFuncs, bANDOfEmptyCollections) {
     ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
              , hdql_types_get_type_code(_valueTypes, "int32_t")
              );
-    EXPECT_EQ(((int32_t)~0), *((int32_t*) r));
+    EXPECT_EQ(0x0, *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bANDOfCollections) {
+TEST_F(TestAggFuncs, bOROfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
     item1->i32f = 0xff;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->u16f = 0x1e;
+    item2->u16f = 0xff00;
     root.b.push_back(item2);
     std::shared_ptr<Item> item3 = std::make_shared<Item>();
-    item3->i32f = 0xfa;
+    item3->i32f = 0xff0000;
     root.a.push_back(item3);
-    CompileQuery("bAND(.a.i32f, .b.u16f)");
+    CompileQuery("bOR(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0x1a, vi->get_as_int(r));
+    EXPECT_EQ(0xffffff, vi->get_as_int(r));
 }
 
-// Iteration abrupt if 0x0 is achieved with bAND-convolution. Making sure
+// Iteration abrupt if 0x0 is achieved with bOR-convolution. Making sure
 // it is abrupt indeed is rather tedious, so here we check that at least the
 // result is zero.
-TEST_F(TestAggFuncs, bANDOfCollectionsWithZeroes) {
+TEST_F(TestAggFuncs, bOROfCollectionsWithMaxInt) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
     item1->i32f = 0xff;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->u16f = 0x0;
+    item2->i64f = ((int64_t)~0);
     root.b.push_back(item2);
     std::shared_ptr<Item> item3 = std::make_shared<Item>();
     item3->i32f = 0xfa;
     root.a.push_back(item3);
-    CompileQuery("bAND(.a.i32f, .b.u16f)");
+    CompileQuery("bOR(.a.i32f, .b.i64f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0x0, vi->get_as_int(r));
+    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
+             , hdql_types_get_type_code(_valueTypes, "int64_t")
+             );
+    EXPECT_EQ(((int64_t)~0), *((int64_t *)r));
 }
+
 

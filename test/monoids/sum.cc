@@ -115,6 +115,53 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
+TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
+    using namespace hdql::test;
+
+    CompileQuery("sum(.b.df, .a.i64f)");
+
+    size_t keysDepth = hdql_query_depth(_query);
+    EXPECT_EQ(1, keysDepth);
+
+    // no keys
+    hdql_CollectionKey * keys;
+    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+
+    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
+    ASSERT_TRUE(ad);
+    // it's a scalar
+    ASSERT_FALSE(hdql_attr_def_is_collection(ad));
+    ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
+    // not a static value
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
+    // has a scalar atomic value iface
+    const hdql_ValueInterface * vi
+        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
+    ASSERT_TRUE(vi);
+
+    struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    hdql_ValueTypeCode_t dbltc = hdql_types_get_type_code(types, "double");
+    ASSERT_NE(dbltc, 0x0);
+
+    EXPECT_EQ(dbltc, hdql_attr_def_get_atomic_value_type_code(ad));
+
+    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+}
+
+TEST_F(TestAggFuncs, sumRefusesBooleanType) {
+    using namespace hdql::test;
+    RootItem root;
+    char errBuf[128]; int errDetails[5];
+    _query = hdql_compile_query("sum(.a.bf)", _rootCompound, _compounds.context_ptr()
+            , errBuf, sizeof(errBuf), errDetails );
+    EXPECT_FALSE(_query);
+    EXPECT_EQ( errDetails[0]
+             , HDQL_ERR_TRANSLATION_FAILURE
+             );
+}
+
 // Result value tests
 //
 

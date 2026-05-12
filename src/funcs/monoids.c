@@ -532,7 +532,7 @@ static int  _bOR_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
 #define _M_implement_bXOR(suffix, type)  \
 static void _bXOR_ ## suffix ## _set_neutral(hdql_Datum_t d)  {  *((type *)  d) =  ((type) 0x0); }  \
 static int  _bXOR_ ## suffix ## _operation(hdql_Datum_t r, hdql_Datum_t v)  \
-    { *((type *) r) |= *((type *) v); return 0; }
+    { *((type *) r) ^= *((type *) v); return 0; }
 
 #define _M_for_each_integer_type(m) \
     m(i8,   int8_t  ) \

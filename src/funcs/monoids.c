@@ -101,8 +101,6 @@ _monoid__instantiate
         }
         /* conversion is needed -- allocate destination */
         dynData->convertedValues[nq] = hdql_create_value(defData->rTypeCode, context);
-        /* ^^^ TODO: monoid def data should create it (to handle advanced
-         *     cases like meidan, average, etc */
         assert(dynData->convertedValues[nq]);  /* allocation error */
     }
     /* allocate result datum */
@@ -390,13 +388,47 @@ _infer_check_atomic_type_to_logic_as_logic(struct hdql_Query ** args
 }
 
 /* Trivial result retrieve -- used for monoids when internal state is the
- * results itself (sum, product, bitwise convolutions) */
-static hdql_Datum_t _trivial_retrive_result(hdql_Datum_t r
+ * results itself (sum, product, bitwise convolutions);
+ *
+ * SMADefData_t::retrieve_result callback implem */
+static hdql_Datum_t
+_trivial_retrive_result(hdql_Datum_t r
         , hdql_ValueTypeCode_t rTypeCode, hdql_Context_t context) {
     ((void) rTypeCode);
     ((void) context);
     return r;
 }
+
+/*
+ * mean() state management */
+
+/* SMADefData_t::instantiate_result callback implem */
+static hdql_Datum_t
+_mean_instantiate_result(hdql_ValueTypeCode_t tc, hdql_Context_t context) {
+    assert(context);
+    /* get types to calc allocations */
+    const struct hdql_ValueTypes * types = hdql_context_get_types(context);
+    assert(types);
+    const struct hdql_ValueInterface * iface = hdql_types_get_type(types, tc);
+    assert(iface);
+    assert(iface->size > 0);
+    /* uint64_t stored first for count, then sum result of the type */
+    return hdql_context_alloc(context, sizeof(uint64_t) + iface->size);
+}
+/* SMADefData_t::retrieve_result callback implem for mean() 
+ * Set sum accumulator to value and count to 1 to produce the same value on
+ * occasional repeat (todo: do we need that actually?). */
+#define _M_implment_mean_retrieve(suffix, type) \
+static hdql_Datum_t \
+_mean_retrieve_result(hdql_Datum_t d_, hdql_ValueTypeCode_t tc, hdql_Context_t context) { \
+    uint64_t count = *((const uint64_t *) d_); \
+    type * dPtr = (type*) (((char*) d_) + sizeof(type));\
+    *dPtr /= count; \
+    *((const uint64_t *) d_) = 1;\
+    return dPtr; \
+}
+
+
 
 /*
  * Instantiation (function constructor)

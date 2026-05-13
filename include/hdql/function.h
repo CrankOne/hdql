@@ -74,10 +74,10 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
 int
 hdql_functions_add_standard_math(struct hdql_Functions * functions);
 
-/**\briefe Adds simple monoid functions
+/**\briefe Adds foldable monoid functions
  *
- * Simple monoid arithmetics
- * -------------------------
+ * Simple foldable monoid
+ * ----------------------
  *
  * Aggreage functions featuring following traits:
  * - receives one or more queries resulting in atomic arithmetic type;
@@ -121,17 +121,12 @@ hdql_functions_add_monoids(struct hdql_Functions * functions);
  *      Func. name  | Types           | Result type
  * -----------------+-----------------+-----------------
  *     arb          | all*            | inherited / promoted
- *     fsum         | all numeric     | double
- *     (f)mean      | all numeric     | float or double
- *     (f)varinace  | all numeric     | float or double
- *     (f)median    | all numeric     | float or double
+ *     mean         | all numeric     | promoted
+ *     var          | all numeric     | promoted
  *
  * *) arb() is applicable if either all queries result in the same type, or
  *    all are numeric. In first case, the resulting type matches the arguments,
  *    at the second the type is promoted.
- *
- * TODO: consider also compound-resulting monoids like moments(), quantiles()?
- *       isn't it nice to have, say? {:.quantiles(a.b.c){.q1 < .v < .q2}}
  */
 //int
 //hdql_functions_add_basic_statistical(struct hdql_Functions * functions);

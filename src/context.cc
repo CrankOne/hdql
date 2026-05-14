@@ -92,7 +92,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
     ctx->constants  = _hdql_constants_create(pCtx->constants, ctx);
     ctx->customData.first = pCtx;
     ctx->randgen    = _hdql_randgen_create( flags & HDQL_CTX_LOCAL_RANDGEN
-                                          ? NULL : ctx->randgen
+                                          ? NULL : pCtx->randgen
                                           , ctx);
     // ...
     return ctx;
@@ -116,6 +116,8 @@ hdql_context_destroy(hdql_Context_t ctx) {
         _hdql_value_types_table_destroy(ctx->valueTypes, ctx);
     if(ctx->constants)
         _hdql_constants_destroy(ctx->constants, ctx);
+    if(ctx->randgen)
+        _hdql_randgen_destroy(ctx->randgen, ctx);
     delete ctx;
 }
 

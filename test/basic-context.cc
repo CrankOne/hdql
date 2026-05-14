@@ -1,4 +1,5 @@
 #include "basic-context.hh"
+#include "hdql/random.h"
 
 namespace hdql {
 namespace test {
@@ -6,6 +7,7 @@ namespace test {
 void
 TestingContext::SetUp() {
     _ctx = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
+    hdql_rand_seed(hdql_context_get_randgen(_ctx), 0xdeadbeef, 0 );
 
     // reentrant table with type interfaces
     _valueTypes = hdql_context_get_types(_ctx);

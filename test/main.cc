@@ -4,6 +4,7 @@
 #include "hdql/helpers/compounds.hh"
 #include "hdql/helpers/fancy-print-err.h"
 #include "hdql/helpers/print-tree.h"
+#include "hdql/random.h"
 #include "samples.hh"
 
 #include "hdql/compound.h"
@@ -27,6 +28,7 @@
 static int
 test_query_on_data( int nSample, const char * expression ) {
     hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
+    hdql_rand_seed(hdql_context_get_randgen(ctx), 0xdeadbeef, 0 );
 
     // reentrant table with type interfaces
     hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);

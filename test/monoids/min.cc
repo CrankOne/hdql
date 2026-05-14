@@ -6,12 +6,12 @@
 #include <limits>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, minTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
     CompileQuery("min(.a.i32f)");
@@ -46,7 +46,7 @@ TEST_F(TestAggFuncs, minTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, minTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
     CompileQuery("min(.b.u16f)");
@@ -81,7 +81,7 @@ TEST_F(TestAggFuncs, minTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, minTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("min(.b.u16f, .a.i64f)");
@@ -116,7 +116,7 @@ TEST_F(TestAggFuncs, minTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
+TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("min(.b.df, .a.i64f)");
@@ -151,7 +151,7 @@ TEST_F(TestAggFuncs, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar)
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, minRefusesBooleanType) {
+TEST_F(TestMonoidal, minRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -163,7 +163,7 @@ TEST_F(TestAggFuncs, minRefusesBooleanType) {
              );
 }
 
-TEST_F(TestAggFuncs, minRefusesCompoundType) {
+TEST_F(TestMonoidal, minRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -178,18 +178,16 @@ TEST_F(TestAggFuncs, minRefusesCompoundType) {
 // Result value tests
 //
 
-// TODO: doubtful choice...
-TEST_F(TestAggFuncs, minOfAnEmptyCollectionIsMax) {
+TEST_F(TestMonoidal, minOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("min(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    EXPECT_EQ(std::numeric_limits<uint32_t>::max(), *((uint32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, minOfASingleElement) {
+TEST_F(TestMonoidal, minOfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -205,7 +203,7 @@ TEST_F(TestAggFuncs, minOfASingleElement) {
     EXPECT_EQ(123, vi->get_as_int(r));
 }
 
-TEST_F(TestAggFuncs, minOfASingleCollectionArgument) {
+TEST_F(TestMonoidal, minOfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -225,17 +223,16 @@ TEST_F(TestAggFuncs, minOfASingleCollectionArgument) {
 }
 
 // TODO: doubtful choice...
-TEST_F(TestAggFuncs, minOfEmptyCollections) {
+TEST_F(TestMonoidal, minOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("min(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    EXPECT_EQ(std::numeric_limits<int32_t>::max(), *((int32_t *) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, minOfCollections) {
+TEST_F(TestMonoidal, minOfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();

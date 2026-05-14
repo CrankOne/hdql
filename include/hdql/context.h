@@ -33,7 +33,7 @@ extern "C" {
 #   endif  /* __cplusplus */
 #endif /* HDQL_TYPES_DEBUG */
 
-/** When set, context duplicates every error push to stderr
+/**\brief When set, context duplicates every error push to stderr
  *
  * By default pushed errors get accumulated in context's queue. Normally, to
  * reveal these messages, user code must retrieve them at some point, but that
@@ -41,6 +41,11 @@ extern "C" {
  * error to stderr (in addition to keeping messages pushed in queue). */
 #define HDQL_CTX_PRINT_PUSH_ERROR 0x1
 
+/**\brief When set, makes the context to maintain its own random generator
+ *
+ * Affects only non-root context (the root one always maintains a random
+ * generator instance). */
+#define HDQL_CTX_LOCAL_RANDGEN 0x2
 
 struct hdql_AttrDef;
 struct hdql_Compound;
@@ -49,6 +54,7 @@ struct hdql_ValueTypes;
 struct hdql_Func;
 struct hdql_Constants;
 struct hdql_Query;
+struct hdql_RandGen;
 
 /**\brief Creates new HDQL context
  *
@@ -87,6 +93,9 @@ struct hdql_Converters * hdql_context_get_conversions(hdql_Context_t ctx);
 
 /**\brief Returns constant values definitions table */
 struct hdql_Constants * hdql_context_get_constants(hdql_Context_t ctx);
+
+/**\brief Returns context random generator instance*/
+struct hdql_RandGen * hdql_context_get_randgen(hdql_Context_t ctx);
 
 /**\brief Used by parser routines to create virtual compound types */
 void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );

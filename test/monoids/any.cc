@@ -7,12 +7,12 @@
 #include <limits>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, anyTypeInQueryResultsInAKeylessBooleanScalar) {
+TEST_F(TestMonoidal, anyTypeInQueryResultsInAKeylessBooleanScalar) {
     using namespace hdql::test;
 
     CompileQuery("any(.a.i32f)");
@@ -47,7 +47,7 @@ TEST_F(TestAggFuncs, anyTypeInQueryResultsInAKeylessBooleanScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, anyRefusesCompoundType) {
+TEST_F(TestMonoidal, anyRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -59,20 +59,16 @@ TEST_F(TestAggFuncs, anyRefusesCompoundType) {
              );
 }
 
-TEST_F(TestAggFuncs, anyOfAnEmptyCollectionIsFalse) {
+TEST_F(TestMonoidal, anyOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("any(.a.bf)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_FALSE(vi->get_as_logic(r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, anyOfASingleTrueElement) {
+TEST_F(TestMonoidal, anyOfASingleTrueElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -88,7 +84,7 @@ TEST_F(TestAggFuncs, anyOfASingleTrueElement) {
     EXPECT_TRUE(vi->get_as_logic(r));
 }
 
-TEST_F(TestAggFuncs, anyOfASingleFalseElement) {
+TEST_F(TestMonoidal, anyOfASingleFalseElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -105,7 +101,7 @@ TEST_F(TestAggFuncs, anyOfASingleFalseElement) {
 }
 
 // This behavior is quite general across IEEE-754-based systems.
-TEST_F(TestAggFuncs, anyOfANANIsTrue) {
+TEST_F(TestMonoidal, anyOfANANIsTrue) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -121,7 +117,7 @@ TEST_F(TestAggFuncs, anyOfANANIsTrue) {
     EXPECT_TRUE(vi->get_as_logic(r));
 }
 
-TEST_F(TestAggFuncs, anyOfASequence) {
+TEST_F(TestMonoidal, anyOfASequence) {
     using namespace hdql::test;
     RootItem root;
 
@@ -147,7 +143,7 @@ TEST_F(TestAggFuncs, anyOfASequence) {
     EXPECT_TRUE(vi->get_as_logic(r));
 }
 
-TEST_F(TestAggFuncs, anyOfTwoSequences) {
+TEST_F(TestMonoidal, anyOfTwoSequences) {
     using namespace hdql::test;
     RootItem root;
 

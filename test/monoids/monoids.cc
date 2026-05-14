@@ -41,7 +41,7 @@ namespace hdql {
 namespace test {
 
 void
-TestAggFuncs::SetUp() {
+TestMonoidal::SetUp() {
     TestingContext::SetUp();
     hdql_converters_add_std( hdql_context_get_conversions(_ctx)
             , hdql_context_get_types(_ctx)
@@ -61,7 +61,7 @@ TestAggFuncs::SetUp() {
 }
 
 void
-TestAggFuncs::CompileQuery(const char * expression) {
+TestMonoidal::CompileQuery(const char * expression) {
     char errBuf[128]; int errDetails[5];
     _query = hdql_compile_query( expression
                               , _rootCompound
@@ -83,7 +83,7 @@ TestAggFuncs::CompileQuery(const char * expression) {
 }
 
 void
-TestAggFuncs::TearDown() {
+TestMonoidal::TearDown() {
     if(_query)
         hdql_query_destroy(_query, _compounds.context_ptr());
     // sic! in this order: non-virtual compounds get destroyed AFTER context as

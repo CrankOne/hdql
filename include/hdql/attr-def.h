@@ -21,7 +21,22 @@ struct hdql_AtomicTypeFeatures {
     /* ... */
 };
 
-/**\brief Interface to scalar attribute definition (may be of compound type) */
+/**\brief Interface to scalar attribute definition
+ *
+ * Scalar attributes obeys simple lifecycle:
+ *  1. Upon query initialization, the supplementary dynamic data gets
+ *     instantiated (`instantiate()`).
+ *  2. Upon applying the query, the attribute gets re-set (`reset()`) with an
+ *     owning datum instance.
+ *  3. Upon retrieving the value, the attribute gets
+ *     dereferenced (`dereference()`).
+ *  4. Once corresponding query destroyed, a `destroy()` gets called to delete
+ *     dynamic data.
+ *
+ * Note the following important features:
+ *  - scalar attribute can emit the key;
+ *  - scalar attribute can result in nothing.
+ * */
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
     hdql_Datum_t definitionData;
@@ -34,7 +49,17 @@ struct hdql_ScalarAttrInterface {
                                , const hdql_Datum_t defData
                                , hdql_Context_t context
                                );
-    /** Scalar item dereference callback, required */
+    /** Scalar item dereference callback, required
+     *
+     * \return pointer to associated datum or NULL
+     *
+     * \note The call to dereference *must be idempotent* meaning that in
+     *       between of `reset()` calls, the returned value must not change.
+     *       Practically, that means that any calculus done upon call of
+     *       dereference has to be cached/stored and invalidated only on
+     *       next `reset()` call (dynamic data is an appropriate place to
+     *       accomodate this persistency, if needed).
+     * */
     hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
                                , hdql_Datum_t dynData  // allocated with `instantiate()`
                                , struct hdql_CollectionKey * // may be NULL
@@ -42,7 +67,10 @@ struct hdql_ScalarAttrInterface {
                                , hdql_Context_t
                                );
     /**\brief Called in case of owner change, shall return new/re-initialized
-     *        dynamic data */
+     *        dynamic data
+     *
+     * \return updated or reallocated dynamic data
+     */
     hdql_Datum_t (*reset)( hdql_Datum_t newOwner
                  , hdql_Datum_t prevDynData
                  , const hdql_Datum_t defData

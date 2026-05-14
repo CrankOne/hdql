@@ -3,15 +3,14 @@
 #include "hdql/value.h"
 #include "monoids.hh"
 #include <gtest/gtest.h>
-#include <limits>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, maxTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, maxTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
     CompileQuery("max(.a.i32f)");
@@ -46,7 +45,7 @@ TEST_F(TestAggFuncs, maxTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, maxTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, maxTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
     CompileQuery("max(.b.u16f)");
@@ -81,7 +80,7 @@ TEST_F(TestAggFuncs, maxTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, maxTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, maxTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("max(.b.u16f, .a.i64f)");
@@ -116,7 +115,7 @@ TEST_F(TestAggFuncs, maxTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, maxTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
+TEST_F(TestMonoidal, maxTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("max(.b.df, .a.i64f)");
@@ -151,7 +150,7 @@ TEST_F(TestAggFuncs, maxTypeInQueryResultsInAPromotedFloatingPointKeylessScalar)
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, maxRefusesBooleanType) {
+TEST_F(TestMonoidal, maxRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -163,7 +162,7 @@ TEST_F(TestAggFuncs, maxRefusesBooleanType) {
              );
 }
 
-TEST_F(TestAggFuncs, maxRefusesCompoundType) {
+TEST_F(TestMonoidal, maxRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -178,18 +177,16 @@ TEST_F(TestAggFuncs, maxRefusesCompoundType) {
 // Result value tests
 //
 
-// TODO: doubtful choice...
-TEST_F(TestAggFuncs, maxOfAnEmptyCollectionIsMax) {
+TEST_F(TestMonoidal, maxOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("max(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    EXPECT_EQ(std::numeric_limits<uint32_t>::min(), *((uint32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, maxOfASingleElement) {
+TEST_F(TestMonoidal, maxOfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -205,7 +202,7 @@ TEST_F(TestAggFuncs, maxOfASingleElement) {
     EXPECT_EQ(123, vi->get_as_int(r));
 }
 
-TEST_F(TestAggFuncs, maxOfASingleCollectionArgument) {
+TEST_F(TestMonoidal, maxOfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -224,18 +221,16 @@ TEST_F(TestAggFuncs, maxOfASingleCollectionArgument) {
     EXPECT_EQ(123, vi->get_as_int(r));
 }
 
-// TODO: doubtful choice...
-TEST_F(TestAggFuncs, maxOfEmptyCollections) {
+TEST_F(TestMonoidal, maxOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("max(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    EXPECT_EQ(std::numeric_limits<int32_t>::min(), *((int32_t *) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, maxOfCollections) {
+TEST_F(TestMonoidal, maxOfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();

@@ -10,10 +10,10 @@ using ::hdql::test::TestMonoidal;
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestMonoidal, productTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, meanTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("prod(.a.i32f)");
+    CompileQuery("mean(.a.i32f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -45,10 +45,10 @@ TEST_F(TestMonoidal, productTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestMonoidal, productTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, meanTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
-    CompileQuery("prod(.b.u16f)");
+    CompileQuery("mean(.b.u16f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -80,10 +80,10 @@ TEST_F(TestMonoidal, productTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestMonoidal, productTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, meanTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
-    CompileQuery("prod(.b.u16f, .a.i64f)");
+    CompileQuery("mean(.b.u16f, .a.i64f)");
 
     size_t keysDepth = hdql_query_depth(_query);
     EXPECT_EQ(1, keysDepth);
@@ -115,11 +115,58 @@ TEST_F(TestMonoidal, productTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestMonoidal, productRefusesCompoundType) {
+TEST_F(TestMonoidal, meanTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
+    using namespace hdql::test;
+
+    CompileQuery("mean(.b.df, .a.i64f)");
+
+    size_t keysDepth = hdql_query_depth(_query);
+    EXPECT_EQ(1, keysDepth);
+
+    // no keys
+    hdql_CollectionKey * keys;
+    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+
+    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
+    ASSERT_TRUE(ad);
+    // it's a scalar
+    ASSERT_FALSE(hdql_attr_def_is_collection(ad));
+    ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
+    // not a static value
+    ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
+    ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
+    // has a scalar atomic value iface
+    const hdql_ValueInterface * vi
+        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
+    ASSERT_TRUE(vi);
+
+    struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    hdql_ValueTypeCode_t dbltc = hdql_types_get_type_code(types, "double");
+    ASSERT_NE(dbltc, 0x0);
+
+    EXPECT_EQ(dbltc, hdql_attr_def_get_atomic_value_type_code(ad));
+
+    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+}
+
+TEST_F(TestMonoidal, meanRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("prod(.a)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("mean(.a.bf)", _rootCompound, _compounds.context_ptr()
+            , errBuf, sizeof(errBuf), errDetails );
+    EXPECT_FALSE(_query);
+    EXPECT_EQ( errDetails[0]
+             , HDQL_ERR_TRANSLATION_FAILURE
+             );
+}
+
+TEST_F(TestMonoidal, meanRefusesCompoundType) {
+    using namespace hdql::test;
+    RootItem root;
+    char errBuf[128]; int errDetails[5];
+    _query = hdql_compile_query("mean(.a)", _rootCompound, _compounds.context_ptr()
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     ASSERT_EQ( errDetails[0]
@@ -130,22 +177,22 @@ TEST_F(TestMonoidal, productRefusesCompoundType) {
 // Result value tests
 //
 
-TEST_F(TestMonoidal, productOfAnEmptyCollectionIsNone) {
+TEST_F(TestMonoidal, meanOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("prod(.a.u32f)");
+    CompileQuery("mean(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
-TEST_F(TestMonoidal, productOfASingleElement) {
+TEST_F(TestMonoidal, meanOfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
     item1->u32f = 123;
     root.a.push_back(item1);
-    CompileQuery("prod(.a.u32f)");
+    CompileQuery("mean(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
@@ -155,54 +202,53 @@ TEST_F(TestMonoidal, productOfASingleElement) {
     EXPECT_EQ(123, vi->get_as_int(r));
 }
 
-TEST_F(TestMonoidal, productOfASingleCollectionArgument) {
+TEST_F(TestMonoidal, meanOfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
-    item1->i32f = 2;
+    item1->i32f = 127;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->i32f = -3;
+    item2->i32f = -122;
     root.a.push_back(item2);
-    CompileQuery("prod(.a.i32f)");
+    CompileQuery("mean(.a.i32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(-6, vi->get_as_int(r));
+    EXPECT_EQ((127 - 122)/2, vi->get_as_int(r));
 }
 
-TEST_F(TestMonoidal, productOfEmptyCollectionsIsNone) {
+TEST_F(TestMonoidal, meanOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
-    CompileQuery("prod(.a.i32f, .b.u16f)");
+    CompileQuery("mean(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
-TEST_F(TestMonoidal, productOfCollections) {
+TEST_F(TestMonoidal, meanOfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
-    item1->i32f = -3;
+    item1->i32f = -120;
     root.a.push_back(item1);
     std::shared_ptr<Item> item2 = std::make_shared<Item>();
-    item2->u16f = 2;
+    item2->u16f = 123;
     root.b.push_back(item2);
     std::shared_ptr<Item> item3 = std::make_shared<Item>();
-    item3->i32f = -4;
+    item3->i32f = -13;
     root.a.push_back(item3);
-    CompileQuery("prod(.a.i32f, .b.u16f)");
+    CompileQuery("mean(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(24, vi->get_as_int(r));
+    EXPECT_EQ((-120 + 123 - 13)/3, vi->get_as_int(r));
 }
-
 

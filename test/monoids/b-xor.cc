@@ -6,12 +6,12 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, bXORTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
     CompileQuery("bXOR(.a.i32f)");
@@ -46,7 +46,7 @@ TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, bXORTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
     CompileQuery("bXOR(.b.u16f)");
@@ -81,7 +81,7 @@ TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, bXORTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("bXOR(.b.u16f, .a.i64f)");
@@ -116,7 +116,7 @@ TEST_F(TestAggFuncs, bXORTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bXORRefusesFloatingPointType) {
+TEST_F(TestMonoidal, bXORRefusesFloatingPointType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -128,7 +128,7 @@ TEST_F(TestAggFuncs, bXORRefusesFloatingPointType) {
              );
 }
 
-TEST_F(TestAggFuncs, bXORRefusesDoubleType) {
+TEST_F(TestMonoidal, bXORRefusesDoubleType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -140,7 +140,7 @@ TEST_F(TestAggFuncs, bXORRefusesDoubleType) {
              );
 }
 
-TEST_F(TestAggFuncs, bXORRefusesBooleanType) {
+TEST_F(TestMonoidal, bXORRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -152,7 +152,7 @@ TEST_F(TestAggFuncs, bXORRefusesBooleanType) {
              );
 }
 
-TEST_F(TestAggFuncs, bXORRefusesCompoundType) {
+TEST_F(TestMonoidal, bXORRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -167,21 +167,16 @@ TEST_F(TestAggFuncs, bXORRefusesCompoundType) {
 // Result value tests
 //
 
-TEST_F(TestAggFuncs, bXOROfAnEmptyCollectionIsZero) {
+TEST_F(TestMonoidal, bXOROfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bXOR(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad)
-             , hdql_types_get_type_code(_valueTypes, "uint32_t")
-             );
-    EXPECT_EQ(0x0, *((uint32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, bXOROfASingleElement) {
+TEST_F(TestMonoidal, bXOROfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     auto item1 = std::make_shared<Item>();
@@ -198,7 +193,7 @@ TEST_F(TestAggFuncs, bXOROfASingleElement) {
     EXPECT_EQ(0xfffae, *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bXOROfASingleCollectionArgument) {
+TEST_F(TestMonoidal, bXOROfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
 
@@ -221,7 +216,7 @@ TEST_F(TestAggFuncs, bXOROfASingleCollectionArgument) {
     EXPECT_EQ((int32_t)(0xff ^ 0x1e), *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bXOROfRepeatedElementsCancel) {
+TEST_F(TestMonoidal, bXOROfRepeatedElementsCancel) {
     using namespace hdql::test;
     RootItem root;
 
@@ -248,21 +243,16 @@ TEST_F(TestAggFuncs, bXOROfRepeatedElementsCancel) {
     EXPECT_EQ(0x1e, *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bXOROfEmptyCollections) {
+TEST_F(TestMonoidal, bXOROfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bXOR(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad)
-             , hdql_types_get_type_code(_valueTypes, "int32_t")
-             );
-    EXPECT_EQ(0x0, *((int32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, bXOROfCollections) {
+TEST_F(TestMonoidal, bXOROfCollections) {
     using namespace hdql::test;
     RootItem root;
 
@@ -290,7 +280,7 @@ TEST_F(TestAggFuncs, bXOROfCollections) {
     EXPECT_EQ(0xffffff, vi->get_as_int(r));
 }
 
-TEST_F(TestAggFuncs, bXOROfCollectionsWithCancellationAcrossArguments) {
+TEST_F(TestMonoidal, bXOROfCollectionsWithCancellationAcrossArguments) {
     using namespace hdql::test;
     RootItem root;
 

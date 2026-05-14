@@ -35,6 +35,10 @@ extern "C" void _hdql_functions_destroy(struct hdql_Functions *, struct hdql_Con
 extern "C" struct hdql_Converters * _hdql_converters_create(struct hdql_Converters *, struct hdql_Context *);
 extern "C" void _hdql_converters_destroy(struct hdql_Converters *, struct hdql_Context *);
 
+// from src/rangen.cc
+extern "C" struct hdql_RandGen * _hdql_randgen_create(struct hdql_RandGen *, struct hdql_Context *);
+extern "C" void _hdql_randgen_destroy(struct hdql_RandGen *, struct hdql_Context *);
+
 struct VariadicDatumInfo {
     uint32_t nUsedBytes, nAllocatedBytes;
 };
@@ -50,6 +54,7 @@ struct hdql_Context {
     struct hdql_Functions  * functions;
     struct hdql_Converters * converters;
     struct hdql_Constants  * constants;
+    struct hdql_RandGen    * randgen;
 
     std::list<hdql_Compound *> virtualCompounds;
 
@@ -71,6 +76,7 @@ hdql_context_create(uint32_t flags) {
     ctx->functions  = _hdql_functions_create(NULL, ctx);
     ctx->constants  = _hdql_constants_create(NULL, ctx);
     ctx->customData.first = nullptr;
+    ctx->randgen    = _hdql_randgen_create(NULL, ctx);
     // ...
     return ctx;
 }
@@ -85,6 +91,9 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
     ctx->functions  = _hdql_functions_create(pCtx->functions, ctx);
     ctx->constants  = _hdql_constants_create(pCtx->constants, ctx);
     ctx->customData.first = pCtx;
+    ctx->randgen    = _hdql_randgen_create( flags & HDQL_CTX_LOCAL_RANDGEN
+                                          ? NULL : ctx->randgen
+                                          , ctx);
     // ...
     return ctx;
 }
@@ -134,6 +143,11 @@ hdql_context_get_conversions(hdql_Context_t ctx) {
 extern "C" struct hdql_Constants *
 hdql_context_get_constants(hdql_Context_t ctx) {
     return ctx->constants;
+}
+
+extern "C" struct hdql_RandGen *
+hdql_context_get_randgen(hdql_Context_t ctx) {
+    return ctx->randgen;
 }
 
 

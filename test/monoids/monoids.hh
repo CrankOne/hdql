@@ -35,13 +35,13 @@ struct RootItem {
     std::vector<std::shared_ptr<Item>> a, b;
 };
 
-class TestAggFuncs : public TestingContext {
+class TestMonoidal : public TestingContext {
 protected:
     hdql::helpers::CompoundTypes _compounds;
     hdql_Compound * _rootCompound;
     hdql_Query * _query;
 protected:
-    TestAggFuncs()
+    TestMonoidal()
             : _compounds(nullptr)
             , _rootCompound(nullptr)
             {}
@@ -50,7 +50,7 @@ protected:
     void CompileQuery(const char *);
 
     void TearDown() override;
-};  // class TestAggFuncs
+};  // class TestMonoidal
 
 }  // namespace ::hdql::test
 }  // namespace hdql

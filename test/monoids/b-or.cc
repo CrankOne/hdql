@@ -6,12 +6,12 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, bORTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
     CompileQuery("bOR(.a.i32f)");
@@ -46,7 +46,7 @@ TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, bORTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
     CompileQuery("bOR(.b.u16f)");
@@ -81,7 +81,7 @@ TEST_F(TestAggFuncs, bORTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bORTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, bORTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("bOR(.b.u16f, .a.i64f)");
@@ -116,7 +116,7 @@ TEST_F(TestAggFuncs, bORTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, bORRefusesFloatingPointType) {
+TEST_F(TestMonoidal, bORRefusesFloatingPointType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -128,7 +128,7 @@ TEST_F(TestAggFuncs, bORRefusesFloatingPointType) {
              );
 }
 
-TEST_F(TestAggFuncs, bORRefusesDoubleType) {
+TEST_F(TestMonoidal, bORRefusesDoubleType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -140,7 +140,7 @@ TEST_F(TestAggFuncs, bORRefusesDoubleType) {
              );
 }
 
-TEST_F(TestAggFuncs, bORRefusesBooleanType) {
+TEST_F(TestMonoidal, bORRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -152,7 +152,7 @@ TEST_F(TestAggFuncs, bORRefusesBooleanType) {
              );
 }
 
-TEST_F(TestAggFuncs, bORRefusesCompoundType) {
+TEST_F(TestMonoidal, bORRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -167,21 +167,16 @@ TEST_F(TestAggFuncs, bORRefusesCompoundType) {
 // Result value tests
 //
 
-TEST_F(TestAggFuncs, bOROfAnEmptyCollectionIsZero) {
+TEST_F(TestMonoidal, bOROfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bOR(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
-             , hdql_types_get_type_code(_valueTypes, "uint32_t")
-             );
-    EXPECT_EQ(0x0, *((uint32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, bOROfASingleElement) {
+TEST_F(TestMonoidal, bOROfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -198,7 +193,7 @@ TEST_F(TestAggFuncs, bOROfASingleElement) {
     EXPECT_EQ(0xfffae, *((uint32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bOROfASingleCollectionArgument) {
+TEST_F(TestMonoidal, bOROfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -218,21 +213,16 @@ TEST_F(TestAggFuncs, bOROfASingleCollectionArgument) {
     EXPECT_EQ(0xff, *((int32_t*) r));
 }
 
-TEST_F(TestAggFuncs, bOROfEmptyCollections) {
+TEST_F(TestMonoidal, bOROfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bOR(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
-             , hdql_types_get_type_code(_valueTypes, "int32_t")
-             );
-    EXPECT_EQ(0x0, *((int32_t*) r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, bOROfCollections) {
+TEST_F(TestMonoidal, bOROfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -257,7 +247,7 @@ TEST_F(TestAggFuncs, bOROfCollections) {
 // Iteration abrupt if 0x0 is achieved with bOR-convolution. Making sure
 // it is abrupt indeed is rather tedious, so here we check that at least the
 // result is zero.
-TEST_F(TestAggFuncs, bOROfCollectionsWithMaxInt) {
+TEST_F(TestMonoidal, bOROfCollectionsWithMaxInt) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();

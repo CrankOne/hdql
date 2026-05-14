@@ -5,12 +5,12 @@
 #include <gtest/gtest.h>
 #include <memory>
 
-using ::hdql::test::TestAggFuncs;
+using ::hdql::test::TestMonoidal;
 
 // Tests basic type preservation/promotion rules
 //
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessI32Scalar) {
+TEST_F(TestMonoidal, sumTypeInQueryResultsInAKeylessI32Scalar) {
     using namespace hdql::test;
 
     CompileQuery("sum(.a.i32f)");
@@ -45,7 +45,7 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessU16Scalar) {
+TEST_F(TestMonoidal, sumTypeInQueryResultsInAKeylessU16Scalar) {
     using namespace hdql::test;
 
     CompileQuery("sum(.b.u16f)");
@@ -80,7 +80,7 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedKeylessScalar) {
+TEST_F(TestMonoidal, sumTypeInQueryResultsInAPromotedKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("sum(.b.u16f, .a.i64f)");
@@ -115,7 +115,7 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
+TEST_F(TestMonoidal, sumTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
     using namespace hdql::test;
 
     CompileQuery("sum(.b.df, .a.i64f)");
@@ -150,7 +150,7 @@ TEST_F(TestAggFuncs, sumTypeInQueryResultsInAPromotedFloatingPointKeylessScalar)
     EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
 }
 
-TEST_F(TestAggFuncs, sumRefusesBooleanType) {
+TEST_F(TestMonoidal, sumRefusesBooleanType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -162,7 +162,7 @@ TEST_F(TestAggFuncs, sumRefusesBooleanType) {
              );
 }
 
-TEST_F(TestAggFuncs, sumRefusesCompoundType) {
+TEST_F(TestMonoidal, sumRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
@@ -177,20 +177,16 @@ TEST_F(TestAggFuncs, sumRefusesCompoundType) {
 // Result value tests
 //
 
-TEST_F(TestAggFuncs, sumOfAnEmptyCollectionIsZero) {
+TEST_F(TestMonoidal, sumOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("sum(.a.u32f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0, vi->get_as_int(r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, sumOfASingleElement) {
+TEST_F(TestMonoidal, sumOfASingleElement) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -206,7 +202,7 @@ TEST_F(TestAggFuncs, sumOfASingleElement) {
     EXPECT_EQ(123, vi->get_as_int(r));
 }
 
-TEST_F(TestAggFuncs, sumOfASingleCollectionArgument) {
+TEST_F(TestMonoidal, sumOfASingleCollectionArgument) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();
@@ -225,20 +221,16 @@ TEST_F(TestAggFuncs, sumOfASingleCollectionArgument) {
     EXPECT_EQ(1, vi->get_as_int(r));
 }
 
-TEST_F(TestAggFuncs, sumOfEmptyCollections) {
+TEST_F(TestMonoidal, sumOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("sum(.a.i32f, .b.u16f)");
     hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
     hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
-    ASSERT_TRUE(r);
-    const hdql_AttrDef * ad = hdql_query_top_attr(_query);
-    const hdql_ValueInterface * vi
-        = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
-    EXPECT_EQ(0, vi->get_as_int(r));
+    ASSERT_FALSE(r);
 }
 
-TEST_F(TestAggFuncs, sumOfCollections) {
+TEST_F(TestMonoidal, sumOfCollections) {
     using namespace hdql::test;
     RootItem root;
     std::shared_ptr<Item> item1 = std::make_shared<Item>();

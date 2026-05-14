@@ -5,6 +5,7 @@
 #include "hdql/query.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
+#include "hdql/random.h"
 
 #include <float.h>
 #include <string.h>
@@ -18,6 +19,10 @@ typedef struct {
     void (*set_neutral)(hdql_Datum_t);
     /* Applies operation; may interrupt convolution loop if returns non-zero */
     int (*operation)(hdql_Datum_t, hdql_Datum_t);
+    /* Result allocation function */
+    hdql_Datum_t (*alloc_result)(hdql_ValueTypeCode_t, hdql_Context_t);
+    /* Result retrieval function */
+    hdql_Datum_t (*retrieve)(hdql_Datum_t d_, hdql_ValueTypeCode_t tc, hdql_Context_t context);
 } MonoidDefinition_t;
 
 /* Entry type for monoid definition of proper type */
@@ -42,6 +47,9 @@ typedef struct {
         );
     /* Overridden result type (set to empty string if inferred) */
     const char * overrideRType;
+    /* when set, empty arguments still results in a value; used by count(),
+     * empty(), etc. */
+    bool resultDefinedForEmptySet;
 } MonoidRecords_t;
 
 
@@ -54,12 +62,16 @@ typedef struct {
     /* value converters (can be null if not needed) */
     hdql_TypeConverter * converters;
     /* number of queries (arguments) */
-    size_t nQueries;
+    size_t nQueries:31;
+    /* when set, empty arguments still results in a value; used by count(),
+     * empty(), etc. */
+    size_t resultDefinedForEmptySet:1;
     /* pointer to SMA definition */
     const MonoidDefinition_t * monoidDef;
     /* result instantiation callback (not setting the neutral element!); dets dynData->result */
     hdql_Datum_t (*instantiate_result)(hdql_ValueTypeCode_t, hdql_Context_t);
-    /* result retrieval callback */
+    /* result retrieval callback, must be non-destructive as can be called
+     * repeatedly between reset() calls */
     hdql_Datum_t (*retrieve_result)(hdql_Datum_t, hdql_ValueTypeCode_t, hdql_Context_t);
 } SMADefData_t;
 
@@ -69,6 +81,8 @@ typedef struct {
     struct hdql_Datum ** convertedValues;
     /* result datum instance ptr; (not necessarily a single value!) */
     struct hdql_Datum * result;
+    /* flag denoting calculus (see note on scalar iface dereference method) */
+    uint8_t validFlags;  /* 0x1 is valid, 0x2 is non-empty, 0x4 if always result in a value */
 } SMADynamicData_t;
 
 /*
@@ -84,6 +98,7 @@ _monoid__instantiate
     ((void) newOwner);  /* owner unused here */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_alloc(context, SMADynamicData_t);
+    dynData->validFlags = 0x0;
     /* allocate destinations */
     dynData->convertedValues
         = (struct hdql_Datum **) hdql_context_alloc(context, sizeof(struct hdql_Datum *)*defData->nQueries);
@@ -120,9 +135,13 @@ _monoid__reset
      * SMA when new owner is set for the sub-queries. SMA should be computed
      * only when the value is requested, so we postpone actual calculus to
      * a "dereference" call. Reset only causes recursive reset of argument
-     * queries */
+     * queries 
+     *
+     * TODO: should return NULL on empty data.
+     * */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, prevDynData_);
+    dynData->validFlags = 0x0;
     for(size_t i = 0; i < defData->nQueries; ++i) {
         hdql_query_reset(defData->queries[i], newOwner, context);
     }
@@ -145,9 +164,14 @@ _monoid__dereference
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, dynData_);
     assert(dynData->result);
+    if(0x1 & dynData->validFlags) {
+        goto retResult;
+    }
+
     hdql_Datum_t locRDatum;
     for(size_t i = 0; i < defData->nQueries; ++i) {
         while(!!(locRDatum = hdql_query_get(defData->queries[i], NULL, context))) {
+            dynData->validFlags |= 0x2;
             if(defData->converters && defData->converters[i]) {
                 /* apply operation with converted */
                 defData->converters[i](dynData->convertedValues[i], locRDatum);
@@ -158,7 +182,12 @@ _monoid__dereference
             }
         }
     }
-    return defData->retrieve_result(dynData->result, defData->rTypeCode, context);
+    dynData->validFlags |= 0x1;
+retResult:
+    if((dynData->validFlags & 0x2) || defData->resultDefinedForEmptySet)
+        return defData->retrieve_result(dynData->result, defData->rTypeCode, context);
+    else
+        return NULL;
 }
 
 static void
@@ -198,6 +227,62 @@ _transient_dtr__simple_monoid_arith(hdql_Datum_t dd_, hdql_Context_t context) {
 /*
  * Monoid argument type inference
  */
+
+/* Result type inference for simple atomic type monoid (currently, only arb()
+ * for numbers)
+ * - takes any atomic type(s)
+ * - result type obeys usual promotion rules
+ *
+ * Returns:
+ * <-1 on failure with reason written to failureBuffer
+ *  -1 on case when all the arguments are static arithmetic const
+ *  >0 on suceess
+ */
+static int
+_infer_atomic_type(struct hdql_Query ** args
+        , struct hdql_ValueTypes * types
+        , char * failureBuffer, size_t failureBufferSize
+        , hdql_ValueTypeCode_t * rTypeCode
+        ) {
+    /* iterate over queries, find out appropriate type and check we can use it
+     * in arithmetics */
+    size_t nArgs = 0;
+    bool allIsStaticConst = true;
+    for(struct hdql_Query **q = args; *q != NULL; ++q, ++nArgs) {
+        const struct hdql_AttrDef *qAD_ = hdql_query_top_attr(*q)
+                                , *qAD  = hdql_attr_def_top_attr(qAD_);
+        if(!hdql_attr_def_is_atomic(qAD)) {
+            if(failureBufferSize)
+                snprintf( failureBuffer, failureBufferSize
+                        , "argument #%zu is not of atomic type", nArgs+1 );
+            return -2;
+        }
+        if(!hdql_attr_def_is_static_const_value(qAD)) allIsStaticConst = false;
+        /* promote result type code */
+        const struct hdql_AtomicTypeFeatures * atf = hdql_attr_def_atomic_type_info(qAD);
+        assert(atf->arithTypeCode != 0x0);
+        if(0x0 != *rTypeCode) {
+            if(*rTypeCode == atf->arithTypeCode) continue;  /* no promotion/conversion need */
+            hdql_ValueTypeCode_t newRtypeCode = hdql_types_numeric_promote(types, *rTypeCode, atf->arithTypeCode);
+            if(0x0 == newRtypeCode) {
+                if(failureBufferSize)
+                    snprintf( failureBuffer, failureBufferSize
+                        , "can not combine %s and %s into arithmetic type (at argument #%zu)"
+                        , *rTypeCode ? hdql_types_get_type(types, *rTypeCode)->name : "(unset)"
+                        , atf->arithTypeCode ? hdql_types_get_type(types, atf->arithTypeCode)->name : "(unknown)"
+                        , nArgs
+                        );
+                return -3;
+            }
+            *rTypeCode = newRtypeCode;
+        } else {
+            *rTypeCode = atf->arithTypeCode;
+        }
+    }
+    assert(0 != *rTypeCode);
+    if(allIsStaticConst) return -1;
+    return nArgs;
+}
 
 /* Result type inference for simple arithmetic monoids: sum(), product(), etc.
  * - takes numerical (no bool)
@@ -400,37 +485,6 @@ _trivial_retrive_result(hdql_Datum_t r
 }
 
 /*
- * mean() state management */
-
-/* SMADefData_t::instantiate_result callback implem */
-static hdql_Datum_t
-_mean_instantiate_result(hdql_ValueTypeCode_t tc, hdql_Context_t context) {
-    assert(context);
-    /* get types to calc allocations */
-    const struct hdql_ValueTypes * types = hdql_context_get_types(context);
-    assert(types);
-    const struct hdql_ValueInterface * iface = hdql_types_get_type(types, tc);
-    assert(iface);
-    assert(iface->size > 0);
-    /* uint64_t stored first for count, then sum result of the type */
-    return hdql_context_alloc(context, sizeof(uint64_t) + iface->size);
-}
-/* SMADefData_t::retrieve_result callback implem for mean() 
- * Set sum accumulator to value and count to 1 to produce the same value on
- * occasional repeat (todo: do we need that actually?). */
-#define _M_implment_mean_retrieve(suffix, type) \
-static hdql_Datum_t \
-_mean_retrieve_result(hdql_Datum_t d_, hdql_ValueTypeCode_t tc, hdql_Context_t context) { \
-    uint64_t count = *((const uint64_t *) d_); \
-    type * dPtr = (type*) (((char*) d_) + sizeof(type));\
-    *dPtr /= count; \
-    *((const uint64_t *) d_) = 1;\
-    return dPtr; \
-}
-
-
-
-/*
  * Instantiation (function constructor)
  */
 
@@ -501,8 +555,8 @@ hdql_func_helper__try_monoid(
     dd->queries = (struct hdql_Query **) hdql_context_alloc(context, sizeof(struct hdql_Query *)*nArgs);
     dd->converters = (hdql_TypeConverter *) hdql_context_alloc(context, sizeof(hdql_TypeConverter)*nArgs);
     bzero(dd->converters, sizeof(hdql_TypeConverter)*nArgs);
-    dd->instantiate_result = hdql_create_value;  // TODO: should be overridden by fsum(), (f)mean(), etc
-    dd->retrieve_result = _trivial_retrive_result;  // TODO: should be overridden by fsum(), (f)mean(), etc
+    dd->instantiate_result = monoidDefPtr->alloc_result;
+    dd->retrieve_result = monoidDefPtr->retrieve;
 
     /* assign queries and set up type converters, if needed */
     nArgs = 0;
@@ -526,6 +580,7 @@ hdql_func_helper__try_monoid(
             }
         }
     }
+    /* Return type override */
     if(monoidRecords->overrideRType == NULL) {
         dd->rTypeCode = rTypeCode;
     } else {
@@ -538,6 +593,12 @@ hdql_func_helper__try_monoid(
                     );
             goto onFailCleanup;
         }
+    }
+    /* When result is defined for empty set */
+    if(!monoidRecords->resultDefinedForEmptySet) {
+        dd->resultDefinedForEmptySet = 0x0;
+    } else {
+        dd->resultDefinedForEmptySet = 0x1;
     }
 
     /* form interface */
@@ -694,129 +755,283 @@ static int  _count_operation(hdql_Datum_t r, hdql_Datum_t v) {
     return 0;
 }
 
+/* NOTE: these rely on the struct to provide proper memory alignment; for x86
+ * manually-packed data is safe, for ARM/SPARC/MIPS can result in bugs */
+
+/* mean() */
+#define _M_implment_mean(suffix, type)      \
+typedef struct {                            \
+    uint64_t c;                             \
+    type s, v;                              \
+} mean_ ## suffix ## _t;                    \
+static hdql_Datum_t                         \
+_mean_ ## suffix ## _instantiate (          \
+        hdql_ValueTypeCode_t tc,            \
+        hdql_Context_t context ) {          \
+    return hdql_context_alloc(              \
+            context,                        \
+            sizeof(mean_ ## suffix ## _t)   \
+            );                              \
+}                                           \
+                                            \
+static hdql_Datum_t                         \
+_mean_retrieve_ ## suffix ## _result(       \
+        hdql_Datum_t d_,                    \
+        hdql_ValueTypeCode_t tc,            \
+        hdql_Context_t context ) {          \
+    mean_ ## suffix ## _t * d = (mean_ ## suffix ## _t *) d_; \
+    if(!d->c) { d->v = 0; return (hdql_Datum_t) &d->v; } \
+    d->v = d->s / (type) d->c;              \
+    return (hdql_Datum_t) &d->v;            \
+}                                           \
+                                            \
+static void _mean_ ## suffix ## _set_neutral(hdql_Datum_t d_) {  \
+    mean_ ## suffix ## _t * d = (mean_ ## suffix ## _t *) d_; \
+    d->c = 0; d->s = d->v = 0;              \
+}                                           \
+                                            \
+static int  _mean_ ## suffix ## _operation(hdql_Datum_t d_, hdql_Datum_t v) {  \
+    mean_ ## suffix ## _t * d = (mean_ ## suffix ## _t *) d_; \
+    d->s += *((type*)v);                    \
+    ++(d->c);                               \
+    return 0;                               \
+}
+
+_M_for_each_integer_type(_M_implment_mean)
+_M_for_each_fp_type(_M_implment_mean)
+
+/* arb() */
+#define _M_implment_arb(suffix, type)       \
+typedef struct {                            \
+    uint64_t c;                             \
+    type v;                                 \
+    struct hdql_RandGen * rg;               \
+} arb_ ## suffix ## _t;                     \
+                                            \
+static hdql_Datum_t                         \
+_arb_ ## suffix ## _instantiate(            \
+        hdql_ValueTypeCode_t tc,            \
+        hdql_Context_t context ) {          \
+    arb_ ## suffix ## _t * r = (arb_ ## suffix ## _t *) \
+        hdql_context_alloc(                 \
+            context,                        \
+            sizeof(arb_ ## suffix ## _t)    \
+        );                                  \
+    r->rg = hdql_context_get_randgen(context);  \
+    return (hdql_Datum_t) r;                \
+}                                           \
+                                            \
+static hdql_Datum_t                         \
+_arb_retrieve_ ## suffix ## _result(        \
+        hdql_Datum_t d_,                    \
+        hdql_ValueTypeCode_t tc,            \
+        hdql_Context_t context ) {          \
+    arb_ ## suffix ## _t * d                \
+        = (arb_ ## suffix ## _t *) d_;      \
+    if(!d->c) { d->v = 0; }                 \
+    return (hdql_Datum_t) &d->v;            \
+}                                           \
+                                            \
+static void                                 \
+_arb_ ## suffix ## _set_neutral(            \
+        hdql_Datum_t d_                     \
+) {                                         \
+    arb_ ## suffix ## _t * d                \
+        = (arb_ ## suffix ## _t *) d_;      \
+    d->c = 0;                               \
+    d->v = 0;                               \
+}                                           \
+                                            \
+static int                                  \
+_arb_ ## suffix ## _operation(              \
+        hdql_Datum_t d_,                    \
+        hdql_Datum_t v                      \
+) {                                         \
+    arb_ ## suffix ## _t * d                \
+        = (arb_ ## suffix ## _t *) d_;      \
+    ++(d->c);                               \
+    if(0 == hdql_randgen_below(d->rg, d->c)) {  \
+        d->v = *((type *) v);               \
+    }                                       \
+    return 0;                               \
+}
+_M_implment_arb(bool, bool);
+_M_for_each_integer_type(_M_implment_arb)
+_M_for_each_fp_type(_M_implment_arb)
+
+
 /*
  * Register function
  */
 
 int
 hdql_functions_add_monoids(struct hdql_Functions * functions) {
+    int rc;
     /* sum */
     static const MonoidRecords_t _sumArithMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _sum_ ## suffix ## _set_neutral, _sum_ ## suffix ## _operation }  },
+            { #type , { _sum_ ## suffix ## _set_neutral, _sum_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             _M_for_each_fp_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_simple_arithmetic_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* product */
     static const MonoidRecords_t _prodArithMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _prod_ ## suffix ## _set_neutral, _prod_ ## suffix ## _operation }  },
+            { #type , { _prod_ ## suffix ## _set_neutral, _prod_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             _M_for_each_fp_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_simple_arithmetic_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* min */
     static const MonoidRecords_t _minArithMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _min_ ## suffix ## _set_neutral, _min_ ## suffix ## _operation }  },
+            { #type , { _min_ ## suffix ## _set_neutral, _min_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             _M_for_each_fp_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_simple_arithmetic_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* max */
     static const MonoidRecords_t _maxArithMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _max_ ## suffix ## _set_neutral, _max_ ## suffix ## _operation }  },
+            { #type , { _max_ ## suffix ## _set_neutral, _max_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             _M_for_each_fp_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_simple_arithmetic_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* bitwise AND monoid */
     static const MonoidRecords_t _bANDMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _bAND_ ## suffix ## _set_neutral, _bAND_ ## suffix ## _operation }  },
+            { #type , { _bAND_ ## suffix ## _set_neutral, _bAND_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_integer_only_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* bitwise OR monoid */
     static const MonoidRecords_t _bORMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _bOR_ ## suffix ## _set_neutral, _bOR_ ## suffix ## _operation }  },
+            { #type , { _bOR_ ## suffix ## _set_neutral, _bOR_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_integer_only_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* bitwise XOR monoid */
     static const MonoidRecords_t _bXORMonoidRecords = {
         .records = {
             #define _M_implement_record(suffix, type) \
-            { #type , { _bXOR_ ## suffix ## _set_neutral, _bXOR_ ## suffix ## _operation }  },
+            { #type , { _bXOR_ ## suffix ## _set_neutral, _bXOR_ ## suffix ## _operation  \
+                          , hdql_create_value, _trivial_retrive_result } },
             _M_for_each_integer_type(_M_implement_record)
             #undef _M_implement_record
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_integer_only_type,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* all */
     static const MonoidRecords_t _allMonoidRecords = {
         .records = {
-            { "*", { _all_set_neutral, _all_operation } },
+            { "*", { _all_set_neutral, _all_operation, hdql_create_value, _trivial_retrive_result } },
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* any */
     static const MonoidRecords_t _anyMonoidRecords = {
         .records = {
-            { "*", { _any_set_neutral, _any_operation } },
+            { "*", { _any_set_neutral, _any_operation, hdql_create_value, _trivial_retrive_result } },
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
-        .overrideRType = NULL
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
     /* count */
     static const MonoidRecords_t _countMonoidRecords = {
         .records = {
-            { "*", { _count_set_neutral, _count_operation } },
+            { "*", { _count_set_neutral, _count_operation, hdql_create_value, _trivial_retrive_result } },
             { "", {NULL, NULL} }
         },
         .infer_result_type = _infer_check_atomic_type_to_logic_as_logic,
-        .overrideRType = "uint64_t"
+        .overrideRType = "uint64_t",
+        .resultDefinedForEmptySet = true
+    };
+    /* mean */
+    static const MonoidRecords_t _meanMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _mean_ ## suffix ## _set_neutral, _mean_ ## suffix ## _operation \
+                , _mean_ ## suffix ## _instantiate, _mean_retrieve_ ## suffix ## _result } },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_simple_arithmetic_type,
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
+    };
+    /* arb */
+    static const MonoidRecords_t _arbMonoidRecords = {
+        .records = {
+            #define _M_implement_record(suffix, type) \
+            { #type , { _arb_ ## suffix ## _set_neutral, _arb_ ## suffix ## _operation \
+                , _arb_ ## suffix ## _instantiate, _arb_retrieve_ ## suffix ## _result } },
+            { "bool" , { _arb_bool_set_neutral, _arb_bool_operation
+                , _arb_bool_instantiate, _arb_retrieve_bool_result } },
+            _M_for_each_integer_type(_M_implement_record)
+            _M_for_each_fp_type(_M_implement_record)
+            #undef _M_implement_record
+            { "", {NULL, NULL} }
+        },
+        .infer_result_type = _infer_atomic_type,
+        .overrideRType = NULL,
+        .resultDefinedForEmptySet = false
     };
 
-    int rc;
     rc = hdql_functions_define(functions, "sum"
             , hdql_func_helper__try_monoid
             , (void *) &_sumArithMonoidRecords );
@@ -866,6 +1081,17 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
             , hdql_func_helper__try_monoid
             , (void *) &_countMonoidRecords );
     if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "mean"
+            , hdql_func_helper__try_monoid
+            , (void *) &_meanMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "narb"
+            , hdql_func_helper__try_monoid
+            , (void *) &_arbMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
     return 0;
 }
 

@@ -36,13 +36,13 @@ set (hdql_SOURCES src/types.cc
                   src/type-promotion-table.c
                   src/hash-table.c
                   src/allocator.c
+                  src/random.c
 	              src/ifaces/fwd-query-as-collection.c
 	              src/ifaces/fwd-query-as-scalar.c
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
                   src/ifaces/bound-value.c
-                  src/ifaces/bound-compound-collection.c
                   src/helpers/query.cc
                   src/helpers/query-results-handler.c
                   src/helpers/query-results-handler-csv.c
@@ -51,6 +51,7 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
                   src/funcs/monoids.c
+                  src/util/pcg32.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -121,6 +122,7 @@ if (BUILD_TESTS)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES test/main.cc
                           test/ht.test.cc
+                          test/rnd.cc
                           test/basic-context.cc
                           test/events-struct.cc
                           test/event-struct.test.cc
@@ -144,6 +146,8 @@ if (BUILD_TESTS)
                           test/monoids/count.cc
                           test/monoids/min.cc
                           test/monoids/max.cc
+                          test/monoids/mean.cc
+                          test/monoids/arb.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

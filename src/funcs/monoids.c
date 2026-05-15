@@ -135,9 +135,7 @@ _monoid__reset
      * SMA when new owner is set for the sub-queries. SMA should be computed
      * only when the value is requested, so we postpone actual calculus to
      * a "dereference" call. Reset only causes recursive reset of argument
-     * queries 
-     *
-     * TODO: should return NULL on empty data.
+     * queries
      * */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, prevDynData_);
@@ -1090,6 +1088,16 @@ hdql_functions_add_monoids(struct hdql_Functions * functions) {
     rc = hdql_functions_define(functions, "narb"
             , hdql_func_helper__try_monoid
             , (void *) &_arbMonoidRecords );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "len"
+            , hdql_func_helper__try_len_empty
+            , "l" );
+    if(HDQL_ERR_CODE_OK != rc) return rc;
+
+    rc = hdql_functions_define(functions, "empty"
+            , hdql_func_helper__try_len_empty
+            , "e" );
     if(HDQL_ERR_CODE_OK != rc) return rc;
 
     return 0;

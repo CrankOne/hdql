@@ -207,6 +207,10 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 
 %start toplev
 
+/*YYERROR;*/ /* see #20 */
+//%destructor { printf("query dtr called\n"); hdql_query_destroy($$, ws->context); } <queryPtr>
+//%destructor { printf("strID dtr called\n"); free($$); } <strID>
+
 %%
 
      toplev : error
@@ -266,7 +270,10 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             {
                 $$ = _new_function(&yyloc, ws, yyscanner, $1, $3);
                 free($1);
-                if(NULL == $$) return HDQL_ERR_TRANSLATION_FAILURE;
+                if(NULL == $$) {
+                    /*YYERROR;*/ /* see #20 */
+                    return HDQL_ERR_TRANSLATION_FAILURE;
+                }
             }
             ;
 
@@ -1047,8 +1054,6 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
      * user with explainatory information on which arguments were lookup
      * performed */
     if( HDQL_ERR_CODE_OK != rc ) {
-        //assert(0);  // TODO: dump arg queries description
-        //hdql_query_dump();
         hdql_error( yyloc, ws, NULL
                   , "Failed to instantiate function object %s(...): %s"
                   , funcName, hdql_err_str(rc)
@@ -1057,10 +1062,8 @@ _new_function( YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
         for(struct hdql_Query ** q = argsArray; *q; ++q) {
             hdql_query_destroy(*q, ws->context);
         }
-        /*free(argsArray);  // free tmp args array */
         return NULL;
     }
-    /*free(argsArray);  // free tmp args array */
     assert(fAD);
     assert(hdql_attr_def_is_transient(fAD));
     /* Otherwise, create a new query object wrapping "function attribute

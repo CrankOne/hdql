@@ -51,6 +51,7 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
                   src/funcs/monoids.c
+                  src/funcs/len.c
                   src/util/pcg32.c
                   )
 
@@ -148,6 +149,8 @@ if (BUILD_TESTS)
                           test/monoids/max.cc
                           test/monoids/mean.cc
                           test/monoids/arb.cc
+                          test/monoids/len.cc
+                          test/monoids/empty.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -1,7 +1,7 @@
 #ifndef H_HDQL_UTILS_PCG64_H
 #define H_HDQL_UTILS_PCG64_H 1
 
-#include <stdint.h>
+#include "hdql/types.h"
 
 /* PCG64 implementation
  *
@@ -21,13 +21,13 @@ struct hdql_PCG32 {
 };
 
 /**\brief Seeds the PCG32 random generator */
-void hdql_rand_pcg32_seed(struct hdql_PCG32 * rng, uint64_t seed, uint64_t seq);
+HDQL_API void hdql_rand_pcg32_seed(struct hdql_PCG32 * rng, uint64_t seed, uint64_t seq);
 
 /**\brief Draws random 32-bit integer number */
-uint32_t hdql_rand_pcg32_draw(struct hdql_PCG32 * rng);
+HDQL_API uint32_t hdql_rand_pcg32_draw(struct hdql_PCG32 * rng);
 
 /**\brief Draws 64-bit integer number as concatenation of 32-bit ones */
-uint64_t hdql_rand_pcg32_draw_u64(struct hdql_PCG32 * rng);
+HDQL_API uint64_t hdql_rand_pcg32_draw_u64(struct hdql_PCG32 * rng);
 
 /**\brief Returns uniformly distributed pseudo-random integer in [0, bound).
  *
@@ -40,7 +40,7 @@ uint64_t hdql_rand_pcg32_draw_u64(struct hdql_PCG32 * rng);
  *
  * \return Uniform random integer in range [0, bound).
  */
-uint64_t hdql_rand_pcg32_uint64_below(struct hdql_PCG32 * rng, uint64_t bound);
+HDQL_API uint64_t hdql_rand_pcg32_uint64_below(struct hdql_PCG32 * rng, uint64_t bound);
 
 #ifdef __cplusplus
 }  // extern "C"

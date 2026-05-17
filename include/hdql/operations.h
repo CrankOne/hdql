@@ -59,7 +59,7 @@ typedef enum hdql_OperationCode {
  * provided as `opCode` arg between one or two types. If `opCode` is for
  * unary operator, `t2` is unused, otherwise `t1` is for left operand, `t2` is
  * for right. */
-int
+HDQL_API int
 hdql_op_define( struct hdql_Operations *
         , hdql_ValueTypeCode_t t1
         , hdql_OperationCode_t opCode
@@ -70,7 +70,7 @@ hdql_op_define( struct hdql_Operations *
 /**\brief Returns previously defined operation callback
  *
  * \return NULL if callback is not found */
-hdql_OperationEvaluator_t
+HDQL_API hdql_OperationEvaluator_t
 hdql_op_get( const struct hdql_Operations * ops
         , hdql_ValueTypeCode_t t1
         , hdql_OperationCode_t
@@ -93,14 +93,14 @@ hdql_op_eval( hdql_Datum_t valueA
 #endif
 
 /**\brief Fills index of operations with standard numerical arithmetics */
-int hdql_op_define_std_arith(struct hdql_Operations *, struct hdql_ValueTypes *);
+HDQL_API int hdql_op_define_std_arith(struct hdql_Operations *, struct hdql_ValueTypes *);
 
 /*                                                          ___________________
  * _______________________________________________________/ Scalar arithmetics
  */
 
 /**\brief ... */
-hdql_Datum_t hdql_scalar_arith_op_create( struct hdql_Query * a
+HDQL_API hdql_Datum_t hdql_scalar_arith_op_create( struct hdql_Query * a
                            , struct hdql_Query * b
                            , const struct hdql_OperationEvaluator * evaluator
                            , hdql_Context_t ctx
@@ -109,7 +109,7 @@ hdql_Datum_t hdql_scalar_arith_op_create( struct hdql_Query * a
 /**\brief Implements scalar attribute dereference method for scalar arithmetic
  *
  * Used for query attribute definition. */
-hdql_Datum_t hdql_scalar_arith_op_dereference( hdql_Datum_t root
+HDQL_API hdql_Datum_t hdql_scalar_arith_op_dereference( hdql_Datum_t root
         , hdql_Context_t ctx
         , hdql_Datum_t scalarOperation );
 
@@ -117,7 +117,7 @@ hdql_Datum_t hdql_scalar_arith_op_dereference( hdql_Datum_t root
  *        arithmetic
  *
  * Used for query attribute definition. */
-void hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx );
+HDQL_API void hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx );
 
 /*                                                      _______________________
  * ___________________________________________________/ Collection arithmetics
@@ -131,7 +131,7 @@ struct hdql_ArithCollectionArgs {
 };
 
 /**\brief Collection interface implementation for arithmetic functions */
-extern const struct hdql_CollectionAttrInterface hdql_gArithOpIFace;
+HDQL_API extern const struct hdql_CollectionAttrInterface hdql_gArithOpIFace;
 
 #ifdef __cplusplus
 }  // extern "C"

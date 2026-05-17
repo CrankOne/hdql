@@ -10,6 +10,7 @@
  *       becomes larger than 30.
  */
 
+#include "hdql/types.h"
 #include "hdql/allocator.h"
 
 #include <stddef.h>
@@ -38,12 +39,12 @@ struct hdql_htEntry;  /* fwd, opaque */
  *
  * \returns NULL on memory allocation error.
  * */
-hdql_ht * hdql_ht_create(const struct hdql_Allocator *, size_t dftCapacity, size_t hashSeed );
+HDQL_API hdql_ht * hdql_ht_create(const struct hdql_Allocator *, size_t dftCapacity, size_t hashSeed );
 
 /**\brief Destroys the hash table
  *
  * Instance must be previously created with `hdql_ht_create()` */
-void hdql_ht_destroy(hdql_ht *ht);
+HDQL_API void hdql_ht_destroy(hdql_ht *ht);
 
 /**\brief Inserts or updates a key-value pair
  *
@@ -52,7 +53,7 @@ void hdql_ht_destroy(hdql_ht *ht);
  * \returns `HDQL_HT_ERR_MEM` on memory allocation failure for new element
  * \returns forwarded results from `hdql_ht_rebuild()` on capacity change failures
  * */
-int hdql_ht_ins( hdql_ht * ht
+HDQL_API int hdql_ht_ins( hdql_ht * ht
             , const unsigned char * key, size_t keyLen
             , void * value);
 
@@ -62,19 +63,19 @@ int hdql_ht_ins( hdql_ht * ht
  * find/update/erase procedures. \p nb is internal parameter (entry bucket
  * number) used as aux input for some of these procedures.
  * */
-struct hdql_htEntry *
+HDQL_API struct hdql_htEntry *
 hdql_ht_lookup( const hdql_ht * ht
         , const unsigned char * key, size_t keyLen
         , size_t * nb
         );
 
 /** Returns pointer to value or NULL if not found */
-void * hdql_ht_get(const hdql_ht * ht, const unsigned char * key, size_t keyLen);
+HDQL_API void * hdql_ht_get(const hdql_ht * ht, const unsigned char * key, size_t keyLen);
 
-int hdql_ht_erase( hdql_ht * ht, struct hdql_htEntry * entry, size_t nb );
+HDQL_API int hdql_ht_erase( hdql_ht * ht, struct hdql_htEntry * entry, size_t nb );
 
 /** Removes key from hash table; returns 1 if removed, 0 if not found */
-int hdql_ht_remove(hdql_ht *ht, const unsigned char *key, size_t keyLen);
+HDQL_API int hdql_ht_remove(hdql_ht *ht, const unsigned char *key, size_t keyLen);
 
 /**\brief Iterates through all key-value pairs
  *
@@ -84,13 +85,13 @@ int hdql_ht_remove(hdql_ht *ht, const unsigned char *key, size_t keyLen);
  *
  * Returns 0 when done.
  * */
-int hdql_ht_iter( const hdql_ht * ht
+HDQL_API int hdql_ht_iter( const hdql_ht * ht
         , int (*callback)(const unsigned char * key, size_t keyLen, void ** value, void * userdata)
         , void * userdata
         );
 
 /**\brief Reallocates storage to support x2 items, recalculates hashes */
-int hdql_ht_rebuild(hdql_ht *ht);
+HDQL_API int hdql_ht_rebuild(hdql_ht *ht);
 
 
 /* Wrappers for string keys
@@ -100,13 +101,13 @@ int hdql_ht_rebuild(hdql_ht *ht);
  *
  * Wrapper around `hdql_ht_ins()` for C strings, same semantics
  * */
-int hdql_ht_s_ins( hdql_ht * ht, const char * key, void * value);
+HDQL_API int hdql_ht_s_ins( hdql_ht * ht, const char * key, void * value);
 
 /**\brief Wrapper for `hdql_ht_get()` for C-string key */
-void * hdql_ht_s_get(const hdql_ht * ht, const char * key);
+HDQL_API void * hdql_ht_s_get(const hdql_ht * ht, const char * key);
 
 /**\brief Wrapper for `hdql_ht_remove()` for C-string key */
-int hdql_ht_s_rm(hdql_ht * ht, const char * key);
+HDQL_API int hdql_ht_s_rm(hdql_ht * ht, const char * key);
 
 #ifdef __cplusplus
 }

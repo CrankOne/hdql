@@ -20,7 +20,7 @@ extern "C" {
  *
  * Registered by `hdql_functions_add_monoids()`, requires `uint64_t` type.
  * */
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_func_helper__try_len_empty(
           struct hdql_Query ** args, void * userdata
         , char * failureBuffer, size_t failureBufferSize
@@ -58,7 +58,7 @@ typedef struct hdql_AttrDef * (*hdql_FunctionConstructor_t)(
         , hdql_Context_t context);
 
 /**\brief Creates new function definition in a dictionary */
-int
+HDQL_API int
 hdql_functions_define( struct hdql_Functions *
                      , const char * name
                      , hdql_FunctionConstructor_t
@@ -66,7 +66,7 @@ hdql_functions_define( struct hdql_Functions *
                      );
 
 /**\brief Instantiates function object based on name and argument queries */
-int
+HDQL_API int
 hdql_functions_resolve( struct hdql_Functions * funcDict
                       , const char * name
                       , struct hdql_Query ** args
@@ -86,7 +86,7 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
  *  - exponentiation, logarithms: sqrt, pow, floor, ceil, fabs, fmod, log, exp,
  *    log2, log10.
  * */
-int
+HDQL_API int
 hdql_functions_add_standard_math(struct hdql_Functions * functions);
 
 /**\briefe Adds standard foldable monoid and monoid-like functions
@@ -119,7 +119,7 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions);
  * The usefulness of XOR-based boolean monoid ("all odd are true") is doubtful,
  * yet one may imagine some practical applications still.
  */
-int
+HDQL_API int
 hdql_functions_add_monoids(struct hdql_Functions * functions);
 
 /* Statistics

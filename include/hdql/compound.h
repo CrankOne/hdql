@@ -22,25 +22,25 @@ struct hdql_AttrDef;  /* fwd */
 struct hdql_Compound;
 
 /**\brief Creates new "static" compound type */
-struct hdql_Compound * hdql_compound_new(const char * name, struct hdql_Context * ctx);
+HDQL_API struct hdql_Compound * hdql_compound_new(const char * name, struct hdql_Context * ctx);
 
 /**\brief Creates new "virtual" compound type */
-struct hdql_Compound * hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * ctx);
+HDQL_API struct hdql_Compound * hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * ctx);
 
 /**\breif Destroys virtual compound instance*/
-void hdql_virtual_compound_destroy(struct hdql_Compound *, struct hdql_Context * ctx);
+HDQL_API void hdql_virtual_compound_destroy(struct hdql_Compound *, struct hdql_Context * ctx);
 
 /**\breif Returns parent type of virtual compound */
-const struct hdql_Compound * hdql_virtual_compound_get_parent(const struct hdql_Compound * self);
+HDQL_API const struct hdql_Compound * hdql_virtual_compound_get_parent(const struct hdql_Compound * self);
 
 /**\brief Returns true if compound is virtual */
-int hdql_compound_is_virtual(const struct hdql_Compound * compound);
+HDQL_API int hdql_compound_is_virtual(const struct hdql_Compound * compound);
 
 /**\brief Returns true if virtual compound is bound */
-bool hdql_virtual_compound_is_bound(const struct hdql_Compound * compound);
+HDQL_API bool hdql_virtual_compound_is_bound(const struct hdql_Compound * compound);
 
 /**\brief Returns true if both compounds are of the same type */
-bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct hdql_Compound * compoundB);
+HDQL_API bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct hdql_Compound * compoundB);
 
 /**\brief Adds attribute to compound type definition
  *
@@ -54,7 +54,7 @@ bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct 
  * \returns -22 "coll. attrs with key retrieval interface must provide key type"
  * \returns -23 "coll. attrs with(out) selectors must provide both ctr and dtr"
  * */
-int hdql_compound_add_attr( struct hdql_Compound * instance
+HDQL_API int hdql_compound_add_attr( struct hdql_Compound * instance
                           , const char * attrName
                           , struct hdql_AttrDef * attrDef
                           );
@@ -63,11 +63,11 @@ int hdql_compound_add_attr( struct hdql_Compound * instance
  *
  * Recursive by default -- i.e. it will look in parent's attributes if not
  * found in current. */
-const struct hdql_AttrDef *
+HDQL_API const struct hdql_AttrDef *
 hdql_compound_get_attr( const struct hdql_Compound *, const char * name );
 
 /**\brief Returns (type) name of the compound object */
-const char * hdql_compound_get_name(const struct hdql_Compound *);
+HDQL_API const char * hdql_compound_get_name(const struct hdql_Compound *);
 
 /**\brief Prints full compound type string
  *
@@ -82,21 +82,21 @@ const char * hdql_compound_get_name(const struct hdql_Compound *);
  *  {a}->Foo
  *  {a, b}->{c}->Foo
  * */
-char *
+HDQL_API char *
 hdql_compound_get_full_type_str( const struct hdql_Compound * c
         , char * buf, size_t bufSize
         );
 /**\brief Deletes compound type */
-void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
+HDQL_API void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
 
 /**\brief Returns number of compound attributes
  *
  * \note Returned is the only number of current attributes, not including
  *       parent's, if any */
-size_t hdql_compound_get_nattrs(const struct hdql_Compound *);
+HDQL_API size_t hdql_compound_get_nattrs(const struct hdql_Compound *);
 
 /**\brief Returns number of compound attributes, includeing all parents */
-size_t hdql_compound_get_nattrs_recursive(const struct hdql_Compound * c);
+HDQL_API size_t hdql_compound_get_nattrs_recursive(const struct hdql_Compound * c);
 
 /**\brief Retrieves names list of compound attributes 
  *
@@ -104,7 +104,7 @@ size_t hdql_compound_get_nattrs_recursive(const struct hdql_Compound * c);
  * length. Pointers to attribute name strings are managed by compound (i.e.
  * user code is not responsible for freeing them).
  * */
-void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest);
+HDQL_API void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** dest);
 
 /**\brief Retrieves names list of all compound attributes, including inherited
  *
@@ -112,7 +112,7 @@ void hdql_compound_get_attr_names(const struct hdql_Compound * c, const char ** 
  * length. Pointers to attribute name strings are managed by compound (i.e.
  * user code is not responsible for freeing them).
  * */
-void hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, const char ** dest);
+HDQL_API void hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, const char ** dest);
 
 /*\brief Iterates over all attributes within a compound with a callback
  *
@@ -121,7 +121,7 @@ void hdql_compound_get_attr_names_recursive(const struct hdql_Compound * c, cons
  *
  * \returns number of attributes iterated.
  * */
-size_t
+HDQL_API size_t
 hdql_compound_for_each_own_attribute(const struct hdql_Compound * C
         , int (*cllb)(const char *, size_t, const struct hdql_AttrDef *, void *)
         , void * userdata);

@@ -41,7 +41,7 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-const char * hdql_err_str(hdql_Err_t);
+HDQL_API const char * hdql_err_str(hdql_Err_t);
 
 #endif
 

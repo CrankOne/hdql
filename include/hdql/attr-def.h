@@ -259,16 +259,16 @@ hdql_attr_def_set_transient(struct hdql_AttrDef *
 //        );
 
 
-bool hdql_attr_def_is_atomic(hdql_AttrDef_t);
-bool hdql_attr_def_is_compound(hdql_AttrDef_t);
-bool hdql_attr_def_is_scalar(hdql_AttrDef_t);
-bool hdql_attr_def_is_collection(hdql_AttrDef_t);
-bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
-bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
-bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t);
-bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t);
-bool hdql_attr_def_is_transient(hdql_AttrDef_t);
-bool hdql_attr_def_is_bound(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_atomic(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_compound(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_scalar(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_collection(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_transient(hdql_AttrDef_t);
+HDQL_API bool hdql_attr_def_is_bound(hdql_AttrDef_t);
 
 /**\brief Returns type code for (optionally static) atomic value */
 HDQL_API hdql_ValueTypeCode_t

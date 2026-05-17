@@ -101,6 +101,17 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions) {
     _M_ADD_STD_MATH_FUNC(log2);
     _M_ADD_STD_MATH_FUNC(log10);
 
+    bool (*isnan_d)(double) = &std::isnan;
+    hdql_functions_define(functions, "isnan", hdql::helpers::math_f_construct<bool, double>(std::isnan)
+            , reinterpret_cast<void*>(isnan_d));
+
+    bool (*isfinite_d)(double) = &std::isfinite;
+    hdql_functions_define(functions, "isfinite", hdql::helpers::math_f_construct<bool, double>(std::isfinite)
+            , reinterpret_cast<void*>(isfinite_d));
+
+    bool (*isinf_d)(double) = &std::isinf;
+    hdql_functions_define(functions, "isinf", hdql::helpers::math_f_construct<bool, double>(std::isinf)
+            , reinterpret_cast<void*>(isinf_d));
     // ... other math functions?
     #undef _M_ADD_STD_MATH_FUNC
     return 0;

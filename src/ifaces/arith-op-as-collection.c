@@ -69,13 +69,14 @@ _arith_op_collection_create( hdql_Datum_t owner
     /* see comments to issue #14 -- we currently have to allocate and maintain
      * keys unconditionally, but that must be changed in the future */
     if(!aIsFullyScalar) {
-        /* first arg is collection */
+        assert(bIsFullyScalar);
+        /* a is collection */
         state->advance = _advance_a;
         hdql_key_reserve_for_query( state->defData->args[0]
                                   , state->cRKey
                                   , ctx ); 
     } else {
-        /* second arg is collection */
+        /* b is collection */
         state->advance = _advance_b;
         hdql_key_reserve_for_query( state->defData->args[1]
                                   , state->cRKey
@@ -93,7 +94,9 @@ _arith_op_collection_dereference( hdql_It_t it_
                                 , struct hdql_Key * keyPtr
                                 ) {
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    if(state->isExhausted) return NULL;
+    if(state->isExhausted) {
+        return NULL;
+    }
     if(!state->isValid) {
         int rc = state->defData->evaluator->op(state->a, state->b, state->cResult);
         if(rc != 0) {
@@ -124,9 +127,10 @@ static hdql_It_t
 _arith_op_collection_reset( hdql_It_t it_
                           , hdql_Datum_t newOwner
                           , const hdql_Datum_t defData
-                          , hdql_SelectionArgs_t
+                          , hdql_SelectionArgs_t sel
                           , hdql_Context_t ctx
                           ) {
+    ((void) sel);
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
     assert(state->context == ctx);
     hdql_query_reset(state->defData->args[0], newOwner, ctx);
@@ -135,20 +139,20 @@ _arith_op_collection_reset( hdql_It_t it_
     }
     /* retrieve scalar argument only once */
     if(state->advance == _advance_a) {
-        if(state->defData->args[1]) {
-            state->b = hdql_query_get( state->defData->args[1]
-                                     , NULL
-                                     , ctx );
-            if(NULL == state->b) state->isExhausted = true;
-            else state->isExhausted = false;
-        }
+        state->b = hdql_query_get( state->defData->args[1]
+                                 , NULL
+                                 , ctx );
+        if(NULL == state->b) {
+            state->isExhausted = true;
+        } else state->isExhausted = false;
     } else {
         assert(state->advance == _advance_b);
         state->a = hdql_query_get( state->defData->args[0]
                                  , NULL
                                  , ctx );
-        if(NULL == state->a) state->isExhausted = true;
-        else state->isExhausted = true;
+        if(NULL == state->a) {
+            state->isExhausted = true;
+        } else state->isExhausted = false;
     }
     state->advance(state);
     return (hdql_It_t) state;
@@ -197,10 +201,12 @@ hdql_reserve_arith_op_collection_key(struct hdql_Key * key
     #endif
     int rc;
     if(!aIsFullyScalar) {
+        /* a is a collection */
         rc = hdql_key_reserve_for_query( dd->args[0]
                                        , key
                                        , context );
     } else {
+        /* b is a collection */
         rc = hdql_key_reserve_for_query( dd->args[1]
                                        , key
                                        , context );

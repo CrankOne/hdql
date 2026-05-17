@@ -16,7 +16,6 @@ static void
 _hdql_print_tree_impl( struct TreeLikePrintSettings * S
               , const hdql_TreeLikeNode_t node
               , const char *prefix, int isLast, int isRoot) {
-    size_t n_children = S->inode.nchildren(node, S->userdata);
     int isLeaf = S->inode.is_leaf(node, S->userdata);
     S->inode.label(S->buf, S->bufSize, node, S->userdata);
     if(isRoot) {
@@ -28,10 +27,11 @@ _hdql_print_tree_impl( struct TreeLikePrintSettings * S
                isLeaf ? '-' : '+',
                S->buf);
     }
+    size_t nChildren = isLeaf ? 0 : S->inode.nchildren(node, S->userdata);
     char nextPrefix[128];
-    for(size_t i = 0; i < n_children; ++i) {
+    for(size_t i = 0; i < nChildren; ++i) {
         hdql_TreeLikeNode_t child = S->inode.acquire_child(node, i, S->userdata);
-        int childIsLast = (i + 1 == n_children);
+        int childIsLast = (i + 1 == nChildren);
         if(isRoot) {
             snprintf(nextPrefix, sizeof(nextPrefix), " ");
         } else {

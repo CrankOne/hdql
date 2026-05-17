@@ -1,6 +1,7 @@
 #include "../events-struct.hh"
 #include "../samples.hh"
 #include "hdql/attr-def.h"
+#include "hdql/query-key.h"
 
 #include <gtest/gtest.h>
 
@@ -27,8 +28,11 @@ TEST_F(TestingEventStruct, retrievesSimpleScalarValue) {
     size_t keysDepth = hdql_query_depth(q);
     EXPECT_EQ(1, keysDepth);
 
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
+    ASSERT_TRUE(hdql_key_is_list(key));  // query key result is always a list
+    ASSERT_EQ(1, hdql_key_get_list_len(key));
+    EXPECT_TRUE(hdql_key_is_empty(hdql_key_get_list_item(key, 0)));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE(ad);
@@ -43,14 +47,14 @@ TEST_F(TestingEventStruct, retrievesSimpleScalarValue) {
 
     size_t nVisited = 0;
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
-        EXPECT_EQ(0x0, keys[0].code);
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
+        EXPECT_TRUE(hdql_key_is_empty(hdql_key_get_list_item(key, 0)));
         EXPECT_EQ(ev.eventID, vi->get_as_int(r));
         ++nVisited;
     }
     EXPECT_EQ(1, nVisited);
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 }
@@ -87,10 +91,11 @@ TEST_F(TestingEventStruct, straightDataIterationWorksOnSample1) {
     // iterate over query results, check all expected keys and values appeared
     //size_t nResult = 0;  // xxx
     hdql_Datum_t r;
-    size_t keysDepth = hdql_query_depth(q);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
+    size_t keysDepth = hdql_key_get_list_len(key);
+    ASSERT_GT(keysDepth, 0);
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE(ad);
@@ -102,21 +107,24 @@ TEST_F(TestingEventStruct, straightDataIterationWorksOnSample1) {
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         //printf("#%zu: ", nResult++);  // xxx
         //char bf[32] = "";
         int kk[3];  // key to control
         for(size_t lvl = 0; lvl < keysDepth; ++lvl) {
-            if(0x0 == keys[lvl].code) {
+            hdql_Key * sk = hdql_key_get_list_item(key, lvl);
+            ASSERT_TRUE(sk);
+            ASSERT_TRUE(hdql_key_is_datum(sk) || hdql_key_is_empty(sk));
+            if(hdql_key_is_empty(sk)) {
                 kk[lvl] = -1;
                 //printf( " --- " );  // xxx
                 continue;
             }
-            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, keys[lvl].code);
-            assert(vi->get_as_string);
+            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(sk));
+            assert(vi->get_as_int);
             //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
             //printf(" %s ", bf);
-            kk[lvl] = vi->get_as_int(keys[lvl].pl.datum);
+            kk[lvl] = vi->get_as_int(hdql_key_datum_get(sk));
         }
         //vi->get_as_string(r, bf, sizeof(bf));
         //printf(" => %s\n", bf);
@@ -136,7 +144,7 @@ TEST_F(TestingEventStruct, straightDataIterationWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -175,10 +183,11 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
     // iterate over query results, check all expected keys and values appeared
     //size_t nResult = 0;  // xxx
     hdql_Datum_t r;
-    size_t keysDepth = hdql_query_depth(q);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
+    size_t keysDepth = hdql_key_get_list_len(key);
+    ASSERT_GT(keysDepth, 0);
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -190,21 +199,24 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         //printf("#%zu: ", nResult++);  // xxx
         //char bf[32] = "";
         int kk[3];  // key to control
         for(size_t lvl = 0; lvl < keysDepth; ++lvl) {
-            if(0x0 == keys[lvl].code) {
+            hdql_Key * sk = hdql_key_get_list_item(key, lvl);
+            ASSERT_TRUE(sk);
+            ASSERT_TRUE(hdql_key_is_datum(sk) || hdql_key_is_empty(sk));
+            if(hdql_key_is_empty(sk)) {
                 kk[lvl] = -1;
                 //printf( " --- " );  // xxx
                 continue;
             }
-            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, keys[lvl].code);
-            assert(vi->get_as_string);
+            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(sk));
+            assert(vi->get_as_int);
             //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
             //printf(" %s ", bf);
-            kk[lvl] = vi->get_as_int(keys[lvl].pl.datum);
+            kk[lvl] = vi->get_as_int(hdql_key_datum_get(sk));
         }
         //vi->get_as_string(r, bf, sizeof(bf));
         //printf(" => %s\n", bf);
@@ -224,7 +236,7 @@ TEST_F(TestingEventStruct, selectiveDataIterationWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 

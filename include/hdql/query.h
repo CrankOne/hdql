@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-struct hdql_CollectionKey;  /* fwd, query-key.h */
+struct hdql_Key;  /* fwd, query-key.h */
 
 /**\brief Represents a query instance of HDQL
  *
@@ -29,7 +29,7 @@ struct hdql_Query;
  *
  * \todo Rename to hdql_query_compile()
  * */
-struct hdql_Query *
+HDQL_API struct hdql_Query *
 hdql_compile_query( const char * strexpr
                   , const struct hdql_Compound * rootCompound
                   , struct hdql_Context * ctx
@@ -38,60 +38,60 @@ hdql_compile_query( const char * strexpr
                   );
 
 /**\brief Creates a query object for the given compound type */
-struct hdql_Query *
+HDQL_API struct hdql_Query *
 hdql_query_create(
           const struct hdql_AttrDef * attrDef
         , hdql_SelectionArgs_t selArgs
         , hdql_Context_t ctx
         );
 
-const struct hdql_AttrDef *
+HDQL_API const struct hdql_AttrDef *
 hdql_query_get_subject( const struct hdql_Query * );
 
 /**\brief Queries within a query result
  *
  * Concatenates query taking first argument as a parent (queried table) and
  * second as a child (sub-query). Resulting query resolves parent in a child. */
-struct hdql_Query *
+HDQL_API struct hdql_Query *
 hdql_query_append( 
           struct hdql_Query * current
         , struct hdql_Query * next
         );
 
 /**\brief Returns depth of hdql query */
-size_t
+HDQL_API size_t
 hdql_query_depth(struct hdql_Query * current);
 
 /**\brief Returns true if the entire query evaluates to scalar value */
-bool
+HDQL_API bool
 hdql_query_is_fully_scalar(struct hdql_Query * q);
 
 /**\brief Returns attribute definition of topmost query
  *
  * May be used in various context to inspect the data type of what the query is
  * supposed to return actually. */
-const struct hdql_AttrDef *
+HDQL_API const struct hdql_AttrDef *
 hdql_query_top_attr( const struct hdql_Query * );
 
 /**\brief Returns collection query's selection arguments */
-hdql_SelectionArgs_t hdql_query_get_collection_selection(struct hdql_Query *);
+HDQL_API hdql_SelectionArgs_t hdql_query_get_collection_selection(struct hdql_Query *);
 
 /**\brief Tags query with a string label
  *
  * The label pointer must be allocated at the same context that was used to
  * create query. */
-void hdql_query_assign_label(struct hdql_Query *, char *);
+HDQL_API void hdql_query_assign_label(struct hdql_Query *, char *);
 
 /**\brief Returns whether this query is labeled */
-bool hdql_query_is_labeled(const struct hdql_Query *);
+HDQL_API bool hdql_query_is_labeled(const struct hdql_Query *);
 
 /**\brief Returns query's label or null */
-const char * hdql_query_get_label(const struct hdql_Query *);
+HDQL_API const char * hdql_query_get_label(const struct hdql_Query *);
 
 /**\brief Returns next dereference query item
  *
  * \note return NULL for terminal queries in list */
-struct hdql_Query *
+HDQL_API struct hdql_Query *
 hdql_query_next_query(struct hdql_Query *);
 
 /**\brief Retrieves the result using current query, by provided pointer
@@ -101,21 +101,21 @@ hdql_query_next_query(struct hdql_Query *);
  *
  * \note if `keys` set to NULL, no keys will be copied for query.
  * */
-hdql_Datum_t
+HDQL_API hdql_Datum_t
 hdql_query_get( struct hdql_Query * query
-              , struct hdql_CollectionKey * keys
+              , struct hdql_Key * keys
               , hdql_Context_t ctx
               );
 
-int hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
+HDQL_API int hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
 
-void
+HDQL_API void
 hdql_query_set_transient_subject_ownership(struct hdql_Query * q);
 
-void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
+HDQL_API void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 
 /**\brief Dumps built query internals */
-void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
+HDQL_API void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
 
 /**\brief Re-sets a set of queries built on top of the same root object
  *
@@ -129,9 +129,9 @@ void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
  * \returns `HDQL_ERR_CODE_OK` on success
  * \returns `HDQL_ERR_EMPTY_SET` if at least one query does not yield a value
  * */
-int
+HDQL_API int
 hdql_query_product_reset( struct hdql_Query ** qs
-        , struct hdql_CollectionKey ** keys
+        , struct hdql_Key ** keys
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n
@@ -149,9 +149,9 @@ hdql_query_product_reset( struct hdql_Query ** qs
  * \returns `HDQL_ERR_CODE_OK` on success
  * \returns `HDQL_ERR_EMPTY_SET` when query product exhausted.
  * */
-int
+HDQL_API int
 hdql_query_product_advance( struct hdql_Query ** qs
-        , struct hdql_CollectionKey ** keys
+        , struct hdql_Key ** keys
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n

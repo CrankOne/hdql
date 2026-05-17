@@ -71,36 +71,36 @@ struct hdql_ValueInterface {
  * code (so it can be safely casted to `hdql_ValueTypeCode_t`). Returns -1 if
  * `name` is not of permitted format, -2 if a type with such name has been
  * already defined, -3 if maximum number of permitted type definitions exceed. */
-int hdql_types_define(struct hdql_ValueTypes *, const struct hdql_ValueInterface *);
+HDQL_API int hdql_types_define(struct hdql_ValueTypes *, const struct hdql_ValueInterface *);
 
 /**\brief Defines type alias */
-int hdql_types_alias(struct hdql_ValueTypes *, const char *, hdql_ValueTypeCode_t);
+HDQL_API int hdql_types_alias(struct hdql_ValueTypes *, const char *, hdql_ValueTypeCode_t);
 
 /**\brief Retrieves data type definition by index
  *
  * Returns pointer to type definition on success or NULL if not type with such
  * index was defined. */
-const struct hdql_ValueInterface *
+HDQL_API const struct hdql_ValueInterface *
 hdql_types_get_type(const struct hdql_ValueTypes * vt, hdql_ValueTypeCode_t tc);
 
 /**\brief Retrieves data type definition by name
  *
  * Returns pointer to type definition on success or NULL on failure. */
-const struct hdql_ValueInterface * hdql_types_get_type_by_name(const struct hdql_ValueTypes *, const char *);
+HDQL_API const struct hdql_ValueInterface * hdql_types_get_type_by_name(const struct hdql_ValueTypes *, const char *);
 
 /**\brief Retrieves data type definition by code
  *
  * Returns pointer to type definition on success or NULL on failure. */
-hdql_ValueTypeCode_t hdql_types_get_type_code(const struct hdql_ValueTypes *, const char *);
+HDQL_API hdql_ValueTypeCode_t hdql_types_get_type_code(const struct hdql_ValueTypes *, const char *);
 
 /**\brief Useful function to add standard C/C++ types to table
  *
  * By default HDQL does not add these types in the table, but user code
  * probably will want to have it. */
-int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
+HDQL_API int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
 
-hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
-int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
+HDQL_API hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
+HDQL_API int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
 
 /*                                                      ______________________
  * ___________________________________________________/ Data type convertsion
@@ -130,7 +130,7 @@ struct hdql_Converters;
  *       order. Currently suboptimal since linear search is used to detect
  *       collisions.
  * */
-int
+HDQL_API int
 hdql_converters_add( struct hdql_Converters *cnvs
                    , hdql_ValueTypeCode_t to
                    , hdql_ValueTypeCode_t from
@@ -141,7 +141,7 @@ hdql_converters_add( struct hdql_Converters *cnvs
 /**\brief Returns value converter function or NULL if conversion is forbidden
  *
  * Recursively expands converters till root. */
-hdql_TypeConverter
+HDQL_API hdql_TypeConverter
 hdql_converters_get( const struct hdql_Converters *cnvs
                    , hdql_ValueTypeCode_t to
                    , hdql_ValueTypeCode_t from
@@ -162,7 +162,7 @@ hdql_converters_get( const struct hdql_Converters *cnvs
 //                   );
 
 /**\brief Adds standard conversion functions*/
-void
+HDQL_API void
 hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * vts, hdql_Context_t);
 
 /*                                                  __________________________
@@ -175,7 +175,8 @@ hdql_converters_add_std(struct hdql_Converters *cnvs, struct hdql_ValueTypes * v
  * result type. This function is not used directly for binary or unary
  * arithmetics (instead, a table for possible combinations is generated), but
  * required by functions. */
-hdql_ValueTypeCode_t hdql_types_numeric_promote(const struct hdql_ValueTypes *
+HDQL_API hdql_ValueTypeCode_t
+hdql_types_numeric_promote(const struct hdql_ValueTypes *
         , hdql_ValueTypeCode_t, hdql_ValueTypeCode_t);
 
 /* 
@@ -187,11 +188,11 @@ hdql_ValueTypeCode_t hdql_types_numeric_promote(const struct hdql_ValueTypes *
 struct hdql_ArithTypePromotionTable;  /* opaque */
 
 /** Instantiates type promotion table */
-struct hdql_ArithTypePromotionTable *
+HDQL_API struct hdql_ArithTypePromotionTable *
 hdql_arith_type_promotion_create(hdql_Context_t context);
 
 /** Destroys type promotion table */
-void
+HDQL_API void
 hdql_arith_type_promotion_destroy(hdql_Context_t context
         , struct hdql_ArithTypePromotionTable *);
 
@@ -199,12 +200,12 @@ hdql_arith_type_promotion_destroy(hdql_Context_t context
  *
  * Expects standard types are available in the value types table. The
  * conversion rules are hardcoded (yet, the codes are obtained dynamically. */
-int
+HDQL_API int
 hdql_arith_type_promotion_rebuild(const struct hdql_ValueTypes * vt,
         struct hdql_ArithTypePromotionTable * t);
 
 /** implements logic of hdql_types_numeric_promote(), except for cache mgmnt */
-hdql_ValueTypeCode_t
+HDQL_API hdql_ValueTypeCode_t
 hdql_arith_type_promote(const struct hdql_ArithTypePromotionTable * t
         , hdql_ValueTypeCode_t a, hdql_ValueTypeCode_t b
         );
@@ -221,13 +222,13 @@ enum hdql_ExternValueType {
     hdql_kExternValFltType = 2,
 };
 
-int hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
+HDQL_API int hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
 
-int hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
+HDQL_API int hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);
 
-enum hdql_ExternValueType hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
+HDQL_API enum hdql_ExternValueType hdql_constants_get_value(struct hdql_Constants *, const char * name, hdql_Datum_t *);
 
-int hdql_constants_define_standard_math(struct hdql_Constants *);
+HDQL_API int hdql_constants_define_standard_math(struct hdql_Constants *);
 
 /*                                                    ________________________
  * _________________________________________________/ External dynamic values

@@ -6,7 +6,6 @@
 #include "hdql/operations.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
-#include "hdql/value.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -539,7 +539,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
 // internal struct, represents arithmetic operation
 struct ScalarOperation {
     struct hdql_Query * argQueries[2];
-    struct hdql_CollectionKey * keys[2];
+    struct hdql_Key * keys[2];
     hdql_OperationEvaluator evaluator;
     hdql_Datum_t result;
 };
@@ -561,10 +561,14 @@ hdql_scalar_arith_op_create( hdql_Query * a
             scalarOp->keys[i] = NULL;
             continue;
         }
+        #if 1
+        assert(false);
+        #else
         hdql_CollectionKey * k = NULL;
-        int rc = hdql_query_keys_destroy(k, ctx);
+        int rc = hdql_query_keys_destroy(k, ctx);  // TODO: what?!
         assert(0 == rc);  // TODO: handle key allocation error
         scalarOp->keys[i] = k;
+        #endif
     }
 
     return reinterpret_cast<hdql_Datum_t>(scalarOp);
@@ -603,7 +607,7 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
     for(int i = 0; i < 2; ++i) {
         if(scalarOp->argQueries[i]) {
             assert(scalarOp->keys[i]);
-            hdql_query_keys_destroy(scalarOp->keys[i], ctx);
+            hdql_key_destroy(scalarOp->keys[i], ctx);
             hdql_query_destroy(scalarOp->argQueries[i], ctx);
         }
     }

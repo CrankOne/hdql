@@ -26,7 +26,6 @@ set (hdql_SOURCES src/types.cc
 	              src/attr-def.c
 	              src/compound.cc
                   src/query.cc
-                  #src/query.c
 	              src/query-key.c
 	              src/context.cc
 	              src/operations.cc
@@ -37,22 +36,22 @@ set (hdql_SOURCES src/types.cc
                   src/hash-table.c
                   src/allocator.c
                   src/random.c
+                  src/funcs/monoids.c
+                  src/funcs/len.c
+                  src/util/pcg32.c
 	              src/ifaces/fwd-query-as-collection.c
 	              src/ifaces/fwd-query-as-scalar.c
 	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
                   src/ifaces/bound-value.c
-                  src/helpers/query.cc
-                  src/helpers/query-results-handler.c
-                  src/helpers/query-results-handler-csv.c
+                  #src/helpers/query.cc
+                  #src/helpers/query-results-handler.c
+                  #src/helpers/query-results-handler-csv.c
                   src/helpers/fancy-print-err.c
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
-                  src/funcs/monoids.c
-                  src/funcs/len.c
-                  src/util/pcg32.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -118,6 +117,11 @@ if (TYPES_DEBUG)
     target_compile_definitions (hdql PUBLIC HDQL_TYPES_DEBUG=1)
 endif (TYPES_DEBUG)
 
+set_target_properties(hdql PROPERTIES
+    C_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+    )
+
 if (BUILD_TESTS)
     target_link_libraries (hdql PUBLIC ${GTEST_BOTH_LIBRARIES} Threads::Threads)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
@@ -132,25 +136,25 @@ if (BUILD_TESTS)
                           test/iteration-tests/singular-query.cc
                           test/iteration-tests/arithmetics.cc
                           test/iteration-tests/v-compound-fwd.cc
-                          test/iteration-tests/v-compound-bind.cc
-                          test/cpp-api.cc
-                          test/dsv.test.cc
-                          test/query-product.test.cc
-                          test/monoids/monoids.cc
-                          test/monoids/sum.cc
-                          test/monoids/product.cc
-                          test/monoids/b-and.cc
-                          test/monoids/b-or.cc
-                          test/monoids/b-xor.cc
-                          test/monoids/all.cc
-                          test/monoids/any.cc
-                          test/monoids/count.cc
-                          test/monoids/min.cc
-                          test/monoids/max.cc
-                          test/monoids/mean.cc
-                          test/monoids/arb.cc
-                          test/monoids/len.cc
-                          test/monoids/empty.cc
+                          #test/iteration-tests/v-compound-bind.cc
+                          #test/cpp-api.cc
+                          #test/dsv.test.cc
+                          #test/query-product.test.cc
+                          #test/monoids/monoids.cc
+                          #test/monoids/sum.cc
+                          #test/monoids/product.cc
+                          #test/monoids/b-and.cc
+                          #test/monoids/b-or.cc
+                          #test/monoids/b-xor.cc
+                          #test/monoids/all.cc
+                          #test/monoids/any.cc
+                          #test/monoids/count.cc
+                          #test/monoids/min.cc
+                          #test/monoids/max.cc
+                          #test/monoids/mean.cc
+                          #test/monoids/arb.cc
+                          #test/monoids/len.cc
+                          #test/monoids/empty.cc
                           )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

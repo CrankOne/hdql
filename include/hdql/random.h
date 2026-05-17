@@ -13,10 +13,10 @@ struct hdql_RandGen;
  *
  * Use \p seq to select random streams.
  */
-void hdql_rand_seed(struct hdql_RandGen * rng, uint64_t seed, uint64_t seq);
+HDQL_API void hdql_rand_seed(struct hdql_RandGen * rng, uint64_t seed, uint64_t seq);
 
 /**\brief Returns uniformly distributed pseudo-random integer in [0, bound).*/
-bool hdql_randgen_below(struct hdql_RandGen *, uint64_t bound);
+HDQL_API bool hdql_randgen_below(struct hdql_RandGen *, uint64_t bound);
 
 #ifdef __cplusplus
 }  // extern "C"

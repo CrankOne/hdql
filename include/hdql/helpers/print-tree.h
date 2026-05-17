@@ -1,6 +1,8 @@
 #ifndef H_HDQL_HELPERS_PRINT_TREE_LIKE_STRUCT_H
 #define H_HDQL_HELPERS_PRINT_TREE_LIKE_STRUCT_H 1
 
+#include "hdql/types.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -29,7 +31,7 @@ struct hdql_TreeLikeNodeIFace {
     void (*release_child)(hdql_TreeLikeNode_t);
 };
 
-void
+HDQL_API void
 hdql_print_tree_like( const hdql_TreeLikeNode_t node, void * userdata
               , struct hdql_TreeLikeNodeIFace
               , FILE * outFile, size_t lineWidth);
@@ -42,7 +44,7 @@ hdql_print_tree_like( const hdql_TreeLikeNode_t node, void * userdata
  * If \p recursive is set to non-zero value, compounds names will be recursively
  * expanded till most basic parent (for eponymous 1st takes precedence).
  * */
-void
+HDQL_API void
 hdql_attr_def_tree_print(const struct hdql_AttrDef * ad
         , struct hdql_Context * ctx
         , size_t lineWidth
@@ -56,7 +58,7 @@ hdql_attr_def_tree_print(const struct hdql_AttrDef * ad
  * Does not expand collections and compounds, does not follow forwarding
  * queries.
  * */
-void
+HDQL_API void
 hdql_print_value_shallow(const struct hdql_Datum * r
         , const struct hdql_AttrDef * topAttrDef
         , struct hdql_Context * ctx
@@ -73,7 +75,7 @@ hdql_print_value_shallow(const struct hdql_Datum * r
  * If \p recursive is set to non-zero value, compounds names will be recursively
  * expanded till most basic parent (for eponymous 1st takes precedence).
  * */
-void
+HDQL_API void
 hdql_attr_def_tree_data_print(const struct hdql_AttrDef * ad
         , const struct hdql_Datum * datum
         , struct hdql_Context * ctx

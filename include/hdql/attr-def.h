@@ -10,7 +10,7 @@ extern "C" {
 
 struct hdql_Compound;  /* fwd */
 struct hdql_Query;  /* fwd */
-struct hdql_CollectionKey;  /* fwd */
+struct hdql_Key;  /* fwd */
 
 /**\brief Atomic type definition */
 struct hdql_AtomicTypeFeatures {
@@ -62,7 +62,7 @@ struct hdql_ScalarAttrInterface {
      * */
     hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
                                , hdql_Datum_t dynData  // allocated with `instantiate()`
-                               , struct hdql_CollectionKey * // may be NULL
+                               , struct hdql_Key * // may be NULL
                                , const hdql_Datum_t defData  // may be NULL
                                , hdql_Context_t
                                );
@@ -91,7 +91,7 @@ struct hdql_ScalarAttrInterface {
  * forwarding queries, bound attributes, etc).
  * This callback is used to allocate key lists when key type code is not set.
  * */
-typedef struct hdql_CollectionKey * (*hdql_ReserveKeysListCallback_t)(
+typedef int (*hdql_ReserveKeysListCallback_t)( struct hdql_Key *,
             const hdql_Datum_t defData, hdql_Context_t );
 
 /**\brief Interface to collection attribute (foreign column or array) */
@@ -108,7 +108,7 @@ struct hdql_CollectionAttrInterface {
     /**\brief Dereferences iterator object, returning NULL if it is not
      *        possible (no items available) */
     hdql_Datum_t   (*dereference)   ( hdql_It_t
-                                    , struct hdql_CollectionKey *
+                                    , struct hdql_Key *
                                     );
     /** Should advance iterator object */
     hdql_It_t      (*advance)       ( hdql_It_t );
@@ -151,7 +151,7 @@ typedef const struct hdql_AttrDef * hdql_AttrDef_t;
  * Instance gets allocated within the context, \p typeInfo and \p interface
  * instances are copied.
  * */
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_atomic_scalar(
           struct hdql_AtomicTypeFeatures        * typeInfo
         , struct hdql_ScalarAttrInterface       * interface
@@ -160,7 +160,7 @@ hdql_attr_def_create_atomic_scalar(
         , hdql_Context_t
         );
 
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_atomic_collection(
           struct hdql_AtomicTypeFeatures        * typeInfo
         , struct hdql_CollectionAttrInterface   * interface
@@ -169,7 +169,7 @@ hdql_attr_def_create_atomic_collection(
         , hdql_Context_t
         );
 
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_compound_scalar(
           struct hdql_Compound                  * typeInfo
         , struct hdql_ScalarAttrInterface       * interface
@@ -178,7 +178,7 @@ hdql_attr_def_create_compound_scalar(
         , hdql_Context_t
         );
 
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_compound_collection(
           struct hdql_Compound                  * typeInfo
         , struct hdql_CollectionAttrInterface   * interface
@@ -189,11 +189,20 @@ hdql_attr_def_create_compound_collection(
 
 /**\brief Create attribute definition forwarding to a query 
  *
+ * Forwarding ADs represents a complex query as an attribute definition.
+ * For instance, `.tracks.hits` represents hits collection built from hits
+ * collection from all the tracks as one set with composite
+ * key (<trackID>, <hitID>).
+ *
+ * This AD differs "full scalar" (like `.rawData.time`) from collections,
+ * analysing full chain. For instance query `.hits.x` leads to a scalar, but
+ * the entire chain is a collection still.
+ *
  * This kind of attribute definitions created within virtual (transient)
  * compounds in the expressions like `{h:=.hits}` (here `h` is the attribute
  * forwarding query). I.e. forwarding attributes are just aliases, in the
  * context of virtual compounds. */
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_fwd_query(
           struct hdql_Query * subquery
         , hdql_Context_t
@@ -207,21 +216,21 @@ hdql_attr_def_create_fwd_query(
  * attribute), typically within a Cartesian product within the virtual
  * (transient) compound. In this case such AD behaves like a pivot, creating
  * new virtual compound item per every item in the underlying subquery. */
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_bound(
           struct hdql_Query * subquery
         , hdql_Context_t context
         , int * rc
         );
 
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_static_atomic_scalar_value(
           hdql_ValueTypeCode_t valueType
         , const hdql_Datum_t valueDatum
         , hdql_Context_t
         );
 
-struct hdql_AttrDef *
+HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_dynamic_value(
           hdql_ValueTypeCode_t valueType
         , hdql_Datum_t (*get)(void *, hdql_Context_t)
@@ -239,7 +248,8 @@ hdql_attr_def_create_dynamic_value(
  *
  * The \p dtr must expect definition data as 1st argument and free it using
  * given context instance as 2nd argument. */
-void hdql_attr_def_set_transient(struct hdql_AttrDef *
+HDQL_API void
+hdql_attr_def_set_transient(struct hdql_AttrDef *
         , void (*dtr)(hdql_Datum_t, hdql_Context_t) );
 
 //hdql_AttrDef_t
@@ -261,47 +271,52 @@ bool hdql_attr_def_is_transient(hdql_AttrDef_t);
 bool hdql_attr_def_is_bound(hdql_AttrDef_t);
 
 /**\brief Returns type code for (optionally static) atomic value */
-hdql_ValueTypeCode_t
+HDQL_API hdql_ValueTypeCode_t
 hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t);
 
 /**\breif Returns key type code or zero */
-hdql_ValueTypeCode_t
+HDQL_API hdql_ValueTypeCode_t
 hdql_attr_def_get_key_type_code(const hdql_AttrDef_t);
 
-const struct hdql_AtomicTypeFeatures *
+HDQL_API const struct hdql_AtomicTypeFeatures *
 hdql_attr_def_atomic_type_info(const hdql_AttrDef_t);
 
-const struct hdql_Compound *
+HDQL_API const struct hdql_Compound *
 hdql_attr_def_compound_type_info(const hdql_AttrDef_t);
 
-struct hdql_Query *
+HDQL_API struct hdql_Query *
 hdql_attr_def_fwd_query(const hdql_AttrDef_t);
 
-const struct hdql_ScalarAttrInterface *
+HDQL_API const struct hdql_ScalarAttrInterface *
 hdql_attr_def_scalar_iface(const hdql_AttrDef_t);
 
-const struct hdql_CollectionAttrInterface *
+HDQL_API const struct hdql_CollectionAttrInterface *
 hdql_attr_def_collection_iface(const hdql_AttrDef_t);
 
 /**\brief Returns ptr to referenced datum instance */
 hdql_Datum_t
 hdql_attr_def_get_static_value(const hdql_AttrDef_t);
 
-int
-hdql_attr_def_reserve_keys( const hdql_AttrDef_t, struct hdql_CollectionKey *, hdql_Context_t);
+/**\brief Forwards to collection or scalar reserve keys callback, if set
+ *
+ * \return HDQL_ERR_GENERIC when collection or scalar interface provided
+ *         callback, but callback returned NULL.
+ * \return HDQL_ERR_CODE_OK otherwise.
+ * */
+HDQL_API int hdql_attr_def_reserve_key(const hdql_AttrDef_t, struct hdql_Key *, hdql_Context_t);
 
 /**\brief Retrieves attribute definition recursively, until it is not a fwd query
  *
  * Similar to `hdql_query_top_attr()`. */
-hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
+HDQL_API hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
 
-void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
+HDQL_API void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 
 /**\brief Puts short one-line string describing attribute definition into strbuf
  *
  * Named `top_attr_str` to reflect the fact that it will resolve forwarding
  * queries, not just print plain AD (yet can be used for that). */
-int
+HDQL_API int
 hdql_top_attr_str( const struct hdql_AttrDef * subj
               , char * strbuf, size_t buflen
               , hdql_Context_t context

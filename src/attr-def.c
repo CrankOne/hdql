@@ -78,7 +78,7 @@ struct hdql_AttrDef {
     } interface;
 
     /**\brief Keys list allocation callback */
-    hdql_ReserveKeysListCallback_t reserveKeys;
+    hdql_ReserveKeysListCallback_t reserve_key;
 
     /** Defines value type features */
     union {
@@ -127,7 +127,7 @@ hdql_attr_def_create_atomic_scalar(
     ad->interface.scalar = *interface;
     ad->typeInfo.atomic = *typeInfo;
     ad->keyTypeCode = keyTypeCode;
-    ad->reserveKeys = keyIFace;
+    ad->reserve_key = keyIFace;
 
     return ad;
 }
@@ -168,7 +168,7 @@ hdql_attr_def_create_atomic_collection(
     ad->interface.collection = *interface;
     ad->typeInfo.atomic = *typeInfo;
     ad->keyTypeCode = keyTypeCode;
-    ad->reserveKeys = keyIFace;
+    ad->reserve_key = keyIFace;
 
     return ad;
 }
@@ -209,7 +209,7 @@ hdql_attr_def_create_compound_scalar(
     ad->interface.scalar = *interface;
     ad->typeInfo.compound = typeInfo;
     ad->keyTypeCode = keyTypeCode;
-    ad->reserveKeys = keyIFace;
+    ad->reserve_key = keyIFace;
 
     return ad;
 }
@@ -250,24 +250,27 @@ hdql_attr_def_create_compound_collection(
     ad->interface.collection = *interface;
     ad->typeInfo.compound = typeInfo;
     ad->keyTypeCode = keyTypeCode;
-    ad->reserveKeys = keyIFace;
+    ad->reserve_key = keyIFace;
 
     return ad;
 }
 
-static struct hdql_CollectionKey *
-_hdql_reserve_keys_list_for_fwd_query(
-          const hdql_Datum_t fwdQ_
-        , hdql_Context_t context ) {
+/* Forwarding attribute definition
+ */
+
+/* Key allocation callback for forwarding query */
+static int _hdql_reserve_key_for_fwd_query(
+          struct hdql_Key * k
+        , const hdql_Datum_t fwdQ_
+        , hdql_Context_t context
+        ) {
     struct hdql_Query * sq = (struct hdql_Query *) fwdQ_;
-    struct hdql_CollectionKey * k = NULL;
-    int rc = hdql_query_keys_reserve(sq, &k, context);
-    if(0 != rc) return NULL;
-    return k;
+    return hdql_key_reserve_for_query(sq, k, context);
 }
 
+/* Destructor for attribute definition's static data when AD is forwarding
+ * query. Invokes destruction of associated query. */
 static void _transient_dtr__fwd_query(hdql_Datum_t d, hdql_Context_t ctx) {
-    /* TODO: bound queries are special */
     if(d) {
         hdql_query_destroy((struct hdql_Query *) d, ctx);
     }
@@ -300,7 +303,7 @@ hdql_attr_def_create_fwd_query(
     
     ad->isFwdQuery       = 0x1;
     ad->staticValueFlags = 0x0;
-    ad->isTransient      = 0x0;
+    ad->isTransient      = 0x0;  /* overridden below */
 
     if(isFullyScalar) {
         ad->interface.scalar = _hdql_gScalarFwdQueryIFace;
@@ -313,21 +316,23 @@ hdql_attr_def_create_fwd_query(
     hdql_attr_def_set_transient(ad, _transient_dtr__fwd_query);
 
     ad->keyTypeCode = 0x0;
-    ad->reserveKeys = _hdql_reserve_keys_list_for_fwd_query;
+    ad->reserve_key = _hdql_reserve_key_for_fwd_query;
 
     return ad;
 }
 
+/* Static atomic scalar AD
+ */
+
 static hdql_Datum_t
 _static_atomic_scalar_dereference( hdql_Datum_t root
         , hdql_Datum_t dynData
-        , struct hdql_CollectionKey * key
+        , struct hdql_Key * key
         , const hdql_Datum_t defData
         , hdql_Context_t ctx ) {
     ((void) root);
     ((void) ctx);
     assert(NULL == dynData);
-    assert(NULL == key || NULL == key->pl.datum);
     assert(NULL != defData);
     return (hdql_Datum_t) defData;
 }
@@ -367,7 +372,7 @@ hdql_attr_def_create_static_atomic_scalar_value(
     ad->typeInfo.atomic.arithTypeCode = valueType;
 
     ad->keyTypeCode = 0x0;
-    ad->reserveKeys = NULL;
+    ad->reserve_key = NULL;
 
     /* static atomic scalars are implicitly always transient */
     hdql_attr_def_set_transient(ad, _transient_dtr__static_atomic);
@@ -410,7 +415,7 @@ hdql_attr_def_create_bound(
     ad->transient_dtr = _transient_dtr__binding_query;
     /* attribute has no key  */
     ad->keyTypeCode = 0x0;
-    ad->reserveKeys = NULL;
+    ad->reserve_key = NULL;
     /* inherit type info as is */
     memcpy(&ad->typeInfo, &qTopAD->typeInfo, sizeof(qTopAD->typeInfo));
 
@@ -542,13 +547,14 @@ hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
 }
 
 int
-hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
-                          , struct hdql_CollectionKey * key
-                          , hdql_Context_t context
-                          ) {
+hdql_attr_def_reserve_key( const hdql_AttrDef_t ad
+                         , struct hdql_Key * key
+                         , hdql_Context_t context
+                         ) {
     assert(ad);
     assert(key);
     assert(0x0 == ad->keyTypeCode);  /* this routine must be called only if no key code set */
+    #if 0
     key->code = 0x0;
     if(NULL == ad->reserveKeys) {
         /* no key reserve method, trivial key or set collection */
@@ -576,8 +582,20 @@ hdql_attr_def_reserve_keys( const hdql_AttrDef_t ad
          *     this is sick... see issue #14 */
         return 0;
     }
-    assert(0);  /* bad interface definition -- not a collection, nor a scalar */
-    return -2;
+    #else
+    if(NULL == ad->reserve_key) {
+        /* no key reserve method, trivial key or set collection */
+        hdql_key_mark_empty(key);
+        return HDQL_ERR_CODE_OK;
+    }
+    if( hdql_attr_def_is_collection(ad) ) {
+        ad->reserve_key(key, ad->interface.collection.definitionData, context);
+    } else {
+        assert(hdql_attr_def_is_scalar(ad));
+        ad->reserve_key(key, ad->interface.scalar.definitionData, context);
+    }
+    return HDQL_ERR_CODE_OK;
+    #endif
 }
 
 hdql_AttrDef_t

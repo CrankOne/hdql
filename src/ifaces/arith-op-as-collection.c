@@ -17,8 +17,8 @@
  * This interface implements the case when:
  *  - one (or single one) of the argument queries is collection
  *  - other is either absent (for unary operator) or is scalar
- * Situation when both arguments are collections is deliberately must not be
- * permitted for simple arithmetic operations.
+ * Situation when both arguments are collections is deliberately forbidden
+ * for simple arithmetic operations.
  *
  * To accomplish this task an "overloaded" advance operation is implemented
  * here as a choice of two callbacks.
@@ -29,7 +29,7 @@ struct ArithOpCollectionState {
 
     bool isExhausted, isValid;
     hdql_Datum_t a, b;
-    struct hdql_CollectionKey * cRKey;
+    struct hdql_Key * cRKey;
     hdql_Datum_t cResult;
     hdql_Context_t context;
 
@@ -60,6 +60,7 @@ _arith_op_collection_create( hdql_Datum_t owner
         = (struct ArithOpCollectionState *) hdql_context_alloc(ctx, sizeof(struct ArithOpCollectionState));
     state->defData = (struct hdql_ArithOpDefData *) defData_;
     state->isExhausted = state->isValid = false;
+    state->cRKey = hdql_key_new(ctx);
     bool aIsFullyScalar = hdql_query_is_fully_scalar(state->defData->args[0]);
     #ifndef NDEBUG
     bool bIsFullyScalar = state->defData->args[1] ? hdql_query_is_fully_scalar(state->defData->args[1]) : true;
@@ -70,15 +71,15 @@ _arith_op_collection_create( hdql_Datum_t owner
     if(!aIsFullyScalar) {
         /* first arg is collection */
         state->advance = _advance_a;
-        hdql_query_keys_reserve( state->defData->args[0]
-                               , &(state->cRKey)
-                               , ctx ); 
+        hdql_key_reserve_for_query( state->defData->args[0]
+                                  , state->cRKey
+                                  , ctx ); 
     } else {
         /* second arg is collection */
         state->advance = _advance_b;
-        hdql_query_keys_reserve( state->defData->args[1]
-                               , &(state->cRKey)
-                               , ctx );
+        hdql_key_reserve_for_query( state->defData->args[1]
+                                  , state->cRKey
+                                  , ctx );
     }
     state->cResult = hdql_create_value( state->defData->evaluator->returnType
                                       , ctx
@@ -89,7 +90,7 @@ _arith_op_collection_create( hdql_Datum_t owner
 
 static hdql_Datum_t
 _arith_op_collection_dereference( hdql_It_t it_
-                                , struct hdql_CollectionKey * keyPtr
+                                , struct hdql_Key * keyPtr
                                 ) {
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
     if(state->isExhausted) return NULL;
@@ -106,8 +107,7 @@ _arith_op_collection_dereference( hdql_It_t it_
         }
     }
     if(keyPtr) {
-        assert(keyPtr->isList);
-        hdql_query_keys_copy(keyPtr->pl.keysList, state->cRKey, state->context);
+        hdql_key_copy_value(keyPtr, state->cRKey, state->context);
     }
     return state->cResult;
 }
@@ -174,7 +174,7 @@ _arith_op_collection_destroy( hdql_It_t it_
     //    }
     //}
     if(NULL != state->cRKey) {
-        hdql_query_keys_destroy(state->cRKey, ctx);
+        hdql_key_destroy(state->cRKey, ctx);
     }
     /* TODO: deleting externally-allocated "definition data" does not seem to
      * be a good solution */
@@ -184,9 +184,9 @@ _arith_op_collection_destroy( hdql_It_t it_
     hdql_context_free(ctx, (hdql_Datum_t) it_);
 }
 
-struct hdql_CollectionKey *
-hdql_reserve_arith_op_collection_key(
-          const hdql_Datum_t dd_
+int
+hdql_reserve_arith_op_collection_key(struct hdql_Key * key
+        , const hdql_Datum_t dd_
         , hdql_Context_t context
         ) {
     struct hdql_ArithOpDefData * dd = (struct hdql_ArithOpDefData *) dd_;
@@ -195,25 +195,24 @@ hdql_reserve_arith_op_collection_key(
     bool bIsFullyScalar = dd->args[1] ? hdql_query_is_fully_scalar(dd->args[1]) : true;
     assert(aIsFullyScalar != bIsFullyScalar);  /* both scalars and both collections are prohibited */
     #endif
-    struct hdql_CollectionKey * key;
     int rc;
     if(!aIsFullyScalar) {
-        rc = hdql_query_keys_reserve( dd->args[0]
-                                    , &key
-                                    , context );
+        rc = hdql_key_reserve_for_query( dd->args[0]
+                                       , key
+                                       , context );
     } else {
-        rc = hdql_query_keys_reserve( dd->args[1]
-                                    , &key
-                                    , context );
+        rc = hdql_key_reserve_for_query( dd->args[1]
+                                       , key
+                                       , context );
     }
     if(0 != rc) {
         hdql_context_err_push( context, HDQL_ERR_INTERFACE_ERROR
                              , "Key allocation error (%d) on operation %p:%p"
                              , rc, dd->evaluator, dd->evaluator->op
                              );
-        return NULL;
+        return HDQL_ERR_INTERFACE_ERROR;
     }
-    return key;
+    return HDQL_ERR_CODE_OK;
 }
 
 const struct hdql_CollectionAttrInterface _hdql_gCollectionArithOpIFace = {

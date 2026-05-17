@@ -4,6 +4,7 @@
 #include "hdql/helpers/compounds.hh"
 #include "hdql/helpers/fancy-print-err.h"
 #include "hdql/helpers/print-tree.h"
+#include "hdql/query-key.h"
 #include "hdql/random.h"
 #include "samples.hh"
 
@@ -72,12 +73,6 @@ test_query_on_data( int nSample, const char * expression ) {
                               );
         rc = errDetails[0];
         if(rc) {
-            #if 0
-            fputs(expression, stderr);
-            fprintf( stderr, "Expression error (%d,%d-%d,%d): %s\n"
-                   , errDetails[1], errDetails[2], errDetails[3], errDetails[4]
-                   , errBuf);
-            #else
             char fancyprintbuf[1024];
             rc = hdql_fancy_error_print(fancyprintbuf, sizeof(fancyprintbuf)
                     , expCpy, errDetails, errBuf, 0x1);
@@ -85,7 +80,6 @@ test_query_on_data( int nSample, const char * expression ) {
             if(rc) {
                 fputs("(truncated)\n", stderr);
             }
-            #endif
             free(expCpy);
             return 1;
         }
@@ -100,16 +94,19 @@ test_query_on_data( int nSample, const char * expression ) {
     // iterate over query results
     size_t nResult = 0;
     hdql_Datum_t r;
-    hdql_CollectionKey * keys = NULL;
-    rc = hdql_query_keys_reserve(q, &keys, ctx);
+    hdql_Key * key = hdql_key_new(ctx);
+    rc = hdql_key_reserve_for_query(q, key, ctx);
     assert(rc == 0);
 
-    size_t flatKeyViewLength = hdql_keys_flat_view_size(keys, ctx);
-    hdql_KeyView * kv = flatKeyViewLength
-                      ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*flatKeyViewLength)
-                      : NULL;
-    hdql_keys_flat_view_update(q, keys, kv, ctx);
-    char flKStr[1024] = "";
+    puts("*** resulting query key structure:");
+    hdql_key_print_tree(key, stdout, ctx);
+
+    //size_t flatKeyViewLength = hdql_keys_flat_view_size(key, ctx);
+    //hdql_KeyView * kv = flatKeyViewLength
+    //                  ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*flatKeyViewLength)
+    //                  : NULL;
+    //hdql_keys_flat_view_update(q, keys, kv, ctx);
+    //char flKStr[1024] = "";
 
     bool hadResult = false;
 
@@ -127,152 +124,47 @@ test_query_on_data( int nSample, const char * expression ) {
             return -1;  // TODO: cleanup? details?
         }
 
-        //puts("*** uninit keys topology:");
-        //hdql_query_keys_dump(keys, keyStrBf, sizeof(keyStrBf), ctx);
-        //puts(keyStrBf);
-
-        #if 0
-        puts("*** query columns:"); {
-            char * colNames[256];
-            size_t nColumns = 256;
-            hdql_stream_column_names(q, colNames, &nColumns, '/');
-            if(nColumns) {
-                fflush(stdout);  // XXX
-                for(size_t i = 0; i < nColumns; ++i) {
-                    if(i) fputs(", ", stdout);
-                    if(colNames[i])
-                        fputs(colNames[i], stdout);
-                    else
-                        fputs("(NULL)", stdout);
-                }
-                fputs("\n", stdout);
-            } else {
-                puts("(no columns)");
-            }
-        }
-        #endif
-
         printf("*** sample #%d query results:\n", i);
-        while(NULL != (r = hdql_query_get(q, keys, ctx))) {
+        while(NULL != (r = hdql_query_get(q, key, ctx))) {
             hadResult = true;
-            if(flatKeyViewLength) {
-                flKStr[0] = ' ';
-                flKStr[1] = '(';
-                flKStr[2] = '\0';
-            } else {
-                *flKStr = '\0';
-            }
-            for(size_t nFKV = 0; nFKV < flatKeyViewLength; ++nFKV) {
-                if(nFKV) strcat(flKStr, ", ");
-                if(kv[nFKV].interface && kv[nFKV].interface->get_as_string) {
-                    char fkvBf[64];
-                    kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->pl.datum, fkvBf, sizeof(fkvBf), ctx);
-                    strcat(flKStr, fkvBf);
-                } else {
-                    strcat(flKStr, "(no str.method)");
-                }
-            }
-            if(flatKeyViewLength) {
-                strcat(flKStr, "), ");
-            }
+            //if(flatKeyViewLength) {
+            //    flKStr[0] = ' ';
+            //    flKStr[1] = '(';
+            //    flKStr[2] = '\0';
+            //} else {
+            //    *flKStr = '\0';
+            //}
+            //for(size_t nFKV = 0; nFKV < flatKeyViewLength; ++nFKV) {
+            //    if(nFKV) strcat(flKStr, ", ");
+            //    if(kv[nFKV].interface && kv[nFKV].interface->get_as_string) {
+            //        char fkvBf[64];
+            //        kv[nFKV].interface->get_as_string(kv[nFKV].keyPtr->pl.datum, fkvBf, sizeof(fkvBf), ctx);
+            //        strcat(flKStr, fkvBf);
+            //    } else {
+            //        strcat(flKStr, "(no str.method)");
+            //    }
+            //}
+            //if(flatKeyViewLength) {
+            //    strcat(flKStr, "), ");
+            //}
 
             printf(" %4lu) ", nResult);
 
             if(!topAttrDef) {
                 fputs("??? (query did not provide attribute definition)", stdout);
             } else {  // valid result
-                fputs(flKStr, stdout);  // flat keys
+            //    fputs(flKStr, stdout);  // flat keys
                 if(hdql_attr_def_is_compound(topAttrDef)) {
                     putc('\n', stdout);
                 }
                 hdql_attr_def_tree_data_print(topAttrDef, r, ctx, 127, stdout, 0x0);
             }  // end of valid result handling
-
-            #if 0
-            printf("#%zu: %s[%s] => ", nResult++, flKStr, keyStrBf);
-            if(!topAttrDef) {
-                fputs("??? (query did not provide attribute definition)", stdout);
-            } else {
-                if(topAttrDef->staticValueFlags) {
-                    printf( "static value %p of type %d"
-                          , topAttrDef->typeInfo.subQuery
-                          , (int) topAttrDef->typeInfo.staticValue.typeCode
-                          );
-                    if(topAttrDef->typeInfo.staticValue.typeCode) {
-                        const hdql_ValueInterface * vi
-                            = hdql_types_get_type(valTypes, topAttrDef->typeInfo.staticValue.typeCode);
-                        if(vi && vi->get_as_string) {
-                            char bf[32];
-                            vi->get_as_string(r, bf, sizeof(bf));
-                            printf( "value=\"%s\"", bf );
-                        } else {
-                            fputs(" (no value interface)", stdout);
-                        }
-                    }
-                } else if(topAttrDef->isSubQuery) {
-                    printf("subquery %p", topAttrDef->typeInfo.subQuery);
-                } else if(!topAttrDef->isAtomic) {
-                    printf( "compound %s instance %p of type `%s'"
-                          , topAttrDef->isCollection ? "collection" : "scalar"
-                          , r
-                          , hdql_compound_get_name(topAttrDef->typeInfo.compound)
-                          );
-                } else {
-                    if(!topAttrDef->isCollection) {
-                        const hdql_ValueInterface * vi = hdql_types_get_type(valTypes
-                                , topAttrDef->typeInfo.atomic.arithTypeCode );
-                        if(!vi) {
-                            printf( "scalar intance %p of unknown type", r);
-                        } else if(!vi->get_as_string) {
-                            printf( "scalar intance %p of type %s (no to-string method)"
-                                    , r, vi->name );
-                        } else {
-                            char valueBf[32];
-                            vi->get_as_string(r, valueBf, sizeof(valueBf));
-                            printf( "scalar intance %p of type %s with value \"%s\""
-                                    , r, vi->name, valueBf );
-                        }
-                    } else {
-                        #if 1
-                        // collection of atomic values
-                        assert(!topAttrDef->staticValueFlags);
-                        assert(!topAttrDef->isSubQuery);
-                        assert(topAttrDef->isAtomic);
-                        assert(topAttrDef->isCollection);
-                        // this is true only for collections resulting in
-                        // arithmetic 
-                        assert(topAttrDef->typeInfo.atomic.arithTypeCode);
-                        const hdql_ValueInterface * vi
-                            = hdql_types_get_type(valTypes, topAttrDef->typeInfo.atomic.arithTypeCode);
-                        if(vi && vi->get_as_string) {
-                            char bf[32];
-                            vi->get_as_string(r, bf, sizeof(bf));
-                            printf( "value=\"%s\"", bf );
-                        } else {
-                            fputs(" (no value interface)", stdout);
-                        }
-                        #else
-                        // Query resulted in weird item
-                        printf("??? (attr.def. provided, %s, %s, %s %s)"
-                              , topAttrDef->staticValueFlags ? "stat.val." : "not a static value"
-                              , topAttrDef->isSubQuery ? "subquery" : "not a subquery"
-                              , topAttrDef->isAtomic ? "atomic" : "compound"
-                              , topAttrDef->isCollection ? "collection" : "scalar"
-                              );
-                        #endif
-                    }
-                }
-            }
-            printf("\n");
-            //printf("  type: %s\n", hdql_qeury_result_type(qr) ? ... );
-            keyStrBf[0] = '\0';
-            #endif
             ++nResult;
         }
     }
-    if(kv) free(kv);
+    //if(kv) free(kv);
 
-    hdql_query_keys_destroy(keys, ctx);
+    hdql_key_destroy(key, ctx);
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
     for(auto & ce : compounds) {

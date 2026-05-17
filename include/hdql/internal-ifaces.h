@@ -30,8 +30,10 @@ struct hdql_ArithOpDefData {
 extern const struct hdql_ScalarAttrInterface        _hdql_gScalarArithOpIFace;
 extern const struct hdql_CollectionAttrInterface    _hdql_gCollectionArithOpIFace;
 
-struct hdql_CollectionKey *
-hdql_reserve_arith_op_collection_key(const hdql_Datum_t defData, hdql_Context_t context);
+int
+hdql_reserve_arith_op_collection_key(struct hdql_Key * key
+        , const hdql_Datum_t dd_
+        , hdql_Context_t context);
 
 /*
  * Filtered compound collection
@@ -67,7 +69,7 @@ hdql_Datum_t hdql_bound_compound_collection_interface_definition_data_init(
 
 void hdql_bound_compound_collection_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_t ctx);
 
-struct hdql_CollectionKey * hdql_bound_compound_key_reserve(const hdql_Datum_t defData_, hdql_Context_t ctx);
+struct hdql_Key * hdql_bound_compound_key_reserve(const hdql_Datum_t defData_, hdql_Context_t ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

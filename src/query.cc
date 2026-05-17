@@ -7,16 +7,18 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/errors.h"
-//#include "hdql/function.h"
 #include "hdql/query.h"
 #include "hdql/query-key.h"
 #include "hdql/types.h"
 #include "hdql/context.h"
-#include "hdql/value.h"
 
 #if defined(BUILD_GT_UTEST) && BUILD_GT_UTEST
 #   include <gtest/gtest.h>
 #endif
+
+// internal, see query-key.c
+extern "C" struct hdql_Key * hdql__keys_next(struct hdql_Key * cur);
+extern "C" struct hdql_Key * hdql__key_get_list_bgn(struct hdql_Key * k);
 
 namespace hdql {
 
@@ -61,7 +63,7 @@ struct QueryState {
     // if state is not initialized, creates iterator and set it to first
     // available item, if possible, otherwise, sets it to end
     bool get_value( hdql_Datum_t & value
-                  , hdql_CollectionKey * keyPtr
+                  , hdql_Key * keyPtr
                   , hdql_Context_t ctx
                   );
     // sets iterator to next available item, if possible, or sets it to end
@@ -92,7 +94,7 @@ struct Query : public SelectionItemT {
            , currentYielded(false)
            {}
 
-    bool get( struct hdql_CollectionKey * keys
+    bool get( struct hdql_Key * keys
             , hdql_Context_t ctx
             ) {
         if(!next) {  // last query in a chain
@@ -116,7 +118,7 @@ struct Query : public SelectionItemT {
         }
 
         // this is not a terminal query in the chain 
-        while(!next->get(keys ? keys + 1 : NULL, ctx)) {  // try to get next and if failed, keep:
+        while(!next->get(keys ? hdql__keys_next(keys) : NULL, ctx)) {
             SelectionItemT::advance(ctx);  // advance next one
             if(!SelectionItemT::get_value( result  // destination
                                          , keys
@@ -249,7 +251,7 @@ QueryState::~QueryState() {
 // available item, if possible, otherwise, sets it to end
 bool
 QueryState::get_value( hdql_Datum_t & value
-              , hdql_CollectionKey * keyPtr
+              , hdql_Key * keyPtr
               , hdql_Context_t ctx
               ) {
     if(hdql_attr_def_is_static_const_value(subject) || hdql_attr_def_is_static_external_value(subject)) {
@@ -356,13 +358,14 @@ hdql_query_create(
 
 extern "C" hdql_Datum_t
 hdql_query_get( struct hdql_Query * query
-              , struct hdql_CollectionKey * keys
+              , struct hdql_Key * key
               , hdql_Context_t ctx
               ) {
+
     // evaluate query on data, return NULL if evaluation failed
     // Query::get() changes states of query chain and returns `false' if
     // full chain can not be evaluated
-    if(!query->get(keys, ctx)) return NULL;
+    if(!query->get(key ? hdql__key_get_list_bgn(key) : NULL, ctx)) return NULL;
     // for successfully evaluated chain, dereference results to topmost query
     // and return its "current" value as a query result
     struct hdql_Query * current = query;
@@ -498,7 +501,7 @@ hdql_query_top_attr(const struct hdql_Query * q_) {
 
 extern "C" int
 hdql_query_product_reset( struct hdql_Query ** qs
-        , struct hdql_CollectionKey ** keys
+        , struct hdql_Key ** keys
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n
@@ -511,7 +514,7 @@ hdql_query_product_reset( struct hdql_Query ** qs
         if(HDQL_ERR_CODE_OK != (rc = hdql_query_reset(*q, d, ctx))) return rc;
     }
     /* get 1st set of values */
-    struct hdql_CollectionKey ** k = keys ? keys : NULL;
+    struct hdql_Key ** k = keys ? keys : NULL;
     hdql_Datum_t * v = values;
     i = 0;
     for(struct hdql_Query ** q = qs; i < n; ++q, ++v, ++i) {
@@ -528,7 +531,7 @@ hdql_query_product_reset( struct hdql_Query ** qs
 
 extern "C" int
 hdql_query_product_advance( struct hdql_Query ** qs
-        , struct hdql_CollectionKey ** keys
+        , struct hdql_Key ** keys
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n
@@ -539,7 +542,7 @@ hdql_query_product_advance( struct hdql_Query ** qs
     /* iterate backward */
     size_t i = n;
     assert(i > 0);
-    struct hdql_CollectionKey ** k = keys ? keys + n1 : NULL;
+    struct hdql_Key ** k = keys ? keys + n1 : NULL;
     hdql_Datum_t * v = values + n1;
     for(struct hdql_Query ** q = qs + n1; 0 != i; --q, --v) {
         --i;

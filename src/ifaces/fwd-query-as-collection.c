@@ -1,6 +1,7 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/query-key.h"
 #include "hdql/query.h"
 #include "hdql/internal-ifaces.h"
@@ -17,7 +18,7 @@
 struct FwdQueryIterator {
     struct hdql_Query * subQuery;
     hdql_Datum_t result;
-    struct hdql_CollectionKey * keys;
+    struct hdql_Key * key;
     hdql_Context_t context;
 };
 
@@ -34,25 +35,28 @@ _fwd_query_collection_interface_create(
     it->subQuery = (struct hdql_Query *) definitionData;
     assert(it->subQuery);
     it->result = NULL;
-    it->keys = NULL;
+    it->key = hdql_key_new(ctx);
     it->context = ctx;
-    int rc = hdql_query_keys_reserve(it->subQuery, &(it->keys), ctx);
+    int rc = hdql_key_reserve_for_query(it->subQuery, it->key, ctx);
+    if(HDQL_ERR_CODE_OK != rc) {
+        hdql_context_err_push(ctx, rc, "failed to reserve keys for query");
+        return NULL;
+    }
     assert(rc == 0);
-    assert(it->keys);
+    assert(it->key);
     return (hdql_It_t) it;
 }
 
 static hdql_Datum_t
 _fwd_query_collection_interface_dereference(
           hdql_It_t it_
-        , struct hdql_CollectionKey * key  /* NOTE: can be null */
+        , struct hdql_Key * key  /* NOTE: can be null */
         ) {
     struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
     if(key) {
-        assert(it->keys);
-        assert(key->isList);
-        assert(key->code == 0x0);
-        hdql_query_keys_copy(key->pl.keysList, it->keys, it->context);
+        assert(it->key);
+        assert(hdql_key_is_list(key));
+        hdql_key_copy_value(key, it->key, it->context);
     }
     return it->result;
 }
@@ -63,7 +67,7 @@ _fwd_query_collection_interface_advance(
         ) {
     struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
     if(it->result) {
-        it->result = hdql_query_get(it->subQuery, it->keys, it->context);
+        it->result = hdql_query_get(it->subQuery, it->key, it->context);
     }
     return it_;
 }
@@ -87,7 +91,7 @@ _fwd_query_collection_interface_reset(
     #endif
     assert(newOwner);
     hdql_query_reset(it->subQuery, newOwner, ctx);
-    it->result = hdql_query_get(it->subQuery, it->keys, ctx);
+    it->result = hdql_query_get(it->subQuery, it->key, ctx);
     return it_;
 }
 
@@ -97,8 +101,8 @@ _fwd_query_collection_interface_destroy(
         , hdql_Context_t ctx
         ) {
     struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
-    if(it->keys) {
-        hdql_query_keys_destroy(it->keys, ctx);
+    if(it->key) {
+        hdql_key_destroy(it->key, ctx);
     }
     // NOTE: sub-queries get destroyed within virtual compound dtrs
     // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);`

@@ -9,6 +9,12 @@
 extern "C" {
 #endif
 
+#if defined _WIN32 || defined __CYGWIN__
+#  define HDQL_API __declspec(dllexport)
+#else
+#  define HDQL_API __attribute__((visibility("default")))
+#endif
+
 /*                                                             _______________
  * __________________________________________________________/ Main API types
  */
@@ -69,7 +75,7 @@ typedef HDQL_STRING_TYPE hdql_StrPtr_t;
  *      - 4 bits is reserved for tier (letting up to 16 inherited type tables)
  *      - 10 bits offers 1024 types per table of single tier
  * */
-#   define HDQL_VALUE_TYPEDEF_CODE_BITSIZE 14
+#   define HDQL_VALUE_TYPEDEF_CODE_BITSIZE 13
 #endif
 
 /**\brief Max value of type code, derived from max bitlen */
@@ -111,7 +117,7 @@ typedef struct hdql_SelectionArgs * hdql_SelectionArgs_t;
 struct hdql_Context;
 typedef struct hdql_Context* hdql_Context_t;
 
-const char *
+HDQL_API const char *
 hdql_cxx_demangle( const char * mangled
                  , char * buf, size_t buflen
                  );

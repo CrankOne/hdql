@@ -17,7 +17,7 @@
 struct FwdQueryScalarState {
     struct hdql_Query * subQuery;
     hdql_Datum_t result;
-    struct hdql_CollectionKey * keys;
+    struct hdql_Key * key;
     hdql_Context_t context;
 };
 
@@ -32,11 +32,11 @@ _fwd_query_scalar_interface_instantiate(
     it->subQuery = (struct hdql_Query *) definitionData;
     assert(it->subQuery);
     it->result = NULL;
-    it->keys = NULL;
+    it->key = hdql_key_new(ctx);
     it->context = ctx;
-    int rc = hdql_query_keys_reserve(it->subQuery, &(it->keys), ctx);
+    int rc = hdql_key_reserve_for_query(it->subQuery, it->key, ctx);
     assert(rc == 0);
-    assert(it->keys);
+    assert(it->key);
     return (hdql_Datum_t) it;
 }
 
@@ -44,15 +44,16 @@ static hdql_Datum_t
 _fwd_query_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t dd_
-        , struct hdql_CollectionKey * key  // can be null
+        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t defData
         , hdql_Context_t
         ) {
     assert(dd_);  /* dereference() without create() (and subsequent reset()) */
     struct FwdQueryScalarState * dd = (struct FwdQueryScalarState *) dd_;
     if(key) {
-        assert(key->isList);
-        hdql_query_keys_copy(key->pl.keysList, dd->keys, dd->context);
+        assert(dd->key);
+        assert(hdql_key_is_list(key));
+        hdql_key_copy_value(key, dd->key, dd->context);
     }
     return dd->result;
 }
@@ -74,7 +75,7 @@ _fwd_query_scalar_interface_reset(
     }
     #endif
     hdql_query_reset(dd->subQuery, newOwner, ctx);
-    dd->result = hdql_query_get(dd->subQuery, dd->keys, ctx);
+    dd->result = hdql_query_get(dd->subQuery, dd->key, ctx);
     return dd_;
 }
 
@@ -85,8 +86,8 @@ _fwd_query_scalar_interface_destroy(
         , hdql_Context_t ctx
         ) {
     struct FwdQueryScalarState * dd = (struct FwdQueryScalarState *) dd_;
-    if(dd && dd->keys) {
-        hdql_query_keys_destroy(dd->keys, ctx);
+    if(dd && dd->key) {
+        hdql_key_destroy(dd->key, ctx);
     }
     // NOTE: sub-queries get destroyed within virtual compound dtrs
     // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);` XXX

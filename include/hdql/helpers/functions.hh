@@ -1,12 +1,10 @@
 #pragma once
 
-#include <stdexcept>
-#include <tuple>
 #include <cassert>
 #include <type_traits>
 #include <typeindex>
+#include <utility>
 
-#include <iostream>  // XXX
 
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
@@ -136,7 +134,7 @@ struct AutoFunction {
     static hdql_Datum_t
     dereference( hdql_Datum_t root
                , hdql_Datum_t state_
-               , struct hdql_CollectionKey * key
+               , struct hdql_Key * key
                , const hdql_Datum_t fInstArgs_
                , hdql_Context_t context
             ) {

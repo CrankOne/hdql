@@ -143,11 +143,11 @@ struct STLContainerTraits< std::unordered_map<KeyT, ValueT, HashT, KeyEqualT, Al
 
     static void get_key( const Type &
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         const auto v = it->first;
-        assert(key.pl.datum);
-        memcpy(key.pl.datum, &v, sizeof(Key));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &v, sizeof(Key));
     }
 };
 
@@ -172,11 +172,11 @@ struct STLContainerTraits< std::unordered_map<KeyT, std::shared_ptr<ValueT>, Has
 
     static void get_key( const Type &
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         const auto v = it->first;
-        assert(key.pl.datum);
-        memcpy(key.pl.datum, &v, sizeof(KeyT));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &v, sizeof(Key));
     }
 };
 
@@ -200,11 +200,11 @@ struct STLContainerTraits< std::map<KeyT, std::shared_ptr<ValueT>, CompareT, All
 
     static void get_key( const Type &
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         const auto v = it->first;
-        assert(key.pl.datum);
-        memcpy(key.pl.datum, &v, sizeof(KeyT));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &v, sizeof(Key));
     }
 };
 
@@ -228,11 +228,11 @@ struct STLContainerTraits< std::multimap<KeyT, std::shared_ptr<ValueT>, CompareT
 
     static void get_key( const Type &
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         const auto v = it->first;
-        assert(key.pl.datum);
-        memcpy(key.pl.datum, &v, sizeof(KeyT));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &v, sizeof(Key));
     }
 };
 
@@ -257,11 +257,11 @@ struct STLContainerTraits< std::unordered_multimap<KeyT, std::shared_ptr<ValueT>
 
     static void get_key( const Type &
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         const auto v = it->first;
-        assert(key.pl.datum);
-        memcpy(key.pl.datum, &v, sizeof(KeyT));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &v, sizeof(Key));
     }
 };
 
@@ -281,12 +281,13 @@ struct STLContainerTraits< std::vector<ValueT> > {
 
     static void get_key( Type & container
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         auto dist_ = std::distance(container.begin(), it);
         assert(dist_ >= 0);
         size_t dist = static_cast<size_t>(dist_);
-        memcpy(key.pl.datum, &dist, sizeof(size_t));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &dist, sizeof(size_t));
     }
 };
 
@@ -306,12 +307,13 @@ struct STLContainerTraits< std::vector<std::shared_ptr<ValueT>> > {
 
     static void get_key( Type & container
                        , Iterator it
-                       , hdql_CollectionKey & key
+                       , hdql_Key & key
                        ) {
         auto dist_ = std::distance(container.begin(), it);
         assert(dist_ >= 0);
         size_t dist = static_cast<size_t>(dist_);
-        memcpy(key.pl.datum, &dist, sizeof(size_t));
+        assert(hdql_key_datum_get(&key));
+        memcpy(hdql_key_datum_get(&key), &dist, sizeof(size_t));
     }
 };
 
@@ -406,7 +408,7 @@ struct IFace< ptr
     static hdql_Datum_t
     dereference( hdql_Datum_t root  // owning object
                , hdql_Datum_t dynData  // allocated with `instantiate()`
-               , struct hdql_CollectionKey * // may be NULL
+               , struct hdql_Key * // may be NULL
                , const hdql_Datum_t  // may be NULL
                , hdql_Context_t
                ) {
@@ -437,7 +439,7 @@ struct IFace< ptr
     static hdql_Datum_t
     dereference( hdql_Datum_t root  // owning object
                , hdql_Datum_t dynData  // allocated with `instantiate()`
-               , struct hdql_CollectionKey * // may be NULL
+               , struct hdql_Key * // may be NULL
                , const hdql_Datum_t  // may be NULL
                , hdql_Context_t
                ) {
@@ -495,13 +497,13 @@ struct IFace< ptr
 
     static hdql_Datum_t
     dereference( hdql_It_t it_
-               , struct hdql_CollectionKey * key
+               , struct hdql_Key * key
                ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return NULL;
         if(key) {
-            assert(key->pl.datum);
-            *reinterpret_cast<size_t *>(key->pl.datum) = it->cIndex;
+            assert(hdql_key_datum_get(key));
+            *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
         return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
@@ -592,13 +594,13 @@ struct IFace< ptr
 
     static hdql_Datum_t
     dereference( hdql_It_t it_
-               , struct hdql_CollectionKey * key
+               , struct hdql_Key * key
                ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return NULL;
         if(key) {
-            assert(key->pl.datum);
-            *reinterpret_cast<size_t *>(key->pl.datum) = it->cIndex;
+            assert(hdql_key_datum_get(key));
+            *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
         return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
@@ -712,13 +714,13 @@ struct IFace< ptr
 
     static hdql_Datum_t
     dereference( hdql_It_t it_
-               , struct hdql_CollectionKey * key
+               , struct hdql_Key * key
                ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         assert(it->owner);
         if((it->owner->*ptr).end() == it->it) return NULL;
         if(key) {
-            assert(0x0 != key->code);
+            assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
         return reinterpret_cast<hdql_Datum_t>(
@@ -805,14 +807,14 @@ struct IFace< ptr
 
     static hdql_Datum_t
     dereference( hdql_It_t it_
-               , struct hdql_CollectionKey * key
+               , struct hdql_Key * key
                ) {
         assert(it_);
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         assert(it->owner);
         if((it->owner->*ptr).end() == it->it) return NULL;
         if(key) {
-            assert(0x0 != key->code);
+            assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
         return reinterpret_cast<hdql_Datum_t>(

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-struct hdql_CollectionKey;  /* fwd */
+struct hdql_Key;  /* fwd */
 struct hdql_Query; /* fwd */
 struct hdql_Function;  /* fwd */
 struct hdql_AttrDef;  /* fwd */

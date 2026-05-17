@@ -21,8 +21,8 @@ TEST_F(TestMonoidal, allTypeInQueryResultsInAKeylessBooleanScalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -44,7 +44,7 @@ TEST_F(TestMonoidal, allTypeInQueryResultsInAKeylessBooleanScalar) {
 
     EXPECT_EQ(booltc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
 }
 
 TEST_F(TestMonoidal, allRefusesCompoundType) {

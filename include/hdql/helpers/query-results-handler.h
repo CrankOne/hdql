@@ -43,8 +43,8 @@ struct hdql_iQueryResultsHandler {
      *
      * Called in `hdql_query_result_table_init()`.
      * */
-    int (*handle_keys)(struct hdql_CollectionKey * keys
-            , struct hdql_KeyView * flatKeyViews
+    int (*handle_keys)(struct hdql_Key * keys
+            , struct hdql_Key ** flatKeyViews
             , size_t nKeys
             , void *
             );

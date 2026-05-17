@@ -3,8 +3,10 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/errors.h"
+#include "hdql/query-key.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
+#include "hdql/value.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -66,7 +68,8 @@ struct hdql_CSVHandler {
 
     struct hdql_CSVAttrHandler rootObjectHandler;
 
-    struct hdql_KeyView * flatKeyViews;
+    struct hdql_Key **flatKeyViews;
+    const struct hdql_ValueInterface **flatKeyIFaces;
     size_t flatKeyViewLength;
 
     /* internal printer state */
@@ -425,10 +428,11 @@ _csv_results_handler_handle_record(hdql_Datum_t datum, void * csv_ ) {
         /* Print columns for keys; use <keyPrefix><N> for keys without a
          * label */
         for(size_t nFKV = 0; nFKV < csv->flatKeyViewLength; ++nFKV) {
-            struct hdql_KeyView * kv = csv->flatKeyViews + nFKV;
-            if(kv->interface && kv->interface->get_as_string) {
+            struct hdql_Key **kv = csv->flatKeyViews + nFKV;
+            if(csv->flatKeyIFaces[nFKV] && csv->flatKeyIFaces[nFKV]->get_as_string) {
                 char fkvBf[128];
-                kv->interface->get_as_string(kv->keyPtr->pl.datum, fkvBf, sizeof(fkvBf), csv->ctx);
+                csv->flatKeyIFaces[nFKV]->get_as_string(hdql_key_datum_get(*kv)
+                        , fkvBf, sizeof(fkvBf), csv->ctx);
                 _csv_print_column(csv, fkvBf);
             } else {
                 _csv_print_column(csv, csv->fmt.nullToken);
@@ -525,10 +529,10 @@ static int _csv_handler_finalize_schema(void * csv_) {
          * label */
         char keyColNameBf[32];
         for(size_t nFKV = 0; nFKV < csv->flatKeyViewLength; ++nFKV) {
-            struct hdql_KeyView * kv = csv->flatKeyViews + nFKV;
+            struct hdql_Key ** kv = csv->flatKeyViews + nFKV;
             if(csv->nColumnsPrinted) fputs(csv->fmt.valueDelimiter, csv->dest);
-            if(kv->label) {
-                fputs(kv->label, csv->dest);
+            if(hdql_key_is_labeled(*kv)) {
+                fputs(hdql_key_get_label(*kv), csv->dest);
             } else {
                 snprintf( keyColNameBf, sizeof(keyColNameBf)
                         , csv->fmt.unlabeledKeyColumnFormat, nFKV );
@@ -622,13 +626,13 @@ _print_columns_list( const struct hdql_AttrHandlerTier * t
 /* part of `hdql_iQueryResultsHandler` implementation for CSV handler,
  * matches `hdql_iQueryResultsHandler::handle_keys()`.
  *
- * Keys themselves are given by a single linked list and uniquely identifies a
+ * Keys themselves are given by a nested structure and uniquely identify a
  * single record. To simplify acquizition of key values, a so-called "flat view"
  * is created in parallel of keys list, simplifying retrieval of keys once
  * the query result is advanced.
  * */
-static int _csv_handler_handle_keys(struct hdql_CollectionKey * keys
-            , struct hdql_KeyView * flatKeyViews
+static int _csv_handler_handle_keys(struct hdql_Key * keys
+            , struct hdql_Key ** flatKeyViews
             , size_t nFlatKeys
             , void * csv_
             ) {
@@ -637,6 +641,23 @@ static int _csv_handler_handle_keys(struct hdql_CollectionKey * keys
     assert(flatKeyViews);
     csv->flatKeyViews      = flatKeyViews;
     csv->flatKeyViewLength = nFlatKeys;
+
+    if(flatKeyViews) {
+        assert(csv->ctx);
+        struct hdql_ValueTypes * types = hdql_context_get_types(csv->ctx);
+        assert(types);
+        csv->flatKeyIFaces = (const struct hdql_ValueInterface **)
+                malloc(sizeof(struct hdql_ValueInterface *)*nFlatKeys);
+        for(size_t i = 0; i < nFlatKeys; ++i) {
+            assert(flatKeyViews[i]);
+            assert(hdql_key_is_datum(flatKeyViews[i]));
+            csv->flatKeyIFaces[i] = hdql_types_get_type(types
+                    , hdql_key_datum_get_type_code(flatKeyViews[i]));
+        }
+    } else {
+        csv->flatKeyIFaces = NULL;
+    }
+
     return 0;
 }
 
@@ -704,7 +725,7 @@ static void
 _free_attr_handler(struct hdql_CSVAttrHandler * ah, hdql_Context_t ctx) {
     const struct hdql_AttrDef * topAD = hdql_attr_def_top_attr(ah->ad);
 
-    /* name, ad are managed externally
+    /* name and AD are managed externally
      * value_handler is func ptr */
     if(hdql_attr_def_is_collection(topAD)) {
         /* get collection iface to destroy dynamic iteration state */
@@ -760,6 +781,8 @@ hdql_query_results_handler_csv_cleanup( struct hdql_iQueryResultsHandler * iqr )
     _M_opt_free(nullToken                );
     _M_opt_free(unlabeledKeyColumnFormat );
     #undef _M_opt_free
+
+    if(csv->flatKeyIFaces) free(csv->flatKeyIFaces);
 
     free(iqr->userdata);
 }

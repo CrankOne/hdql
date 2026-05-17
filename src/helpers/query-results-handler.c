@@ -3,6 +3,7 @@
 #include "hdql/context.h"
 #include "hdql/errors.h"
 #include "hdql/attr-def.h"
+#include "hdql/query-key.h"
 #include "hdql/query.h"
 #include "hdql/types.h"
 
@@ -17,11 +18,11 @@ struct hdql_QueryResultsWorkspace {
     struct hdql_iQueryResultsHandler * iqr;
 
     /* Keys pointer */
-    struct hdql_CollectionKey * keys;
+    struct hdql_Key * keys;
     /* Number of key flat views */
     size_t flatKeyViewLength;
     /* Keys flat views array */
-    struct hdql_KeyView * kv;
+    struct hdql_Key ** kv;
 };
 
 /* Allocates structure to track keys with their flattened views
@@ -33,14 +34,15 @@ struct hdql_QueryResultsWorkspace {
  * */
 static int
 _query_result_table_init_keys( struct hdql_QueryResultsWorkspace * ws ) {
-    ws->keys = NULL;
-    int rc = hdql_query_keys_reserve(ws->q, &ws->keys, ws->ctx);
-    assert(rc == 0);
-    ws->flatKeyViewLength = hdql_keys_flat_view_size(ws->keys, ws->ctx);
+    ws->keys = hdql_key_new(ws->ctx);
+    int rc = hdql_key_reserve_for_query(ws->q, ws->keys, ws->ctx);
+    assert(rc == HDQL_ERR_CODE_OK);
+    /* populate flat key views */
+    ws->flatKeyViewLength = hdql_key_flat_view_size(ws->keys, ws->ctx);
     ws->kv = ws->flatKeyViewLength
-                      ? (struct hdql_KeyView *) malloc(sizeof(struct hdql_KeyView)*ws->flatKeyViewLength)
+                      ? (struct hdql_Key **) malloc(sizeof(struct hdql_Key *)*ws->flatKeyViewLength)
                       : NULL;
-    hdql_keys_flat_view_update(ws->q, ws->keys, ws->kv, ws->ctx);
+    hdql_key_flat_view_populate(ws->keys, ws->kv);
     assert(ws->iqr->handle_keys);
     return ws->iqr->handle_keys( ws->keys, ws->kv, ws->flatKeyViewLength
             , ws->iqr->userdata);
@@ -116,7 +118,7 @@ hdql_query_results_process_records_from( struct hdql_Datum * d
 int
 hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * ws ) {
     if(ws->kv) free(ws->kv);
-    if(ws->keys) hdql_query_keys_destroy(ws->keys, ws->ctx);
+    if(ws->keys) hdql_key_destroy(ws->keys, ws->ctx);
     hdql_context_free(ws->ctx, (hdql_Datum_t) ws);
     return 0;
 }

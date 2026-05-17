@@ -69,7 +69,7 @@ hdql_Datum_t hdql_bound_compound_collection_interface_definition_data_init(
 
 void hdql_bound_compound_collection_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_t ctx);
 
-struct hdql_Key * hdql_bound_compound_key_reserve(const hdql_Datum_t defData_, hdql_Context_t ctx);
+int hdql_bound_compound_key_reserve(struct hdql_Key *, const hdql_Datum_t defData_, hdql_Context_t ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

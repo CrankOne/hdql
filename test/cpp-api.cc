@@ -5,6 +5,7 @@
 #include "hdql/compound.h"
 #include "hdql/context.h"
 #include "hdql/errors.h"
+#include "hdql/query-key.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
 #include "samples.hh"
@@ -89,16 +90,19 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     for(GenericQueryCursor qc = q.generic_cursor_on(_ev); qc; ++qc) {
         int kk[3];  // key to control
         for(size_t lvl = 0; lvl < q.keys_depth(); ++lvl) {
-            if(0x0 == q.keys()[lvl].code) {
+            hdql_Key * curKey = hdql_key_get_list_item(const_cast<hdql_Key*>(q.keys()), lvl);
+            if(hdql_key_is_empty(curKey)) {
                 kk[lvl] = -1;
                 //printf( " --- " );  // xxx
                 continue;
             }
-            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, q.keys()[lvl].code);
+            ASSERT_TRUE(hdql_key_is_datum(curKey));
+            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes
+                    , hdql_key_datum_get_type_code(curKey));
             assert(vi->get_as_string);
             //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
             //printf(" %s ", bf);
-            kk[lvl] = vi->get_as_int(q.keys()[lvl].pl.datum);
+            kk[lvl] = vi->get_as_int(hdql_key_datum_get(curKey));
         }
 
         bool found = false;
@@ -166,16 +170,19 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
         for(QueryCursor<double> qc = q.cursor_on<double>(_ev); qc; ++qc) {
             int kk[3];  // key to control
             for(size_t lvl = 0; lvl < q.keys_depth(); ++lvl) {
-                if(0x0 == q.keys()[lvl].code) {
+                hdql_Key * curKey = hdql_key_get_list_item(const_cast<hdql_Key*>(q.keys()), lvl);
+                if(hdql_key_is_empty(curKey)) {
                     kk[lvl] = -1;
                     //printf( " --- " );  // xxx
                     continue;
                 }
-                const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, q.keys()[lvl].code);
+                ASSERT_TRUE(hdql_key_is_datum(curKey));
+                const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes
+                        , hdql_key_datum_get_type_code(curKey) );
                 assert(vi->get_as_string);
                 //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
                 //printf(" %s ", bf);
-                kk[lvl] = vi->get_as_int(q.keys()[lvl].pl.datum);
+                kk[lvl] = vi->get_as_int(hdql_key_datum_get(curKey));
             }
 
             bool found = false;
@@ -250,16 +257,19 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     for(; qc; ++qc) {
         int kk[3];  // key to control
         for(size_t lvl = 0; lvl < q.keys_depth(); ++lvl) {
-            if(0x0 == q.keys()[lvl].code) {
+            hdql_Key * curKey = hdql_key_get_list_item(const_cast<hdql_Key*>(q.keys()), lvl);
+            if(hdql_key_is_empty(curKey)) {
                 kk[lvl] = -1;
                 //printf( " --- " );  // xxx
                 continue;
             }
-            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes, q.keys()[lvl].code);
+            ASSERT_TRUE(hdql_key_is_datum(curKey));
+            const hdql_ValueInterface * vi = hdql_types_get_type(_valueTypes
+                        , hdql_key_datum_get_type_code(curKey) );
             assert(vi->get_as_string);
             //vi->get_as_string(keys[lvl].datum, bf, sizeof(bf));
             //printf(" %s ", bf);
-            kk[lvl] = vi->get_as_int(q.keys()[lvl].pl.datum);
+            kk[lvl] = vi->get_as_int(hdql_key_datum_get(curKey));
         }
 
         bool found = false;

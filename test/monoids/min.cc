@@ -3,7 +3,6 @@
 #include "hdql/value.h"
 #include "monoids.hh"
 #include <gtest/gtest.h>
-#include <limits>
 #include <memory>
 
 using ::hdql::test::TestMonoidal;
@@ -20,8 +19,8 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessI32Scalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -43,7 +42,7 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessI32Scalar) {
 
     EXPECT_EQ(i32tc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
 }
 
 TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessU16Scalar) {
@@ -55,8 +54,8 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessU16Scalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -78,7 +77,7 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAKeylessU16Scalar) {
 
     EXPECT_EQ(u16tc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
 }
 
 TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedKeylessScalar) {
@@ -90,8 +89,8 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedKeylessScalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -113,7 +112,7 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedKeylessScalar) {
 
     EXPECT_EQ(i64tc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
 }
 
 TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar) {
@@ -125,8 +124,8 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar)
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(_query, &keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -148,7 +147,7 @@ TEST_F(TestMonoidal, minTypeInQueryResultsInAPromotedFloatingPointKeylessScalar)
 
     EXPECT_EQ(dbltc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
 }
 
 TEST_F(TestMonoidal, minRefusesBooleanType) {

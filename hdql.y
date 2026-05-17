@@ -768,7 +768,7 @@ _resolve_query_top_as_compound( struct hdql_Query * q
 /* returns "owner" as result */
 static hdql_Datum_t _dereference_to_self( hdql_Datum_t d
     , hdql_Datum_t dynData
-    , struct hdql_CollectionKey * key
+    , struct hdql_Key * key
     , const hdql_Datum_t defData
     , hdql_Context_t ctx
     ) { return d; }
@@ -806,6 +806,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
                            , struct hdql_Compound * vCompoundPtr
                            , struct hdql_Query * filterQuery
                            ) {
+    assert(vCompoundPtr);
     struct hdql_AttrDef * vCompoundAttrDef;
     if(!hdql_virtual_compound_is_bound(vCompoundPtr)) {
         struct hdql_ScalarAttrInterface iface;
@@ -850,7 +851,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         vCompoundAttrDef = hdql_attr_def_create_compound_collection(
                   vCompoundPtr  /* ... compound ptr */
                 , &iface  /* ......... collection iface ptr */
-                , 0x0  /* ............ key type code (TODO?) */
+                , 0x0  /* ............ key type code */
                 , hdql_bound_compound_key_reserve  /* key reserve callback */
                 , ws->context  /* .... context */
                 );

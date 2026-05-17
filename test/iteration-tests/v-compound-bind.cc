@@ -48,11 +48,9 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksOnSample1) {
     // iterate over query results, check all expected keys and values appeared
     //size_t nResult = 0;  // xxx
     hdql_Datum_t r;
-    size_t keysDepth = hdql_query_depth(q);
-    ASSERT_EQ(keysDepth, 4);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -63,20 +61,33 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksOnSample1) {
     const hdql_ValueInterface * vi
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
+
+    size_t flatKeyViewLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
     ASSERT_EQ(2, flatKeyViewLen);
-    hdql_KeyView keysViews[2];
-    hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
+    hdql_Key * keysViews[2];
+    hdql_key_flat_view_populate(key, keysViews);
+
+    ASSERT_TRUE(keysViews[0]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[0]), 0x0);
+    ASSERT_TRUE(keysViews[1]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[1]), 0x0);
+
+    const hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    const hdql_ValueInterface * kvi1 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[0]));
+    ASSERT_TRUE(kvi1);
+    ASSERT_TRUE(kvi1->get_as_int);
+    const hdql_ValueInterface * kvi2 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[1]));
+    ASSERT_TRUE(kvi2);
+    ASSERT_TRUE(kvi2->get_as_int);
     
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
-        ASSERT_TRUE(keysViews[0].interface->get_as_int);
-        ASSERT_TRUE(keysViews[1].interface->get_as_int);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
+            if( kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) != expectedQueryResults[i].keys[0]
+             || kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) != expectedQueryResults[i].keys[1]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -86,7 +97,7 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksOnSample1) {
         EXPECT_TRUE(found);
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -95,8 +106,6 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksOnSample1) {
         EXPECT_TRUE(expectedQueryResults[i].visited);
     }
 };
-
-
 
 TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProduct) {
     // note, that since hits in track are in unordered_map, particular order is
@@ -154,8 +163,8 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProduct) 
     size_t keysDepth = hdql_query_depth(q);
     ASSERT_EQ(keysDepth, 3);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -168,24 +177,40 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProduct) 
     ASSERT_TRUE(vi);
     ASSERT_TRUE(vi->get_as_float);
 
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
     ASSERT_EQ(3, flatKeyViewLen);
-    hdql_KeyView keysViews[3];
-    hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
+    hdql_Key * keysViews[3];
+    hdql_key_flat_view_populate(key, keysViews);
+
+    ASSERT_TRUE(keysViews[0]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[0]), 0x0);
+    ASSERT_TRUE(keysViews[1]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[1]), 0x0);
+    ASSERT_TRUE(keysViews[2]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[2]), 0x0);
+
+    const hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    const hdql_ValueInterface * kvi1 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[0]));
+    ASSERT_TRUE(kvi1);
+    ASSERT_TRUE(kvi1->get_as_int);
+    const hdql_ValueInterface * kvi2 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[1]));
+    ASSERT_TRUE(kvi2);
+    ASSERT_TRUE(kvi2->get_as_int);
+    const hdql_ValueInterface * kvi3 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[2]));
+    ASSERT_TRUE(kvi3);
+    ASSERT_TRUE(kvi3->get_as_int);
     
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
     double v;
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
-        ASSERT_TRUE(keysViews[0].interface->get_as_int);
-        ASSERT_TRUE(keysViews[1].interface->get_as_int);
-        ASSERT_TRUE(keysViews[2].interface->get_as_int);
         v = vi->get_as_float(r);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
-             || keysViews[2].interface->get_as_int(keysViews[2].keyPtr->pl.datum) != expectedQueryResults[i].keys[2]
+            if( kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) != expectedQueryResults[i].keys[0]
+             || kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) != expectedQueryResults[i].keys[1]
+             || kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) != expectedQueryResults[i].keys[2]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -194,13 +219,13 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProduct) 
             break;
         }
         EXPECT_TRUE(found) << "extra value: key=("
-            << keysViews[0].interface->get_as_int << ", "
-            << keysViews[1].interface->get_as_int << ", "
-            << keysViews[2].interface->get_as_int << ") value="
+            << kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) << ", "
+            << kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) << ", "
+            << kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) << ") value="
             << v;
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -209,6 +234,7 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProduct) 
         EXPECT_TRUE(expectedQueryResults[i].visited);
     }
 };
+
 
 TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProductOfFiltered) {
     // note, that since hits in track are in unordered_map, particular order is
@@ -244,8 +270,8 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProductOf
     size_t keysDepth = hdql_query_depth(q);
     ASSERT_EQ(keysDepth, 3);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -258,24 +284,40 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProductOf
     ASSERT_TRUE(vi);
     ASSERT_TRUE(vi->get_as_float);
 
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
     ASSERT_EQ(3, flatKeyViewLen);
-    hdql_KeyView keysViews[3];
-    hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
+    hdql_Key * keysViews[3];
+    hdql_key_flat_view_populate(key, keysViews);
+
+    ASSERT_TRUE(keysViews[0]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[0]), 0x0);
+    ASSERT_TRUE(keysViews[1]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[1]), 0x0);
+    ASSERT_TRUE(keysViews[2]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[2]), 0x0);
+
+    const hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    const hdql_ValueInterface * kvi1 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[0]));
+    ASSERT_TRUE(kvi1);
+    ASSERT_TRUE(kvi1->get_as_int);
+    const hdql_ValueInterface * kvi2 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[1]));
+    ASSERT_TRUE(kvi2);
+    ASSERT_TRUE(kvi2->get_as_int);
+    const hdql_ValueInterface * kvi3 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[2]));
+    ASSERT_TRUE(kvi3);
+    ASSERT_TRUE(kvi3->get_as_int);
     
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
     double v;
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
-        ASSERT_TRUE(keysViews[0].interface->get_as_int);
-        ASSERT_TRUE(keysViews[1].interface->get_as_int);
-        ASSERT_TRUE(keysViews[2].interface->get_as_int);
         v = vi->get_as_float(r);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
-             || keysViews[2].interface->get_as_int(keysViews[2].keyPtr->pl.datum) != expectedQueryResults[i].keys[2]
+            if( kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) != expectedQueryResults[i].keys[0]
+             || kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) != expectedQueryResults[i].keys[1]
+             || kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) != expectedQueryResults[i].keys[2]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -284,13 +326,13 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProductOf
             break;
         }
         EXPECT_TRUE(found) << "extra value: key=("
-            << keysViews[0].interface->get_as_int << ", "
-            << keysViews[1].interface->get_as_int << ", "
-            << keysViews[2].interface->get_as_int << ") value="
+            << kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) << ", "
+            << kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) << ", "
+            << kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) << ") value="
             << v;
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -299,6 +341,7 @@ TEST_F(TestingEventStruct, boundAttribute_DataIterationWorksAsCartesianProductOf
         EXPECT_TRUE(expectedQueryResults[i].visited);
     }
 };
+
 
 TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianProduct_1) {
     // note, that since hits in track are in unordered_map, particular order is
@@ -340,8 +383,8 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
     size_t keysDepth = hdql_query_depth(q);
     ASSERT_EQ(keysDepth, 3);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -354,24 +397,40 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
     ASSERT_TRUE(vi);
     ASSERT_TRUE(vi->get_as_float);
 
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
     ASSERT_EQ(3, flatKeyViewLen);
-    hdql_KeyView keysViews[3];
-    hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
+    hdql_Key * keysViews[3];
+    hdql_key_flat_view_populate(key, keysViews);
+
+    ASSERT_TRUE(keysViews[0]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[0]), 0x0);
+    ASSERT_TRUE(keysViews[1]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[1]), 0x0);
+    ASSERT_TRUE(keysViews[2]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[2]), 0x0);
+
+    const hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    const hdql_ValueInterface * kvi1 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[0]));
+    ASSERT_TRUE(kvi1);
+    ASSERT_TRUE(kvi1->get_as_int);
+    const hdql_ValueInterface * kvi2 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[1]));
+    ASSERT_TRUE(kvi2);
+    ASSERT_TRUE(kvi2->get_as_int);
+    const hdql_ValueInterface * kvi3 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[2]));
+    ASSERT_TRUE(kvi3);
+    ASSERT_TRUE(kvi3->get_as_int);
     
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
     double v;
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
-        ASSERT_TRUE(keysViews[0].interface->get_as_int);
-        ASSERT_TRUE(keysViews[1].interface->get_as_int);
-        ASSERT_TRUE(keysViews[2].interface->get_as_int);
         v = vi->get_as_float(r);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
-             || keysViews[2].interface->get_as_int(keysViews[2].keyPtr->pl.datum) != expectedQueryResults[i].keys[2]
+            if( kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) != expectedQueryResults[i].keys[0]
+             || kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) != expectedQueryResults[i].keys[1]
+             || kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) != expectedQueryResults[i].keys[2]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -380,13 +439,13 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
             break;
         }
         EXPECT_TRUE(found) << "extra value: key=("
-            << keysViews[0].interface->get_as_int << ", "
-            << keysViews[1].interface->get_as_int << ", "
-            << keysViews[2].interface->get_as_int << ") value="
+            << kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) << ", "
+            << kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) << ", "
+            << kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) << ") value="
             << v;
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -436,8 +495,8 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
     size_t keysDepth = hdql_query_depth(q);
     ASSERT_EQ(keysDepth, 3);
     
-    hdql_CollectionKey * keys;
-    ASSERT_EQ(0, hdql_query_keys_reserve(q, &keys, _compounds.context_ptr()));
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    ASSERT_EQ(0, hdql_key_reserve_for_query(q, key, _compounds.context_ptr()));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(q);
     ASSERT_TRUE( ad );
@@ -450,24 +509,40 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
     ASSERT_TRUE(vi);
     ASSERT_TRUE(vi->get_as_float);
 
-    size_t flatKeyViewLen = hdql_keys_flat_view_size(keys, _compounds.context_ptr());
+    size_t flatKeyViewLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
     ASSERT_EQ(3, flatKeyViewLen);
-    hdql_KeyView keysViews[3];
-    hdql_keys_flat_view_update(q, keys, keysViews, _compounds.context_ptr());
+    hdql_Key * keysViews[3];
+    hdql_key_flat_view_populate(key, keysViews);
+
+    ASSERT_TRUE(keysViews[0]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[0]), 0x0);
+    ASSERT_TRUE(keysViews[1]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[1]), 0x0);
+    ASSERT_TRUE(keysViews[2]);
+    ASSERT_NE(hdql_key_datum_get_type_code(keysViews[2]), 0x0);
+
+    const hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    ASSERT_TRUE(types);
+    const hdql_ValueInterface * kvi1 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[0]));
+    ASSERT_TRUE(kvi1);
+    ASSERT_TRUE(kvi1->get_as_int);
+    const hdql_ValueInterface * kvi2 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[1]));
+    ASSERT_TRUE(kvi2);
+    ASSERT_TRUE(kvi2->get_as_int);
+    const hdql_ValueInterface * kvi3 = hdql_types_get_type(types, hdql_key_datum_get_type_code(keysViews[2]));
+    ASSERT_TRUE(kvi3);
+    ASSERT_TRUE(kvi3->get_as_int);
     
     hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), _compounds.context_ptr());
     double v;
-    while(NULL != (r = hdql_query_get(q, keys, _compounds.context_ptr()))) {
+    while(NULL != (r = hdql_query_get(q, key, _compounds.context_ptr()))) {
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
-        ASSERT_TRUE(keysViews[0].interface->get_as_int);
-        ASSERT_TRUE(keysViews[1].interface->get_as_int);
-        ASSERT_TRUE(keysViews[2].interface->get_as_int);
         v = vi->get_as_float(r);
         for(size_t i = 0; i < sizeof(expectedQueryResults)/sizeof(*expectedQueryResults); ++i) {
-            if( keysViews[0].interface->get_as_int(keysViews[0].keyPtr->pl.datum) != expectedQueryResults[i].keys[0]
-             || keysViews[1].interface->get_as_int(keysViews[1].keyPtr->pl.datum) != expectedQueryResults[i].keys[1]
-             || keysViews[2].interface->get_as_int(keysViews[2].keyPtr->pl.datum) != expectedQueryResults[i].keys[2]
+            if( kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) != expectedQueryResults[i].keys[0]
+             || kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) != expectedQueryResults[i].keys[1]
+             || kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) != expectedQueryResults[i].keys[2]
              ) continue;
             found = true;
             EXPECT_FALSE(expectedQueryResults[i].visited);
@@ -476,13 +551,13 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
             break;
         }
         EXPECT_TRUE(found) << "extra value: key=("
-            << keysViews[0].interface->get_as_int << ", "
-            << keysViews[1].interface->get_as_int << ", "
-            << keysViews[2].interface->get_as_int << ") value="
+            << kvi1->get_as_int(hdql_key_datum_get(keysViews[0])) << ", "
+            << kvi2->get_as_int(hdql_key_datum_get(keysViews[1])) << ", "
+            << kvi3->get_as_int(hdql_key_datum_get(keysViews[2])) << ") value="
             << v;
     }
     
-    EXPECT_EQ(0, hdql_query_keys_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(key, _compounds.context_ptr()));
 
     hdql_query_destroy(q, _compounds.context_ptr());
 
@@ -491,3 +566,4 @@ TEST_F(TestingEventStruct, boundAttribute_FilteredDataIterationWorksAsCartesianP
         EXPECT_TRUE(expectedQueryResults[i].visited);
     }
 };
+

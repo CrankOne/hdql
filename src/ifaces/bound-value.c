@@ -17,8 +17,8 @@
  * lifecycle.
  *
  * - pointer to a query is stored in definition data, but it is not controlled
- *   by this interface. It is stored *only* to be picked up at the end of
- *   encompassing virtual compound creation (TODO: but gets deleted here?)
+ *   by this interface. It is stored only to be picked up at the end of
+ *   encompassing virtual compound creation.
  * - refers to a collection (sub-queries resulting in non-scalar item);
  * - represents themself as a scalar during query state evaluation at own
  *   level;
@@ -32,13 +32,12 @@
  * is a collection, steering iteration over bound query.
  */
 
-/* NOTE: this is definition data, NOT AN ITERATOR! */
+/* NOTE: this is attribute definition data, not an iterator */
 struct BoundValueDefinitionData {
     /* query that should provide the value. Set upon construction */
     struct hdql_Query * q;
     /* value pointer */
     hdql_Datum_t * value;
-    /* ... key?*/
 };
 
 hdql_Datum_t
@@ -84,14 +83,13 @@ const struct hdql_ScalarAttrInterface _hdql_gBoundQueryIFace = {
     .destroy = _bound_query_scalar_interface_destroy
 };
 
+
 /* Bound compound collection (possibly filtered) manages Cartesian product
  * internally to iterate over set of (binding) queries. 
  *
  * Upon creation the iterator gets initialized with compound containing (up to
  * this point incomplete) bound attributes that are used to assemble data
- * necessary for a Cartesian product.
- * */
-
+ * necessary for a Cartesian product. */
 struct QueryProdIterator {
     struct hdql_Query * filterQuery;
     const struct hdql_ValueInterface * filterVI;
@@ -100,7 +98,9 @@ struct QueryProdIterator {
 
     struct hdql_Query ** boundQueries;
     hdql_Datum_t * values;
-    /* de-structured list of keys, a cache */
+    /* de-structured list of keys, a cache
+     * We could keep it as a key list, but Cartesian product API expects
+     * pointer-to-pointers. */
     struct hdql_Key ** keys;
 
     hdql_Datum_t owner;
@@ -144,7 +144,7 @@ _bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrA
     int rc =
     #endif
         hdql_key_reserve_for_query( bDefData->q
-                                  , ud->it->keys + ud->nBoundAttr
+                                  , ud->it->keys[ud->nBoundAttr]
                                   , ud->it->context
                                   );
     assert(0 == rc);
@@ -208,8 +208,9 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
     /* see comments to issue #14 -- we currently have to allocate and maintain
      * keys unconditionally, but that must be changed in the future */
     it->keys = (struct hdql_Key **)
-            hdql_context_alloc(ctx
-                , it->nBindingQueries*sizeof(struct hdql_Key *));
+            hdql_context_alloc(ctx, it->nBindingQueries*sizeof(struct hdql_Key *));
+    for(size_t i = 0; i < it->nBindingQueries; ++i)
+        it->keys[i] = hdql_key_new(ctx);
     it->values = (hdql_Datum_t *) hdql_context_alloc(ctx, sizeof(hdql_Datum_t *)*it->nBindingQueries);
     _BindQueryUD_t bqud = {.it = it, .nBoundAttr = 0};
     hdql_compound_for_each_own_attribute(dd->vCompound, _bind_query, &bqud);
@@ -224,19 +225,14 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     if(keyPtr) {
         assert(hdql_key_is_list(keyPtr));
-        #if 1
-        assert(false);  // TODO
-        #else
-        assert(keyPtr->pl.keysList[it->nBindingQueries-1].isTerminal);
         for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
             //assert(keyPtr->pl.keysList[nq].isList);
             if(!it->keys[nq]) continue;
-            hdql_query_keys_copy( keyPtr->pl.keysList[nq].pl.keysList
-                                , it->keys[nq]
-                                , it->context
-                                );
+            hdql_key_copy_value( hdql_key_get_list_item(keyPtr, nq)
+                               , it->keys[nq]
+                               , it->context
+                               );
         }
-        #endif
     }
     #ifndef NDEBUG
     if(it->owner) {
@@ -358,17 +354,20 @@ _hdql_cartesian_product_destroy( hdql_It_t it_
     hdql_context_free(ctx, (hdql_Datum_t) it_);
 }
 
-
 /* userdata type for _reserve_keys_list_for_binding_query() callback */
 typedef struct {
     size_t nBoundAttr;
-    struct hdql_Key * keysLists;
+    struct hdql_Key * objKeyList;
     hdql_Context_t ctx;
 } _AllocKeysUD_t;
 
+/* called for every bound attribute to reserve composite key for bound object */
 static int
-_reserve_keys_list_for_binding_query(const char * attrName, size_t nAttr
-        , const struct hdql_AttrDef * ad, void * ud_) {
+_reserve_keys_list_for_binding_query( const char * attrName
+        , size_t nAttr
+        , const struct hdql_AttrDef * ad
+        , void * ud_
+        ) {
     if(!hdql_attr_def_is_bound(ad)) return 0;  /* continue */
     _AllocKeysUD_t * ud = (_AllocKeysUD_t *) ud_;
 
@@ -382,44 +381,41 @@ _reserve_keys_list_for_binding_query(const char * attrName, size_t nAttr
      * hdql_bound_value_interface_definition_data_init() must be used */
     struct BoundValueDefinitionData * bDefData
         = (struct BoundValueDefinitionData*) boundAttrIFace->definitionData;
-    #if 1
-    assert(false);  // TODO
-    #else
-    hdql_query_keys_reserve(bDefData->q, &(ud->keysLists[ud->nBoundAttr].pl.keysList), ud->ctx);
-    assert(ud->keysLists[ud->nBoundAttr].pl.keysList);
-    ud->keysLists[ud->nBoundAttr].isList = 0x1;
-    ud->keysLists[ud->nBoundAttr].code = 0x0;
-    #endif
+    hdql_key_reserve_for_query(bDefData->q
+            , hdql_key_get_list_item(ud->objKeyList, ud->nBoundAttr)
+            , ud->ctx);
     ++(ud->nBoundAttr);
     return 0;
 }
 
-struct hdql_Key * hdql_bound_compound_key_reserve(
+/* Called from AD interface to reserve keys
+ *
+ * Allocated key object is of "key list" type, referencing bound attributes
+ * per each list item. */
+int
+hdql_bound_compound_key_reserve( struct hdql_Key * key,
             const hdql_Datum_t defData_, hdql_Context_t ctx) {
+    /* expect AD definition data to be of special type,
+     * `hdql_BindingCompoundCollectionDefData`, that must be allocated and
+     * initilized by parser (see `_new_virtual_compound_query()` */
     struct hdql_BindingCompoundCollectionDefData * dd
             = hdql_cast(ctx, struct hdql_BindingCompoundCollectionDefData, defData_);
     assert(dd->vCompound);
+    /* count binding queries */
     size_t nBindingQueries = 0;
     hdql_compound_for_each_own_attribute(dd->vCompound
             , _count_bound_attributes
             , &nBindingQueries);
     assert(nBindingQueries > 0);  /* otherwise this compound could not be "bound" */
+
     _AllocKeysUD_t ud = {.nBoundAttr = 0, .ctx = ctx};
-    /* top-level key (always a body of the list), see implementation
-     * of `hdql_attr_def_reserve_keys()` in attr-def.c and issue #14 */
-    #if 1
-    assert(false);  // TODO
-    #else
-    ud.keysLists = (struct hdql_CollectionKey *) hdql_context_alloc(ctx
-            , nBindingQueries*sizeof(struct hdql_CollectionKey));
-    bzero(ud.keysLists, nBindingQueries*sizeof(struct hdql_CollectionKey));
+    /* top-level key (always a body of the list) */
+    hdql_key_mark_as_list(key, nBindingQueries, ctx);
+    ud.objKeyList = key;
     hdql_compound_for_each_own_attribute(dd->vCompound
             , _reserve_keys_list_for_binding_query
             , &ud );
-    /* todo: this is required as external code expects us to allocate a list */
-    ud.keysLists[nBindingQueries-1].isTerminal = 0x1;
-    #endif
-    return ud.keysLists;
+    return HDQL_ERR_CODE_OK;
 }
 
 const struct hdql_CollectionAttrInterface _hdql_gBindingCompoundCollectionIFace = {

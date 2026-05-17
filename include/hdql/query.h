@@ -128,6 +128,8 @@ HDQL_API void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
  *
  * \returns `HDQL_ERR_CODE_OK` on success
  * \returns `HDQL_ERR_EMPTY_SET` if at least one query does not yield a value
+ *
+ * \todo Use single list key instead of array of pointers?
  * */
 HDQL_API int
 hdql_query_product_reset( struct hdql_Query ** qs

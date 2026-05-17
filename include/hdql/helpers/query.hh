@@ -14,10 +14,9 @@
 struct hdql_Datum;  // fwd
 struct hdql_Context;  // fwd
 struct hdql_Query;  // fwd
-struct hdql_CollectionKey;  // fwd
+struct hdql_Key;  // fwd
 struct hdql_AttrDef;  // fwd
 struct hdql_Compound;  // fwd
-struct hdql_KeyView; // fwd
 
 ///\brief Matches `hdql_TypeConverter` callback function type
 ///
@@ -275,11 +274,11 @@ protected:
     /// Pointer to C query instance which class wraps
     hdql_Query * _query;
     /// Collection keys cache (can be NULL if disabled by ctr)
-    hdql_CollectionKey * _keys;
+    hdql_Key * _keys;
     /// Query result type ptr (managed by context)
     const hdql_AttrDef * _topAttrDef;
     /// Flat key view; can be NULL if keys disabled by ctr
-    hdql_KeyView * _kv;
+    hdql_Key ** _kv;
     /// Reference to compounds dictionary
     const std::unordered_map<std::type_index, hdql_Compound *> & _compounds;
 private:
@@ -374,7 +373,7 @@ public:
     bool is_transient() const;
 
     size_t keys_depth() const;
-    const hdql_CollectionKey * keys() const;
+    const hdql_Key * keys() const;
 
     const struct hdql_AttrDef * attr_def() const;
 
@@ -384,7 +383,8 @@ public:
     /// If `recurseDelimiter` is set, will expand compound entries as well.
     std::vector<std::string> names(char recurseDelimiter='\0') const;
 
-    std::vector<std::string> key_names() const;
+    ///\brief Returns list of key type names, in order
+    std::vector<std::string> key_type_names() const;
 
     /// Returns generic (polymorphic) cursor instance
     ///

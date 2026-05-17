@@ -57,7 +57,7 @@ static hdql_Datum_t
 _filtered_compound_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t s_
-        , struct hdql_CollectionKey * key  // can be null
+        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t defData_
         , hdql_Context_t ctx
         ) {

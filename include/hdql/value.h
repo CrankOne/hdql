@@ -7,8 +7,6 @@
 extern "C" {
 #endif
 
-struct hdql_CollectionKey;  /* fwd */
-
 /**\brief Type table
  *
  * Collects information about defined types. */

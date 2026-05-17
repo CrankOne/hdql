@@ -176,18 +176,19 @@ Query::Query( const char * expression
     // reserve keys and flat keys view, if need
     if(keysNeeded) {
         // reserve ordinary keys list
-        rc = hdql_query_keys_reserve(_query, &_keys, _ownContext);
+        _keys = hdql_key_new(_ownContext);
+        rc = hdql_key_reserve_for_query(_query, _keys, _ownContext);
         if(HDQL_ERR_CODE_OK != rc) {
             snprintf(errBuf, sizeof(errBuf), "Failed to reserve keys for HDQL"
                     " query result; returns code is %d: %s.", rc, hdql_err_str(rc));
             throw errors::HDQLExpressionError(expression, errBuf);
         }
         // reserve flat keys view
-        size_t flatKeyViewLength = hdql_keys_flat_view_size(_keys, _ownContext);
+        size_t flatKeyViewLength = hdql_key_flat_view_size(_keys, _ownContext);
         _kv = flatKeyViewLength
-                      ? (hdql_KeyView *) malloc(sizeof(hdql_KeyView)*flatKeyViewLength)
+                      ? (hdql_Key **) malloc(sizeof(hdql_Key*)*flatKeyViewLength)
                       : NULL;
-        hdql_keys_flat_view_update(_query, _keys, _kv, _ownContext);
+        hdql_key_flat_view_populate(_keys, _kv);
     }
 }
 
@@ -213,7 +214,7 @@ Query::_get_unsafe() {
 
 Query::~Query() {
     if(_keys) {
-        hdql_query_keys_destroy(_keys, _ownContext);
+        hdql_key_destroy(_keys, _ownContext);
     }
     if(_kv) {
         free(_kv);
@@ -238,7 +239,7 @@ Query::keys_depth() const {
     return hdql_query_depth(_query);
 }
 
-const hdql_CollectionKey *
+const hdql_Key *
 Query::keys() const {
     return _keys;
 }
@@ -300,22 +301,24 @@ hdql::Query::names(char recurseDelimiter) const {
 }
 
 std::vector<std::string>
-hdql::Query::key_names() const {
+hdql::Query::key_type_names() const {
     if (!_keys) {
         throw errors::HDQLError("Query does not expose keys (perhaps keysNeeded=false)");
     }
 
     hdql_Context * ctx = _ownContext;
-    size_t nKeys = hdql_keys_flat_view_size(_keys, ctx);
+    hdql_ValueTypes * types = hdql_context_get_types(_ownContext);
+
+    size_t nKeys = hdql_key_flat_view_size(_keys, ctx);
     std::vector<std::string> names;
     names.reserve(nKeys);
 
-    std::vector<hdql_KeyView> kv(nKeys);
-    hdql_keys_flat_view_update(_query, _keys, kv.data(), ctx);
+    std::vector<hdql_Key *> kv(nKeys);
+    hdql_key_flat_view_populate(_keys, kv.data());
 
     for (const auto & view : kv) {
-        //const char * name = view.interface->get_name(view.keyPtr);
-        const char * name = view.interface->name;
+        const hdql_ValueInterface * iface = hdql_types_get_type(types, hdql_key_datum_get_type_code(view));
+        const char * name = iface->name;
         if (!name) {
             throw errors::HDQLError("Key name retrieval failed (null name returned)");
         }

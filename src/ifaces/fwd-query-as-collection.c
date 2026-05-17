@@ -114,26 +114,6 @@ _fwd_query_collection_interface_destroy(
     hdql_context_free(ctx, (hdql_Datum_t) it_);
 }
 
-#if 0
-static void
-_fwd_query_collection_interface_get_key(
-          hdql_Datum_t unused
-        , hdql_It_t it_
-        , struct hdql_CollectionKey * keyPtr
-        , hdql_Context_t ctx
-        ) {
-    assert(it_);
-    assert(keyPtr);
-    //auto it = reinterpret_cast<SubQueryIterator *>(it_);
-    SubQueryIterator * it = hdql_cast(ctx, SubQueryIterator, it_);
-    assert(it->keys);
-    assert(keyPtr->code == 0x0);  // key type code for fwd_query
-    assert(keyPtr->pl.datum);
-    int rc = hdql_copy_keys( it->subQuery, keyPtr->pl.keysList, it->keys, ctx);
-    assert(0 == rc);
-}
-#endif
-
 const struct hdql_CollectionAttrInterface _hdql_gCollectionFwdQueryIFace = {
     .definitionData = NULL,  /* changed in copies to keep target forwarding query ptr */
     .create = _fwd_query_collection_interface_create,

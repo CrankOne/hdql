@@ -66,7 +66,7 @@ typedef HDQL_STRING_TYPE hdql_StrPtr_t;
  *    foresee some bits at the beginning of containing type
  *  - reserve at least one bit in the containing type to keep scalar features
  *    flag (`hdql_AtomicTypeFeatures`) packed at the same area or at least two
- *    bits for `hdql_CollectionKey` pack
+ *    bits for `hdql_Key` pack
  * So for instance:
  *  - containing type is unsigned short of length 16
  *  - then conversion key is unsigned int of 2x16=32 bits

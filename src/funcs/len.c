@@ -55,7 +55,7 @@ static hdql_Datum_t
 _len__dereference
             ( hdql_Datum_t root  /* owning object */
             , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , struct hdql_CollectionKey * keys /* may be NULL */
+            , struct hdql_Key * keys /* may be NULL */
             , const hdql_Datum_t defData_ /* may be NULL */
             , hdql_Context_t context
             ) {
@@ -78,7 +78,7 @@ static hdql_Datum_t
 _empty__dereference
             ( hdql_Datum_t root  /* owning object */
             , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , struct hdql_CollectionKey * keys /* may be NULL */
+            , struct hdql_Key * keys /* may be NULL */
             , const hdql_Datum_t defData_ /* may be NULL */
             , hdql_Context_t context
             ) {

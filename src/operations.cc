@@ -1,5 +1,6 @@
 #include "hdql/operations.h"
 #include "hdql/context.h"
+#include "hdql/query-key.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
 #include "hdql/compound.h"
@@ -561,14 +562,8 @@ hdql_scalar_arith_op_create( hdql_Query * a
             scalarOp->keys[i] = NULL;
             continue;
         }
-        #if 1
-        assert(false);
-        #else
-        hdql_CollectionKey * k = NULL;
-        int rc = hdql_query_keys_destroy(k, ctx);  // TODO: what?!
-        assert(0 == rc);  // TODO: handle key allocation error
-        scalarOp->keys[i] = k;
-        #endif
+        /* TODO: this code seems to be not covered with UTs */
+        scalarOp->keys[i] = hdql_key_new(ctx);
     }
 
     return reinterpret_cast<hdql_Datum_t>(scalarOp);

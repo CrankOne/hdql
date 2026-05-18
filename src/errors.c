@@ -13,6 +13,9 @@ hdql_err_str(hdql_Err_t code) {
         case HDQL_ERR_NAME_COLLISION:
             return "an entry with such name already exists";
 
+        case HDQL_ERR_NO_KEY_SUPPORT:
+            return "dynamic data does not maintain key";
+
         case HDQL_ERR_TRANSLATION_FAILURE:
             return "general parser/lexer error";
         case HDQL_ERR_UNKNOWN_ATTRIBUTE:

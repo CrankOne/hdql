@@ -14,6 +14,7 @@
 #define HDQL_ERR_BAD_ARGUMENT              -3   /* bad argument or argument combination */
 #define HDQL_ERR_CONTEXT_INCOMPLETE        -4   /* context not initialized properly */
 #define HDQL_ERR_NAME_COLLISION            -5   /* an entry with such name already exists */
+#define HDQL_ERR_NO_KEY_SUPPORT            -6   /* dynamic data does not maintain key */
 /* Parser/lexer errors */
 #define HDQL_ERR_TRANSLATION_FAILURE      -11   /* general parser/lexer error */
 #define HDQL_ERR_UNKNOWN_ATTRIBUTE        -12   /* identifier is not known */

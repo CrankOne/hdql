@@ -1,10 +1,7 @@
 #pragma once
 
-#include "basic-context.hh"
-#include "hdql/compound.h"
-#include "hdql/helpers/compounds.hh"
+#include "compiled-query.hh"
 
-#include <type_traits>
 #include <unordered_map>
 #include <memory>
 #include <vector>
@@ -49,22 +46,14 @@ helpers::CompoundTypes define_test_event_compound(hdql_Context_t);
 
 //
 // G-Test testing fixture
-class TestingEventStruct : public TestingContext {
+class TestingEventStruct : public TestCompiledQuery {
 protected:
-
-    hdql::helpers::CompoundTypes _compounds;
     hdql_Compound * _eventCompound;
-protected:
-    TestingEventStruct()
-            : _compounds(nullptr)
-            , _eventCompound(nullptr)
-            {}
-    //TestingEventStruct(const TestingEventStruct & orig)
-    //        : _valueTypes(orig._valueTypes)
-    //        , _operations(orig._operations)
-    //        , _compounds(orig._compounds)
-    //        , _eventCompound(orig._eventCompound)
-    //        {}
+
+    helpers::CompoundTypes _define_compounds(hdql_Context *) override;
+public:
+    TestingEventStruct() : _eventCompound(nullptr) {}
+
     void SetUp() override;
     void TearDown() override;
 };  // class TestingEventStruct

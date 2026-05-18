@@ -110,11 +110,14 @@ define_test_event_compound(hdql_Context_t context) {
 namespace hdql {
 namespace test {
 
+helpers::CompoundTypes
+TestingEventStruct::_define_compounds(struct hdql_Context * ctx) {
+    return ::hdql::test::define_test_event_compound(_ctx);
+}
+
 void
 TestingEventStruct::SetUp() {
     TestingContext::SetUp();
-    // this is the compound types definitions
-    _compounds = ::hdql::test::define_test_event_compound(_ctx);
     //_compounds = hdql::helpers::CompoundTypes(ctx);
     if(_compounds.empty()) throw std::runtime_error("failed to initialize type tables");
     {

@@ -44,7 +44,10 @@ struct hdql_ScalarAttrInterface {
      *        attribute, can be NULL
      *
      * Dynamic data is used locally to hold some transient items like filtering
-     * query results, selection index cache, etc. */
+     * query results, selection index cache, etc.
+     *
+     * \todo Add "enable key retrieval" option.
+     * */
     hdql_Datum_t (*instantiate)( hdql_Datum_t newOwner
                                , const hdql_Datum_t defData
                                , hdql_Context_t context
@@ -52,6 +55,9 @@ struct hdql_ScalarAttrInterface {
     /** Scalar item dereference callback, required
      *
      * \return pointer to associated datum or NULL
+     *
+     * Raises an error (`HDQL_ERR_NO_KEY_SUPPORT), if \p key is not NULL,
+     * but keys were not ordered at `create()`.
      *
      * \note The call to dereference *must be idempotent* meaning that in
      *       between of `reset()` calls, the returned value must not change.
@@ -62,7 +68,7 @@ struct hdql_ScalarAttrInterface {
      * */
     hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
                                , hdql_Datum_t dynData  // allocated with `instantiate()`
-                               , struct hdql_Key * // may be NULL
+                               , struct hdql_Key * key // may be NULL
                                , const hdql_Datum_t defData  // may be NULL
                                , hdql_Context_t
                                );
@@ -90,6 +96,9 @@ struct hdql_ScalarAttrInterface {
  * definition data for synthetic definitions (composed during compilation --
  * forwarding queries, bound attributes, etc).
  * This callback is used to allocate key lists when key type code is not set.
+ *
+ * \todo Add a dedicated method to support individual element retrieval, as
+ *       required by #18
  * */
 typedef int (*hdql_ReserveKeysListCallback_t)( struct hdql_Key *,
             const hdql_Datum_t defData, hdql_Context_t );
@@ -98,17 +107,23 @@ typedef int (*hdql_ReserveKeysListCallback_t)( struct hdql_Key *,
 struct hdql_CollectionAttrInterface {
     /**\brief Static definition data for collection interface */
     hdql_Datum_t definitionData;
-    /** Should allocate new iterator object. Initialization not needed
-     * (instance immediately gets forwarded to `reset()`) */
+    /** Should allocate new iterator object (a dynamic data). Initialization is
+     * not needed here.
+     *
+     * \todo Add "enable key retrieval" option.
+     * */
     hdql_It_t      (*create)        ( hdql_Datum_t owner
                                     , const hdql_Datum_t defData
                                     , hdql_SelectionArgs_t
                                     , hdql_Context_t
                                     );
     /**\brief Dereferences iterator object, returning NULL if it is not
-     *        possible (no items available) */
+     *        possible (no items available)
+     *
+     * Raises an error (`HDQL_ERR_NO_KEY_SUPPORT`), if \p key is not NULL,
+     * but keys were not ordered at `create()`. */
     hdql_Datum_t   (*dereference)   ( hdql_It_t
-                                    , struct hdql_Key *
+                                    , struct hdql_Key * key
                                     );
     /** Should advance iterator object */
     hdql_It_t      (*advance)       ( hdql_It_t );

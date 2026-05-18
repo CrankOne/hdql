@@ -142,10 +142,14 @@ HDQL_API bool hdql_key_is_union(const struct hdql_Key *);
 HDQL_API int hdql_key_reserve_for_query(struct hdql_Query * q
         , hdql_Key_t k, struct hdql_Context *context);
 
+/**\brief Copies one key into another
+ *
+ * \note Both key has to have same topology (allocated from same query). */
 HDQL_API int hdql_key_copy_value( hdql_Key_t dest
                    , const struct hdql_Key * src
                    , hdql_Context_t ctx );
 
+/**\brief Prints key structure as an ASCII tree */
 HDQL_API void hdql_key_print_tree(const struct hdql_Key *k
         , FILE *outFile, struct hdql_Context * context);
 

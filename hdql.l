@@ -118,6 +118,14 @@ identifier  (({L}({L}|{D})*)|(#{D}+))
                     yylval->intStaticValue = val;
                     return T_INT_STATIC_VALUE;
                 }
+true            {
+                    yylval->boolStaticValue = true;
+                    return T_BOOL_STATIC_VALUE;
+                }
+false           {
+                    yylval->boolStaticValue = true;
+                    return T_BOOL_STATIC_VALUE;
+                }
 [+-]?(({D}*"."{D}+)|({D}+"."{D}*))([eE][-+]?{D}+)? {
                     char * endPtr = NULL;
                     double val = strtod( yytext, &endPtr );

@@ -23,7 +23,8 @@ protected:
 public:
     TestCompiledQuery();
 
-    void CompileQuery(const char *, bool enableKeys=false);
+    virtual void CompileQuery(const char *, bool enableKeys=false);
+    void ResetQuery(void * datum);
 
     void SetUp() override;
     void TearDown() override;

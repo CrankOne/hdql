@@ -128,12 +128,14 @@ if (BUILD_TESTS)
     set (hdqlTest_SOURCES test/main.cc
                           test/basic-context.cc
                           test/compiled-query.cc
+                          test/cross-type-operations.cc
                           test/ht.test.cc
                           test/rnd.cc
                           test/events-struct.cc
                           test/event-struct.test.cc
                           test/samples.cc
                           test/value.cc
+                          test/simple-arithmetics.cc
                           test/iteration-tests/singular-query.cc
                           test/iteration-tests/arithmetics.cc
                           test/iteration-tests/v-compound-fwd.cc

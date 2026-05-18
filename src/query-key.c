@@ -26,7 +26,7 @@ struct hdql_Key {
      * Zero code type code is permitted here and is reserved for empty key
      * placeholders, key lists and unions. */
     hdql_ValueTypeCode_t code:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
-    hdql_ValueTypeCode_t plType:2;  /**< how to interpret payload; TODO: use code, 0x1 for list, 0x2 for union */
+    hdql_ValueTypeCode_t plType:2;  /**< how to interpret payload */
     hdql_ValueTypeCode_t isTerminal:1;  /**< marks last key in list when `isList` */
     /**\brief Collection key item payload */
     union {

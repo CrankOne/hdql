@@ -3,6 +3,7 @@
 #include "hdql/errors.h"
 #include "hdql/helpers/fancy-print-err.h"
 #include "hdql/query-key.h"
+#include "hdql/query.h"
 #include "hdql/value.h"
 
 namespace hdql {
@@ -67,7 +68,17 @@ TestCompiledQuery::CompileQuery(const char * expression, bool enableKeys) {
 }
 
 void
+TestCompiledQuery::ResetQuery(void * datum) {
+    ASSERT_TRUE(_query);
+    int rc = hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(datum)
+            , _compounds.context_ptr());
+    ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
+}
+
+void
 TestCompiledQuery::TearDown() {
+    if(_flatKeyIfaces)
+        delete [] _flatKeyIfaces;
     if(_flatKeyView)
         delete [] _flatKeyView;
     if(_queryKey)

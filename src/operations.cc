@@ -272,7 +272,7 @@ _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_logic_
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
-_M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_implement_comparison_ops))
+_M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_comparison_ops))
 #pragma GCC diagnostic pop
 
 #undef _M_implement_comparison_ops
@@ -478,7 +478,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_impose_std_cmp_ops_of_types(t1, t2) \
         _M_for_every_binary_comparison_op(_M_impose_std_cmp_op_of_types, t1, t2)
 
-    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_impose_std_cmp_ops_of_types));
+    _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_impose_std_cmp_ops_of_types));
     #undef _M_impose_std_cmp_ops_of_types
     #undef _M_impose_std_cmp_op_of_types
 

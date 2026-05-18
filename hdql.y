@@ -148,6 +148,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
     char * selexpr;
     hdql_Int_t intStaticValue;
     hdql_Flt_t fltStaticValue;
+    hdql_Bool_t boolStaticValue;
     struct { struct hdql_Compound * compoundPtr; struct hdql_Query * filter; } vCompound;
     struct hdql_Query * queryPtr;
     struct hdql_FuncArgList * funcArgsList;
@@ -173,6 +174,7 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 %token<selexpr> T_SELECTION_LABEL "selection identifier(s)"
 %token<intStaticValue> T_INT_STATIC_VALUE "integer value"
 %token<fltStaticValue> T_FLT_STATIC_VALUE "floating point value"
+%token<boolStaticValue> T_BOOL_STATIC_VALUE "boolean value"
 
 %type<queryPtr> queryExpr aOp aQExpr;
 %type<vCompound> vCompoundDef vPositionalCompoundDef vNamedCompoundDef scopedDefs;
@@ -186,19 +188,35 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
 //%nonassoc T_LT T_LTE T_GT T_GTE
 //%right T_RBSHIFTE T_LBSHIFTE  // unused so far
 //%right T_QUESTIONMM  // unused so far
-%left T_NE T_EQ
+
+//%left T_NE T_EQ
+//%left T_DBL_PIPE
+//%left T_DBL_AMP
+//%left T_DBL_CAP
+//%left T_PIPE
+//%left T_CAP
+//%left T_AMP
+//%left T_LT T_LTE T_GT T_GTE
+//%left T_RBSHIFT T_LBSHIFT
+//%left T_PLUS T_MINUS
+//%left T_ASTERISK T_SLASH T_PERC
+//%precedence T_TILDE T_EXCLMM  // right
+//%precedence UNARYMINUS
+
 %left T_DBL_PIPE
-%left T_DBL_AMP
 %left T_DBL_CAP
+%left T_DBL_AMP
 %left T_PIPE
 %left T_CAP
 %left T_AMP
+%left T_NE T_EQ
 %left T_LT T_LTE T_GT T_GTE
 %left T_RBSHIFT T_LBSHIFT
 %left T_PLUS T_MINUS
 %left T_ASTERISK T_SLASH T_PERC
 %precedence T_TILDE T_EXCLMM  // right
 %precedence UNARYMINUS
+
 //%precedence T_LBC T_RBC
 //%left T_COMMA  // not needed so far
 //%left T_WALRUS  // not needed so far
@@ -258,11 +276,11 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
             { M_OP( $1, OpEq,       $3, "equals binary", $$ ); }
             | aQExpr T_NE aQExpr
             { M_OP( $1, OpNEq,       $3, "not equals binary", $$ ); }
-            | T_EXCLMM aQExpr
+            | T_EXCLMM aQExpr %prec T_EXCLMM
             { M_OP( $2, UOpNot,   NULL, "logic negate unary", $$ ); }
-            | T_TILDE aQExpr
+            | T_TILDE aQExpr %prec T_TILDE
             { M_OP( $2, UOpBNot,  NULL, "bitwise inversion unary", $$ ); }
-            | UNARYMINUS aQExpr
+            | T_MINUS aQExpr %prec UNARYMINUS
             { M_OP( $2, UOpMinus, NULL, "arithmetic negate unary", $$ ); }
             | T_LBC aQExpr T_RBC
             { $$ = $2; }
@@ -327,6 +345,27 @@ const struct hdql_Compound * hdql_parser_top_compound(struct Workspace *);
                     return HDQL_ERR_MEMORY;
                 }
                 *((hdql_Int_t *) valueCopy) = $1;
+                struct hdql_AttrDef * attrDef
+                        = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
+                assert(hdql_attr_def_is_transient(attrDef));
+                $$ = hdql_query_create(attrDef, NULL, ws->context);
+                hdql_query_set_transient_subject_ownership($$);
+                assert($$);
+                assert(vtCode == hdql_attr_def_get_atomic_value_type_code(hdql_query_top_attr($$)));
+            }
+            | T_BOOL_STATIC_VALUE
+            {
+                hdql_ValueTypeCode_t vtCode = hdql_types_get_type_code(
+                        hdql_context_get_types(ws->context), "hdql_Bool_t");
+                assert(0x0 != vtCode);
+
+                hdql_Datum_t valueCopy = hdql_context_alloc(ws->context, sizeof(hdql_Bool_t));
+                if( NULL == valueCopy ) {
+                    hdql_error(&yyloc, ws, yyscanner
+                            , "Failed to allocate memory for integer constant value");
+                    return HDQL_ERR_MEMORY;
+                }
+                *((hdql_Bool_t *) valueCopy) = $1;
                 struct hdql_AttrDef * attrDef
                         = hdql_attr_def_create_static_atomic_scalar_value(vtCode, valueCopy, ws->context);
                 assert(hdql_attr_def_is_transient(attrDef));
@@ -985,6 +1024,7 @@ _operation( struct hdql_Query * a
             = hdql_attr_def_create_static_atomic_scalar_value(evaluator->returnType, result, ws->context);
         assert(hdql_attr_def_is_transient(resultAD));
         *r = hdql_query_create(resultAD, NULL, ws->context);
+        hdql_query_set_transient_subject_ownership(*r);
         assert(*r);
         /* destroy sub-queries */
         hdql_query_destroy(a, ws->context);

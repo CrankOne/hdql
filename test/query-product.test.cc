@@ -44,7 +44,7 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -60,7 +60,7 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
     ASSERT_TRUE(vi1 != NULL);
 
     queries[1] = hdql_compile_query( q2Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -141,7 +141,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -165,7 +165,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     hdql_key_flat_view_populate(keys[0], kv1.data());
 
     queries[1] = hdql_compile_query( q2Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -189,7 +189,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     hdql_key_flat_view_populate(keys[1], kv2.data());
 
     queries[2] = hdql_compile_query( q3Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -306,7 +306,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithoutKeys) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -373,7 +373,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -455,7 +455,7 @@ TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -499,7 +499,7 @@ TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
     // 1st: result in integer scalar
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -515,7 +515,7 @@ TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
     ASSERT_TRUE(vi1 != NULL);
 
     queries[1] = hdql_compile_query( q2Expr
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails

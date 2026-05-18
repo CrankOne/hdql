@@ -126,9 +126,10 @@ if (BUILD_TESTS)
     target_link_libraries (hdql PUBLIC ${GTEST_BOTH_LIBRARIES} Threads::Threads)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES test/main.cc
+                          test/basic-context.cc
+                          test/compiled-query.cc
                           test/ht.test.cc
                           test/rnd.cc
-                          test/basic-context.cc
                           test/events-struct.cc
                           test/event-struct.test.cc
                           test/samples.cc
@@ -170,7 +171,7 @@ if (BUILD_TESTS)
     target_link_libraries(hdql-ht-benchmark PUBLIC hdql)
     set_target_properties(hdql-ht-benchmark PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
     # Dump test fixture
-    add_executable(hdql-csv-dump test/main.dump.cc test/samples.cc test/basic-context.cc test/events-struct.cc)
+    add_executable(hdql-csv-dump test/main.dump.cc test/samples.cc test/basic-context.cc test/events-struct.cc test/compiled-query.cc)
     target_link_libraries(hdql-csv-dump PUBLIC hdql)
     set_target_properties(hdql-csv-dump PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
 endif (BUILD_TESTS)

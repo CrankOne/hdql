@@ -34,7 +34,7 @@ public:
         {
             auto it = _compounds.find(typeid(hdql::test::Event));
             ASSERT_FALSE(_compounds.end() == it); //?
-            _eventCompound = it->second;
+            _rootCompound = it->second;
         }
     }
     void TearDown() override {
@@ -56,7 +56,7 @@ public:
 TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
-    Query q(".tracks.hits.x", _eventCompound, _thisContext, _compounds, true);
+    Query q(".tracks.hits.x", _rootCompound, _thisContext, _compounds, true);
     
     // make sure the query has been result deduced properly
     // - is of atomic type
@@ -134,7 +134,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
 
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
-    Query q(".tracks.hits.x", _eventCompound, _thisContext, _compounds, true);
+    Query q(".tracks.hits.x", _rootCompound, _thisContext, _compounds, true);
     
     // make sure the query has been result deduced properly
     // - is of atomic type

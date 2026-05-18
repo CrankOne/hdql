@@ -191,7 +191,7 @@ protected:
         char errBuf[256] = "";
         int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first line, first column, last line, last column
         hdql_Query * q = hdql_compile_query( queryExpr
-                              , _eventCompound
+                              , _rootCompound
                               , _ctx
                               , errBuf, sizeof(errBuf)
                               , errDetails

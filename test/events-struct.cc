@@ -1,6 +1,5 @@
 #include "events-struct.hh"
-#include "basic-context.hh"
-#include "hdql/operations.h"
+#include "hdql/helpers/compounds.hh"
 
 namespace hdql {
 namespace test {
@@ -111,33 +110,17 @@ namespace hdql {
 namespace test {
 
 helpers::CompoundTypes
-TestingEventStruct::_define_compounds(struct hdql_Context * ctx) {
-    return ::hdql::test::define_test_event_compound(_ctx);
-}
-
-void
-TestingEventStruct::SetUp() {
-    TestingContext::SetUp();
-    //_compounds = hdql::helpers::CompoundTypes(ctx);
-    if(_compounds.empty()) throw std::runtime_error("failed to initialize type tables");
+TestingEventStruct::_define_compounds(struct hdql_Context * ctx, hdql_Compound *& eventCompound) {
+    helpers::CompoundTypes compounds = ::hdql::test::define_test_event_compound(_ctx);
+    if(compounds.empty()) throw std::runtime_error("failed to initialize type tables");
     {
-        auto it = _compounds.find(typeid(hdql::test::Event));
-        if(_compounds.end() == it) {
+        auto it = compounds.find(typeid(hdql::test::Event));
+        if(compounds.end() == it) {
             throw std::runtime_error("No root compound");
         }
-        _eventCompound = it->second;
+        eventCompound = it->second;
     }
-}
-
-void
-TestingEventStruct::TearDown() {
-    // sic! in this order: non-virtual compounds get destroyed AFTER context as
-    // they are used to resolve attribute definitions in queries while cleaning
-    // up queries
-    TestingContext::TearDown();
-    for(auto & ce : _compounds) {
-        hdql_compound_destroy(ce.second, _compounds.context_ptr());
-    }
+    return compounds;
 }
 
 SimpleRangeSelection

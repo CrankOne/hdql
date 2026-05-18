@@ -29,7 +29,7 @@ TEST_F(TestingEventStruct, forwardingAttribute_DataIterationWorksOnSample1) {
     fill_data_sample_1(ev);
     char errBuf[128]; int errDetails[5];
     hdql_Query * q = hdql_compile_query( expression
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -122,7 +122,7 @@ TEST_F(TestingEventStruct, twoSubqueriesIterationWorksOnSample1) {
     fill_data_sample_1(ev);
     char errBuf[128]; int errDetails[5];
     hdql_Query * q = hdql_compile_query( expression
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -214,7 +214,7 @@ TEST_F(TestingEventStruct, virtualCompoundArithmeticsWorksOnSample1) {
     fill_data_sample_1(ev);
     char errBuf[128]; int errDetails[5];
     hdql_Query * q = hdql_compile_query( expression
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails
@@ -304,7 +304,7 @@ TEST_F(TestingEventStruct, filteringWorksOnSample1) {
     fill_data_sample_1(ev);
     char errBuf[128]; int errDetails[5];
     hdql_Query * q = hdql_compile_query( expression
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails

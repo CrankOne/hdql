@@ -3,9 +3,10 @@
 // Fixture defining compounds meant for testing of the monoid aggregate
 // functions, like sum(), max(), sort(), join(), etc.
 
-#include "../basic-context.hh"
+#include "../compiled-query.hh"
 
 #include "hdql/helpers/compounds.hh"
+#include "hdql/types.h"
 
 #include <cstdint>
 #include <vector>
@@ -35,21 +36,12 @@ struct RootItem {
     std::vector<std::shared_ptr<Item>> a, b;
 };
 
-class TestMonoidal : public TestingContext {
+class TestMonoidal : public TestCompiledQuery {
 protected:
-    hdql::helpers::CompoundTypes _compounds;
-    hdql_Compound * _rootCompound;
-    hdql_Query * _query;
-protected:
-    TestMonoidal()
-            : _compounds(nullptr)
-            , _rootCompound(nullptr)
-            {}
+    helpers::CompoundTypes _define_compounds(hdql_Context *, hdql_Compound *&) override;
+public:
+    TestMonoidal() {}
     void SetUp() override;
-
-    void CompileQuery(const char *);
-
-    void TearDown() override;
 };  // class TestMonoidal
 
 }  // namespace ::hdql::test

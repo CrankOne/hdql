@@ -13,6 +13,7 @@
 #include <string>
 #include <cstdarg>
 #include <unordered_map>
+#include <stdexcept>
 
 // These functions are not defined in public headers, but still implemented
 

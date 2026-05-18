@@ -36,7 +36,7 @@ TEST_F(TestingEventStruct, iterationWorksOnDifferentLevelsOfRootObject) {
 
     char errBuf[128]; int errDetails[5];
     hdql_Query * q = hdql_compile_query( expression
-                              , _eventCompound
+                              , _rootCompound
                               , _compounds.context_ptr()
                               , errBuf, sizeof(errBuf)
                               , errDetails

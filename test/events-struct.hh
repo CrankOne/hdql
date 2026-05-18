@@ -48,14 +48,9 @@ helpers::CompoundTypes define_test_event_compound(hdql_Context_t);
 // G-Test testing fixture
 class TestingEventStruct : public TestCompiledQuery {
 protected:
-    hdql_Compound * _eventCompound;
+    helpers::CompoundTypes _define_compounds(hdql_Context *, hdql_Compound *&) override;
 
-    helpers::CompoundTypes _define_compounds(hdql_Context *) override;
-public:
-    TestingEventStruct() : _eventCompound(nullptr) {}
-
-    void SetUp() override;
-    void TearDown() override;
+    TestingEventStruct() {}
 };  // class TestingEventStruct
 
 }  // namespace ::hdql::test

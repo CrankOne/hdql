@@ -12,15 +12,6 @@ struct hdql_Compound;  /* fwd */
 struct hdql_Query;  /* fwd */
 struct hdql_Key;  /* fwd */
 
-/**\brief Atomic type definition */
-struct hdql_AtomicTypeFeatures {
-    /** If set, value can not be assigned*/
-    hdql_ValueTypeCode_t isReadOnly:1;
-    /** Refers to value type interface */
-    hdql_ValueTypeCode_t arithTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
-    /* ... */
-};
-
 /**\brief Interface to scalar attribute definition
  *
  * Scalar attributes obeys simple lifecycle:
@@ -40,11 +31,13 @@ struct hdql_AtomicTypeFeatures {
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
     hdql_Datum_t definitionData;
-    /**\brief Should instantiate supplementary dynamic data for scalar
-     *        attribute, can be NULL
+    /**\brief Instantiate dynamic data for scalar attribute
      *
-     * Dynamic data is used locally to hold some transient items like filtering
-     * query results, selection index cache, etc.
+     * This method is optional (can be NULL). Should instantiate
+     * dynamic data which is used locally to hold transient items like
+     * filtering query results, selection index cache, etc.
+     *
+     * \return NULL on fatal error
      *
      * \todo Add "enable key retrieval" option.
      * */
@@ -74,6 +67,8 @@ struct hdql_ScalarAttrInterface {
                                );
     /**\brief Called in case of owner change, shall return new/re-initialized
      *        dynamic data
+     *
+     * Set to NULL when `instantiate()` is NULL, otherwise required.
      *
      * \return updated or reallocated dynamic data
      */
@@ -107,8 +102,11 @@ typedef int (*hdql_ReserveKeysListCallback_t)( struct hdql_Key *,
 struct hdql_CollectionAttrInterface {
     /**\brief Static definition data for collection interface */
     hdql_Datum_t definitionData;
-    /** Should allocate new iterator object (a dynamic data). Initialization is
-     * not needed here.
+    /**\brief Allocates new iterator object
+     *
+     * Mandatory. Iterator object initialization is not needed at this step.
+     *
+     * \return NULL on a fatal error, iterator dynamic data otherwise.
      *
      * \todo Add "enable key retrieval" option.
      * */
@@ -141,9 +139,11 @@ struct hdql_CollectionAttrInterface {
 
     /**\brief If not NULL, shall produce key selection using externally-defined
      *        parser
-     * \p expr is the expression of user-defined grammar (forwarded from HDQL
-     * patser as is), \p definitionData is this collection's definition data
-     * and current query evaluation context is provided as \p ctx.
+     *
+     * \p expr is the expression of user-defined grammar (expression is
+     * forwarded from HDQL parser as is), \p definitionData is this
+     * collection's definition data and current query evaluation context is
+     * provided as \p ctx.
      * */
     hdql_SelectionArgs_t (*compile_selection)( const char * expr
                                              , const hdql_Datum_t definitionData
@@ -155,11 +155,61 @@ struct hdql_CollectionAttrInterface {
                           );
 };  /* struct hdql_CollectionAttrInterface */
 
-extern const struct hdql_CollectionAttrInterface gSubQueryInterface;
-
+/**\brief Compound's attribute definition descriptor
+ *
+ * The *attribute definition* in HDQL is a special descriptive object, defining
+ * how certain value is accessed within an owning entity. The attribute's type
+ * (atomic or compound, scalar or collection, forwarding or direct query) is
+ * the subject of this item. Any compound type is fully defined as a set of
+ * this attribute definitions (see `hdql_Compound`).
+ *
+ * In terms of data access interface may define either:
+ *  - (if `isAtomic` is set) -- atomic attribute, i.e. attribute of simple
+ *    arithmetic type; `typeInfo.atomic` struct instance defines
+ *    data access interface
+ *  - (if `isAtomic` is not set) -- a compound attribute, i.e. attribute
+ *    consisting of multiple attributes (atomic or compounds);
+ *    `typeInfo.compound` shall be used to access the data in term of
+ *    sub-attributes.
+ *  - (if `isFwdQuery` is set) -- value retrieved using collection interface
+ *    based on query object provided instead of atomic or compound interface
+ * In terms of how the data is associated to owning object:
+ *  - (if `isCollection` is set) -- a collection attribute that should be
+ *    accessed via iterator, which lifecycle is steered by `interface.collection`
+ *  - (if `isCollection` is not set) -- a scalar attribute (optionally)
+ *    providing value which can be retrieved (or set) using
+ *    `interface.scalar` interface.
+ *
+ * There are also two orthogonal properties:
+ * - a static value
+ * - forwarding queries
+ *
+ * A very special case is the *forwarding query attribute definition* that is
+ * created during HDQL expression interpretation to be combined within a
+ * runtime-created compound types (so-called *virtual compounds*). In this
+ * case, current attribute definition instance atomic/compound and
+ * scalar/collection features are inherited from forwarding result.
+ *
+ * Prohibited combinations:
+ *  - isFwdQuery && staticValue -- "static" values do not need an owning
+ *    instance
+ * */
 struct hdql_AttrDef;  /* opaque type */
 
 typedef const struct hdql_AttrDef * hdql_AttrDef_t;
+
+/**\brief Atomic type definition
+ *
+ * Special features of an attribute of arithmetic type.
+ *
+ * \todo De-struct and put into attribute definitions as separate properties.
+ * */
+struct hdql_AtomicTypeFeatures {
+    /** If set, value can not be assigned*/
+    hdql_ValueTypeCode_t isReadOnly:1;
+    /** Refers to value type interface */
+    hdql_ValueTypeCode_t arithTypeCode:HDQL_VALUE_TYPEDEF_CODE_BITSIZE;
+};
 
 /**\brief Creates attribute definition for new atomic scalar attribute
  *
@@ -267,19 +317,11 @@ HDQL_API void
 hdql_attr_def_set_transient(struct hdql_AttrDef *
         , void (*dtr)(hdql_Datum_t, hdql_Context_t) );
 
-//hdql_AttrDef_t
-//hdql_attr_def_create_static_atomic_scalar(
-//          struct hdql_Query                     * subquery
-//        , hdql_Context_t
-//        );
-
 
 HDQL_API bool hdql_attr_def_is_atomic(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_compound(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_scalar(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_collection(hdql_AttrDef_t);
-HDQL_API bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t);
-HDQL_API bool hdql_attr_def_is_direct_query(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t);
 HDQL_API bool hdql_attr_def_is_transient(hdql_AttrDef_t);
@@ -298,9 +340,6 @@ hdql_attr_def_atomic_type_info(const hdql_AttrDef_t);
 
 HDQL_API const struct hdql_Compound *
 hdql_attr_def_compound_type_info(const hdql_AttrDef_t);
-
-HDQL_API struct hdql_Query *
-hdql_attr_def_fwd_query(const hdql_AttrDef_t);
 
 HDQL_API const struct hdql_ScalarAttrInterface *
 hdql_attr_def_scalar_iface(const hdql_AttrDef_t);

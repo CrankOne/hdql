@@ -470,16 +470,6 @@ Query::is_collection() const {
 }
 
 bool
-Query::is_fwd_query() const {
-    return hdql_attr_def_is_fwd_query(_topAttrDef);
-}
-
-bool
-Query::is_direct_query() const {
-    return hdql_attr_def_is_direct_query(_topAttrDef);
-}
-
-bool
 Query::is_static_const_value() const {
     return hdql_attr_def_is_static_const_value(_topAttrDef);
 }

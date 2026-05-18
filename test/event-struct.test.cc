@@ -61,9 +61,6 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
     ASSERT_FALSE(hdql_attr_def_is_compound(ad));
 
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
-
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
@@ -154,9 +151,6 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
 
     ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
     ASSERT_FALSE(hdql_attr_def_is_compound(ad));
-
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
@@ -273,9 +267,6 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
 
     ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
     ASSERT_FALSE(hdql_attr_def_is_compound(ad));
-
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
@@ -412,9 +403,6 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
 
     ASSERT_FALSE(hdql_attr_def_is_atomic(ad));
     ASSERT_TRUE(hdql_attr_def_is_compound(ad));
-
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
@@ -560,9 +548,6 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     ASSERT_FALSE(hdql_attr_def_is_atomic(ad));
     ASSERT_TRUE(hdql_attr_def_is_compound(ad));
 
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
-
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));
 
@@ -691,9 +676,6 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
 
     ASSERT_FALSE(hdql_attr_def_is_atomic(ad));
     ASSERT_TRUE(hdql_attr_def_is_compound(ad));
-
-    ASSERT_TRUE(hdql_attr_def_is_direct_query(ad));
-    ASSERT_FALSE(hdql_attr_def_is_fwd_query(ad));
 
     ASSERT_FALSE(hdql_attr_def_is_static_const_value(ad));
     ASSERT_FALSE(hdql_attr_def_is_static_external_value(ad));

@@ -102,12 +102,10 @@ _operation( struct hdql_Query * a
 #define is_atomic(attr)     hdql_attr_def_is_atomic(attr)
 #define is_collection(attr) hdql_attr_def_is_collection(attr)
 #define is_static(attr)     hdql_attr_def_is_static_const_value(attr)
-#define is_subquery(attr)   hdql_attr_def_is_fwd_query(attr)
 
 #define is_compound(attr)       hdql_attr_def_is_compound(attr)
 #define is_scalar(attr)         hdql_attr_def_is_scalar(attr)
 #define is_dynamic(attr)        (!hdql_attr_def_is_static_const_value(attr))
-#define is_direct_query(attr)   hdql_attr_def_is_direct_query(attr)
 
 }
 
@@ -927,9 +925,6 @@ _operation( struct hdql_Query * a
     const struct hdql_ValueTypes * types
         = hdql_context_get_types(ws->context);
     assert(types);
-    /* these assertions must be fullfilled by `hdql_query_top_attr()` */
-    assert(                 is_direct_query(attrA));
-    assert(attrB == NULL || is_direct_query(attrB));
     /* arithmetic operations on compounds are prohibited (at least in current
      * HDQL specifications */
     if(is_compound(attrA)) {

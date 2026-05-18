@@ -10,45 +10,6 @@
 #include <string.h>
 #include <assert.h>
 
-/**\brief Compound's attribute definition descriptor
- *
- * The *attribute definition* in HDQL is a special descriptive object, defining
- * how certain value is accessed within an owning entity. The attribute's type
- * (atomic or compound, scalar or collection, forwarding or direct query) is
- * the subject of this definition. Any compound type is defined as a set of
- * this attribute definitions (see `hdql_Compound`).
- *
- * In terms of data access interface may define either:
- *  - (if `isAtomic` is set) -- atomic attribute, i.e. attribute of simple
- *    arithmetic type; `typeInfo.atomic` struct instance defines
- *    data access interface
- *  - (if `isAtomic` is not set) -- a compound attribute, i.e. attribute
- *    consisting of multiple attributes (atomic or compounds);
- *    `typeInfo.compound` shall be used to access the data in term of
- *    sub-attributes.
- *  - (if `isFwdQuery` is set) -- value retrieved using collection interface
- *    based on query object provided instead of atomic or compound interface
- * In terms of how the data is associated to owning object:
- *  - (if `isCollection` is set) -- a collection attribute that should be
- *    accessed via iterator, which lifecycle is steered by `interface.collection`
- *  - (if `isCollection` is not set) -- a scalar attribute (optionally)
- *    providing value which can be retrieved (or set) using
- *    `interface.scalar` interface.
- *
- * There are also two orthogonal properties:
- * - a static value
- * - forwarding queries
- *
- * A very special case is the *forwarding query attribute definition* that is
- * created during HDQL expression interpretation to be combined within a
- * runtime-created compound types (so-called *virtual compounds*). In this
- * case, current attribute definition instance atomic/compound and
- * scalar/collection features are inherited from forwarding result.
- *
- * Prohibited combinations:
- *  - isFwdQuery && staticValue -- "static" values do not need an owning
- *    instance
- * */
 struct hdql_AttrDef {
     /** If set, it attribute is of atomic type (int, float, etc), otherwise 
      * it is a compound */
@@ -90,6 +51,18 @@ struct hdql_AttrDef {
 };  /* struct hdql_AttrDef */
 
 /*                          * * *   * * *   * * *                            */
+
+/* internal API */
+bool _hdql__attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
+struct hdql_Query * _hdql__attr_def_fwd_query(const hdql_AttrDef_t ad) {
+    assert(ad->isFwdQuery);
+    assert(0x0 == ad->staticValueFlags);
+    if(hdql_attr_def_is_collection(ad)) {
+        return (struct hdql_Query *) hdql_attr_def_collection_iface(ad)->definitionData;
+    } else {
+        return (struct hdql_Query *) hdql_attr_def_scalar_iface(ad)->definitionData;
+    }
+}
 
 struct hdql_AttrDef *
 hdql_attr_def_create_atomic_scalar(
@@ -466,8 +439,6 @@ hdql_attr_def_is_compound(const hdql_AttrDef_t ad) {
 
 bool hdql_attr_def_is_scalar(hdql_AttrDef_t ad) { return !ad->isCollection; }
 bool hdql_attr_def_is_collection(hdql_AttrDef_t ad) { return ad->isCollection; }
-bool hdql_attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
-bool hdql_attr_def_is_direct_query(hdql_AttrDef_t ad) { return !ad->isFwdQuery; }
 bool hdql_attr_def_is_static_const_value(hdql_AttrDef_t ad) { return ad->staticValueFlags == 0x1; }
 bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t ad) { return ad->staticValueFlags == 0x2; }
 bool hdql_attr_def_is_transient(hdql_AttrDef_t ad) { return ad->isTransient; }
@@ -511,17 +482,6 @@ hdql_attr_def_compound_type_info(const hdql_AttrDef_t ad) {
     assert(!ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
     return ad->typeInfo.compound;
-}
-
-struct hdql_Query *
-hdql_attr_def_fwd_query(const hdql_AttrDef_t ad) {
-    assert(ad->isFwdQuery);
-    assert(0x0 == ad->staticValueFlags);
-    if(hdql_attr_def_is_collection(ad)) {
-        return (struct hdql_Query *) hdql_attr_def_collection_iface(ad)->definitionData;
-    } else {
-        return (struct hdql_Query *) hdql_attr_def_scalar_iface(ad)->definitionData;
-    }
 }
 
 const struct hdql_ScalarAttrInterface *
@@ -602,8 +562,8 @@ hdql_AttrDef_t
 hdql_attr_def_top_attr(const hdql_AttrDef_t ad) {
     assert(ad);
     const struct hdql_AttrDef * topAD = ad;
-    while(hdql_attr_def_is_fwd_query(topAD)) {
-        topAD = hdql_query_top_attr(hdql_attr_def_fwd_query(topAD));
+    while(_hdql__attr_def_is_fwd_query(topAD)) {
+        topAD = hdql_query_top_attr(_hdql__attr_def_fwd_query(topAD));
     }
     return topAD;
 }
@@ -643,7 +603,7 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
     _M_pr("%s%s%s "
             , hdql_attr_def_is_static_const_value(subj) ? "const.static " : ""
             , hdql_attr_def_is_collection(subj) ? "collection" : "scalar"
-            , hdql_attr_def_is_fwd_query(subj)
+            , _hdql__attr_def_is_fwd_query(subj)
               ? " query result of query forwarding to "
               : ( hdql_attr_def_is_atomic(subj)
                 ? " of atomic type"
@@ -653,10 +613,10 @@ hdql_top_attr_str( const struct hdql_AttrDef * subj
                   )
                 )
             );
-    if(hdql_attr_def_is_fwd_query(subj)) {
+    if(_hdql__attr_def_is_fwd_query(subj)) {
         // query 0x23fff34 is "[static ](collection|scalar) forwarding to %p which is ..."
-        _M_pr("%p which is ", (void*) hdql_attr_def_fwd_query(subj) );
-        return hdql_top_attr_str( hdql_query_get_subject(hdql_attr_def_fwd_query(subj))
+        _M_pr("%p which is ", (void*) _hdql__attr_def_fwd_query(subj) );
+        return hdql_top_attr_str( hdql_query_get_subject(_hdql__attr_def_fwd_query(subj))
                 , strbuf + nUsed, buflen - nUsed, context );
     }
     if(hdql_attr_def_is_atomic(subj)) {

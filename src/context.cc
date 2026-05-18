@@ -6,6 +6,8 @@
 #include "hdql/types.h"
 #include "hdql/value.h"
 
+#include "hdql/internal-api.h"
+
 #include <cassert>
 #include <cstdlib>
 #include <cstdio>
@@ -14,31 +16,6 @@
 #include <cstdarg>
 #include <unordered_map>
 #include <stdexcept>
-
-// These functions are not defined in public headers, but still implemented
-
-// from src/values.cc:
-extern "C" struct hdql_ValueTypes * _hdql_value_types_table_create(hdql_ValueTypes *, hdql_Context_t);
-extern "C" void _hdql_value_types_table_destroy(struct hdql_ValueTypes *, hdql_Context_t);
-
-extern "C" struct hdql_Constants * _hdql_constants_create(struct hdql_Constants *, struct hdql_Context *);
-extern "C" void _hdql_constants_destroy(struct hdql_Constants *, struct hdql_Context *);
-
-// from src/operations.cc:
-extern "C" struct hdql_Operations * _hdql_operations_create(struct hdql_Operations *, struct hdql_Context *);
-extern "C" void _hdql_operations_destroy(struct hdql_Operations *, struct hdql_Context *);
-
-// from src/functions.cc:
-extern "C" struct hdql_Functions * _hdql_functions_create(struct hdql_Functions *, struct hdql_Context *);
-extern "C" void _hdql_functions_destroy(struct hdql_Functions *, struct hdql_Context *);
-
-// from src/converters.cc
-extern "C" struct hdql_Converters * _hdql_converters_create(struct hdql_Converters *, struct hdql_Context *);
-extern "C" void _hdql_converters_destroy(struct hdql_Converters *, struct hdql_Context *);
-
-// from src/rangen.cc
-extern "C" struct hdql_RandGen * _hdql_randgen_create(struct hdql_RandGen *, struct hdql_Context *);
-extern "C" void _hdql_randgen_destroy(struct hdql_RandGen *, struct hdql_Context *);
 
 struct VariadicDatumInfo {
     uint32_t nUsedBytes, nAllocatedBytes;

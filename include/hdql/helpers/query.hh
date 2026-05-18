@@ -365,9 +365,6 @@ public:
     bool is_scalar() const;
     bool is_collection() const;
 
-    bool is_fwd_query() const;
-    bool is_direct_query() const;
-
     bool is_static_const_value() const;
 
     bool is_transient() const;

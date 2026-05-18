@@ -19,6 +19,8 @@
 // internal, see query-key.c
 extern "C" struct hdql_Key * hdql__keys_next(struct hdql_Key * cur);
 extern "C" struct hdql_Key * hdql__key_get_list_bgn(struct hdql_Key * k);
+extern "C" bool _hdql__attr_def_is_fwd_query(hdql_AttrDef_t);
+extern "C" struct hdql_Query * _hdql__attr_def_fwd_query(const hdql_AttrDef_t ad);
 
 namespace hdql {
 
@@ -132,12 +134,6 @@ struct Query : public SelectionItemT {
     }
 
     void destroy(hdql_Context_t ctx) {
-        // NOTE: special case are forwarded queries for virtual compounds. We
-        // do destroy them here as this is the simplest way to avoid dependency
-        // calculus for virtual compound being deleted
-        //if(hdql_attr_def_is_fwd_query(SelectionItemT::subject)) {
-        //    hdql_query_destroy(hdql_attr_def_fwd_query(SelectionItemT::subject), ctx);
-        //}
         if(next) {
             hdql_query_destroy(static_cast<hdql_Query *>(next), ctx);
         }
@@ -208,31 +204,19 @@ QueryState::finalize_tier(hdql_Context_t ctx) {
             state.collection.iterator = nullptr;
         }
         if(state.collection.selectionArgs) {
-            if(hdql_attr_def_is_direct_query(subject)) {
+            if(!_hdql__attr_def_is_fwd_query(subject)) {
                 assert(iface->free_selection);
                 iface->free_selection( iface->definitionData
                                      , state.collection.selectionArgs, ctx);
                 state.collection.selectionArgs = nullptr;
             }
         }
-        // check, if forwarding query. It was created during interpretation
-        // stage and is not managed by iface although brought by it as supp
-        // data.
-        //if(hdql_attr_def_is_fwd_query(subject)
-        //&& !hdql_attr_def_is_transient(subject)) {
-        //    hdql_query_destroy((hdql_Query *) iface->definitionData, ctx);
-        //}
     } else {
         const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(subject);
         if(iface->destroy)
             iface->destroy( state.scalar.dynamicSuppData
                           , iface->definitionData
                           , ctx);
-        //if( hdql_attr_def_is_fwd_query(subject)
-        // && !hdql_attr_def_is_transient(subject)
-        // ) {
-        //    hdql_query_destroy((hdql_Query *) iface->definitionData, ctx);
-        //}
     }
 
     // Transient attribute definitions are created dynamically by parsing
@@ -308,6 +292,15 @@ QueryState::reset( hdql_Datum_t newOwner
                     , state.collection.selectionArgs
                     , ctx
                     );
+            if(NULL == state.collection.iterator) {
+                // TODO: use context error push and emergency exit instead of exception
+                hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
+                        , "collection interface %p could not"
+                          " initialize iterator", iface );
+                throw std::runtime_error("failed to instantiate access state"
+                                " object (iterator) for collection attribute"
+                                " (interface's create() returned NULL)");
+            }
         }   
         state.collection.iterator =
                 iface->reset(state.collection.iterator
@@ -326,6 +319,10 @@ QueryState::reset( hdql_Datum_t newOwner
                         , ctx
                         );
                 if(NULL == state.scalar.dynamicSuppData) {
+                    // TODO: use context error push and emergency exit instead of exception
+                    hdql_context_err_push(ctx, HDQL_ERR_INTERFACE_ERROR
+                        , "scalar interface %p could not"
+                          " initialize access state object", iface );
                     throw std::runtime_error("failed to instantiate"
                             " access state object for scalar attribute"
                             " (interface's instantiate() returned NULL)");
@@ -424,8 +421,8 @@ extern "C" bool
 hdql_query_is_fully_scalar(struct hdql_Query * q) {
     do {
         if(hdql_attr_def_is_collection(q->subject)) return false;
-        if(hdql_attr_def_is_fwd_query(q->subject)) {
-            if(!hdql_query_is_fully_scalar(hdql_attr_def_fwd_query(q->subject)))
+        if(_hdql__attr_def_is_fwd_query(q->subject)) {
+            if(!hdql_query_is_fully_scalar(_hdql__attr_def_fwd_query(q->subject)))
                 return false;
         }
     } while(q->next && (q = static_cast<hdql_Query *>(q->next)));
@@ -489,14 +486,7 @@ extern "C" const hdql_AttrDef *
 hdql_query_top_attr(const struct hdql_Query * q_) {
     const hdql::Query<hdql::QueryState> * q = q_;
     while(q->next) { q = q->next; }
-    #if 0
-    if(hdql_attr_def_is_fwd_query(q->subject)) {
-        return hdql_query_top_attr(hdql_attr_def_fwd_query(q->subject));
-    }
-    return q->subject;
-    #else
     return hdql_attr_def_top_attr(hdql_query_get_subject(static_cast<const struct hdql_Query *>(q)));
-    #endif
 }
 
 extern "C" int

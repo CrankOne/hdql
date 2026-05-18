@@ -7,6 +7,8 @@
 #include <string.h>
 #include <assert.h>
 
+bool _hdql__attr_def_is_fwd_query(hdql_AttrDef_t ad);
+
 void
 hdql_print_value_shallow( const struct hdql_Datum * r
         , const struct hdql_AttrDef * topAttrDef
@@ -47,9 +49,9 @@ hdql_print_value_shallow( const struct hdql_Datum * r
                 _M_append_strbuf(" (no value interface)");
             }
         }
-    } else if(hdql_attr_def_is_fwd_query(topAttrDef)) {
+    } else if(_hdql__attr_def_is_fwd_query(topAttrDef)) {
         /* forwarding query */
-        _M_append_strbuf("forwarding query %p", hdql_attr_def_fwd_query(topAttrDef));
+        _M_append_strbuf("forwarding query %p", _hdql__attr_def_fwd_query(topAttrDef));
     } else if(!hdql_attr_def_is_atomic(topAttrDef)) {  // compound instance(s) of certain type
         assert(hdql_attr_def_is_compound(topAttrDef));
         const struct hdql_Compound * ct = hdql_attr_def_compound_type_info(topAttrDef);
@@ -147,7 +149,7 @@ _ADD_resolve_datum_noeval(struct _ADDTreeLikeNode * nn
         ) {
     if( owner
      && hdql_attr_def_is_scalar(nn->ad)
-     && (!hdql_attr_def_is_fwd_query(nn->ad))
+     && (!_hdql__attr_def_is_fwd_query(nn->ad))
      ) {
         /* for simple, non-forwarding scalar values we try to obtain the values */
         const struct hdql_ScalarAttrInterface * iface

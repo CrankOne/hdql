@@ -62,10 +62,6 @@ TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     // - is of atomic type
     ASSERT_TRUE(q.is_atomic());
     ASSERT_FALSE(q.is_compound());
-    // - is a direct query (not a forwarding query generator)
-    ASSERT_TRUE(q.is_direct_query());
-    ASSERT_FALSE(q.is_fwd_query());
-    // - is of scalar type (does not produce a collection that needs to be
     //   iterades on its own)
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());
@@ -140,10 +136,6 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
     // - is of atomic type
     ASSERT_TRUE(q.is_atomic());
     ASSERT_FALSE(q.is_compound());
-    // - is a direct query (not a forwarding query generator)
-    ASSERT_TRUE(q.is_direct_query());
-    ASSERT_FALSE(q.is_fwd_query());
-    // - is of scalar type (does not produce a collection that needs to be
     //   iterades on its own)
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());
@@ -223,10 +215,6 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     // - is of atomic type
     ASSERT_TRUE(q.is_atomic());
     ASSERT_FALSE(q.is_compound());
-    // - is a direct query (not a forwarding query generator)
-    ASSERT_TRUE(q.is_direct_query());
-    ASSERT_FALSE(q.is_fwd_query());
-    // - is of scalar type (does not produce a collection that needs to be
     //   iterades on its own)
     ASSERT_TRUE(q.is_scalar());
     ASSERT_FALSE(q.is_collection());

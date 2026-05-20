@@ -61,7 +61,6 @@ struct hdql_ScalarAttrInterface {
      * */
     hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
                                , hdql_Datum_t dynData  // allocated with `instantiate()`
-                               , struct hdql_Key * key // may be NULL
                                , const hdql_Datum_t defData  // may be NULL
                                , hdql_Context_t
                                );
@@ -75,6 +74,7 @@ struct hdql_ScalarAttrInterface {
     hdql_Datum_t (*reset)( hdql_Datum_t newOwner
                  , hdql_Datum_t prevDynData
                  , const hdql_Datum_t defData
+                 , struct hdql_Key * key // may be NULL
                  , hdql_Context_t
                  );
     /**\brief Should destroy selection supplementary data for scalar
@@ -106,30 +106,30 @@ struct hdql_CollectionAttrInterface {
      *
      * Mandatory. Iterator object initialization is not needed at this step.
      *
-     * \return NULL on a fatal error, iterator dynamic data otherwise.
-     *
-     * \todo Add "enable key retrieval" option.
-     * */
+     * \return NULL on a fatal error, iterator dynamic data otherwise. */
     hdql_It_t      (*create)        ( hdql_Datum_t owner
                                     , const hdql_Datum_t defData
                                     , hdql_SelectionArgs_t
                                     , hdql_Context_t
                                     );
     /**\brief Dereferences iterator object, returning NULL if it is not
-     *        possible (no items available)
-     *
-     * Raises an error (`HDQL_ERR_NO_KEY_SUPPORT`), if \p key is not NULL,
-     * but keys were not ordered at `create()`. */
-    hdql_Datum_t   (*dereference)   ( hdql_It_t
-                                    , struct hdql_Key * key
-                                    );
+     *        possible (no items available) */
+    hdql_Datum_t   (*dereference)   ( hdql_It_t );
     /** Should advance iterator object */
-    hdql_It_t      (*advance)       ( hdql_It_t );
-    /** Should reset iterator object */
+    hdql_It_t      (*advance)       ( hdql_It_t, struct hdql_Key * key );
+    /**\brief Should reset iterator object
+     *
+     * Should not return NULL except for unrecoverable errors. Iterator
+     * for empty collection should exist (but, probably, in a special
+     * state).
+     *
+     * Provided key is set on the first element, otherwise should be kept
+     * intact. Key may not be provided (NULL). */
     hdql_It_t       (*reset)        ( hdql_It_t
                                     , hdql_Datum_t newOwner
                                     , const hdql_Datum_t defData
                                     , hdql_SelectionArgs_t
+                                    , struct hdql_Key *
                                     , hdql_Context_t
                                     );
     /** Should delete iterator object */

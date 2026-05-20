@@ -107,7 +107,10 @@ hdql_query_get( struct hdql_Query * query
               , hdql_Context_t ctx
               );
 
-HDQL_API int hdql_query_reset(struct hdql_Query * query, hdql_Datum_t, hdql_Context_t ctx);
+HDQL_API hdql_Datum_t hdql_query_reset( struct hdql_Query * query
+        , hdql_Datum_t rootDatum
+        , struct hdql_Key * key
+        , hdql_Context_t context);
 
 HDQL_API void
 hdql_query_set_transient_subject_ownership(struct hdql_Query * q);

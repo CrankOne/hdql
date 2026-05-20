@@ -29,23 +29,22 @@ struct ArithOpCollectionState {
 
     bool isExhausted, isValid;
     hdql_Datum_t a, b;
-    struct hdql_Key * cRKey;
     hdql_Datum_t cResult;
     hdql_Context_t context;
 
-    void (*advance)(struct ArithOpCollectionState *);
+    void (*advance)(struct ArithOpCollectionState *, struct hdql_Key * key);
 };
 
 static void
-_advance_a(struct ArithOpCollectionState * state) {
-    state->a = hdql_query_get(state->defData->args[0], state->cRKey, state->context);
+_advance_a(struct ArithOpCollectionState * state, struct hdql_Key * key) {
+    state->a = hdql_query_get(state->defData->args[0], key, state->context);
     if(NULL == state->a) state->isExhausted = true;
     state->isValid = false;
 }
 
 static void
-_advance_b(struct ArithOpCollectionState * state) {
-    state->b = hdql_query_get(state->defData->args[1], state->cRKey, state->context);
+_advance_b(struct ArithOpCollectionState * state, struct hdql_Key * key) {
+    state->b = hdql_query_get(state->defData->args[1], key, state->context);
     if(NULL == state->b) state->isExhausted = true;
     state->isValid = false;
 }
@@ -60,27 +59,18 @@ _arith_op_collection_create( hdql_Datum_t owner
         = (struct ArithOpCollectionState *) hdql_context_alloc(ctx, sizeof(struct ArithOpCollectionState));
     state->defData = (struct hdql_ArithOpDefData *) defData_;
     state->isExhausted = state->isValid = false;
-    state->cRKey = hdql_key_new(ctx);
     bool aIsFullyScalar = hdql_query_is_fully_scalar(state->defData->args[0]);
     #ifndef NDEBUG
     bool bIsFullyScalar = state->defData->args[1] ? hdql_query_is_fully_scalar(state->defData->args[1]) : true;
     assert(aIsFullyScalar != bIsFullyScalar);  /* both scalars and both collections are prohibited */
     #endif
-    /* see comments to issue #14 -- we currently have to allocate and maintain
-     * keys unconditionally, but that must be changed in the future */
     if(!aIsFullyScalar) {
         assert(bIsFullyScalar);
         /* a is collection */
         state->advance = _advance_a;
-        hdql_key_reserve_for_query( state->defData->args[0]
-                                  , state->cRKey
-                                  , ctx ); 
     } else {
         /* b is collection */
         state->advance = _advance_b;
-        hdql_key_reserve_for_query( state->defData->args[1]
-                                  , state->cRKey
-                                  , ctx );
     }
     state->cResult = hdql_create_value( state->defData->evaluator->returnType
                                       , ctx
@@ -90,9 +80,7 @@ _arith_op_collection_create( hdql_Datum_t owner
 }
 
 static hdql_Datum_t
-_arith_op_collection_dereference( hdql_It_t it_
-                                , struct hdql_Key * keyPtr
-                                ) {
+_arith_op_collection_dereference( hdql_It_t it_ ) {
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
     if(state->isExhausted) {
         return NULL;
@@ -109,17 +97,14 @@ _arith_op_collection_dereference( hdql_It_t it_
             state->isValid = true;
         }
     }
-    if(keyPtr) {
-        hdql_key_copy_value(keyPtr, state->cRKey, state->context);
-    }
     return state->cResult;
 }
 
 static hdql_It_t
-_arith_op_collection_advance( hdql_It_t it_ ) {
+_arith_op_collection_advance( hdql_It_t it_, struct hdql_Key * keyPtr ) {
     assert(it_);
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    state->advance(state);
+    state->advance(state, keyPtr);
     return it_;
 }
 
@@ -154,7 +139,6 @@ _arith_op_collection_reset( hdql_It_t it_
             state->isExhausted = true;
         } else state->isExhausted = false;
     }
-    state->advance(state);
     return (hdql_It_t) state;
 }
 
@@ -177,9 +161,6 @@ _arith_op_collection_destroy( hdql_It_t it_
     //        hdql_query_destroy(state->defData->args[1], ctx);
     //    }
     //}
-    if(NULL != state->cRKey) {
-        hdql_key_destroy(state->cRKey, ctx);
-    }
     /* TODO: deleting externally-allocated "definition data" does not seem to
      * be a good solution */
     //if(NULL != state->defData) {

@@ -8,6 +8,8 @@
 #include "hdql/types.h"
 #include "hdql/value.h"
 
+#include "hdql/internal-api.h"
+
 #include <alloca.h>
 #include <assert.h>
 #include <strings.h>
@@ -30,6 +32,19 @@
  *                               ^^^ this
  * here `two' is the bound query and the encompassing `{}` virtual compound
  * is a collection, steering iteration over bound query.
+ *
+ * This file contains two closely bound interface implementations:
+ * 1. Bound value (scalar attribute) which always is a part of virtual
+ *    compound and refers to a particular query. This attribute is keyless by
+ *    itself, but its key becomes key of corresponding collection of bound
+ *    virtual compound.
+ * 2. Collection of bound virtual compound elements. This AD implementation
+ *    implements collection access interface with complex (list) key
+ *    referencing concatenated keys of every bound attribute.
+ */
+
+/*                                                       _____________________
+ * ____________________________________________________/ Value bound by query
  */
 
 /* NOTE: this is attribute definition data, not an iterator */
@@ -83,6 +98,9 @@ const struct hdql_ScalarAttrInterface _hdql_gBoundQueryIFace = {
     .destroy = _bound_query_scalar_interface_destroy
 };
 
+/*                                               _____________________________
+ * ____________________________________________/ Collection of bound compound
+ */
 
 /* Bound compound collection (possibly filtered) manages Cartesian product
  * internally to iterate over set of (binding) queries. 
@@ -98,10 +116,6 @@ struct QueryProdIterator {
 
     struct hdql_Query ** boundQueries;
     hdql_Datum_t * values;
-    /* de-structured list of keys, a cache
-     * We could keep it as a key list, but Cartesian product API expects
-     * pointer-to-pointers. */
-    struct hdql_Key ** keys;
 
     hdql_Datum_t owner;
     size_t nBindingQueries;
@@ -140,14 +154,6 @@ _bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrA
     struct BoundValueDefinitionData * bDefData
         = (struct BoundValueDefinitionData*) boundAttrIFace->definitionData;
     ud->it->boundQueries[ud->nBoundAttr] = bDefData->q;
-    #ifndef NDEBUG
-    int rc =
-    #endif
-        hdql_key_reserve_for_query( bDefData->q
-                                  , ud->it->keys[ud->nBoundAttr]
-                                  , ud->it->context
-                                  );
-    assert(0 == rc);
     bDefData->value = ud->it->values + ud->nBoundAttr;
     ++(ud->nBoundAttr);
     return 0;
@@ -205,12 +211,6 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
     it->boundQueries = (struct hdql_Query **)
             hdql_context_alloc(ctx
                 , it->nBindingQueries*sizeof(struct hdql_Query *));
-    /* see comments to issue #14 -- we currently have to allocate and maintain
-     * keys unconditionally, but that must be changed in the future */
-    it->keys = (struct hdql_Key **)
-            hdql_context_alloc(ctx, it->nBindingQueries*sizeof(struct hdql_Key *));
-    for(size_t i = 0; i < it->nBindingQueries; ++i)
-        it->keys[i] = hdql_key_new(ctx);
     it->values = (hdql_Datum_t *) hdql_context_alloc(ctx, sizeof(hdql_Datum_t *)*it->nBindingQueries);
     _BindQueryUD_t bqud = {.it = it, .nBoundAttr = 0};
     hdql_compound_for_each_own_attribute(dd->vCompound, _bind_query, &bqud);
@@ -219,21 +219,8 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
 }
 
 static hdql_Datum_t
-_hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
-                                , struct hdql_Key * keyPtr
-                                ) {
+_hdql_cartesian_product_as_collection_dereference( hdql_It_t it_ ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
-    if(keyPtr) {
-        assert(hdql_key_is_list(keyPtr));
-        for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
-            //assert(keyPtr->pl.keysList[nq].isList);
-            if(!it->keys[nq]) continue;
-            hdql_key_copy_value( hdql_key_get_list_item(keyPtr, nq)
-                               , it->keys[nq]
-                               , it->context
-                               );
-        }
-    }
     #ifndef NDEBUG
     if(it->owner) {
         for(size_t i = 0; i < it->nBindingQueries; ++i) {
@@ -246,11 +233,11 @@ _hdql_cartesian_product_as_collection_dereference( hdql_It_t it_
 
 
 static hdql_It_t
-_hdql_cartesian_product_as_collection_advance( hdql_It_t it_ ) {
+_hdql_cartesian_product_as_collection_advance( hdql_It_t it_, struct hdql_Key * key ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     do {
         int rc = hdql_query_product_advance( it->boundQueries
-            , it->keys
+            , key
             , it->values
             , it->owner
             , it->nBindingQueries
@@ -287,12 +274,13 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
                           , hdql_Datum_t newOwner
                           , const hdql_Datum_t defData
                           , hdql_SelectionArgs_t selArgs
+                          , struct hdql_Key * key
                           , hdql_Context_t ctx
                           ) {
     assert(it_);
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     int rc = hdql_query_product_reset( it->boundQueries
-        , it->keys
+        , key
         , it->values
         , it->owner = newOwner
         , it->nBindingQueries
@@ -321,7 +309,7 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
         if(it->filterLogicResult) break;
 
         rc = hdql_query_product_advance( it->boundQueries
-            , it->keys
+            , key
             , it->values
             , it->owner
             , it->nBindingQueries
@@ -341,13 +329,7 @@ _hdql_cartesian_product_destroy( hdql_It_t it_
                             ) {
     struct QueryProdIterator * it = hdql_cast(ctx, struct QueryProdIterator, it_);
     for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
-        if(it->keys) {
-            hdql_key_destroy(it->keys[nq], ctx);
-        }
         hdql_query_destroy(it->boundQueries[nq], ctx);
-    }
-    if(it->keys) {
-        hdql_context_free(ctx, (hdql_Datum_t) it->keys);
     }
     hdql_context_free(ctx, (hdql_Datum_t) it->values);
     hdql_context_free(ctx, (hdql_Datum_t) it->boundQueries);

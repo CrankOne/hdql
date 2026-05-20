@@ -55,6 +55,11 @@ struct hdql_Key * hdql__key_get_list_bgn(struct hdql_Key * k) {
     return k->pl.keysList;
 }
 
+/* internal API call */
+bool hdql__key_is_terminal(const struct hdql_Key * k) {
+    return k->isTerminal;
+}
+
 hdql_Key_t
 hdql_key_new(hdql_Context_t context) {
     hdql_Key_t k = (hdql_Key_t) hdql_alloc(context, struct hdql_Key);

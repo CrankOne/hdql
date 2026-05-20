@@ -69,9 +69,10 @@ struct QueryState {
                   , hdql_Context_t ctx
                   );
     // sets iterator to next available item, if possible, or sets it to end
-    void advance( hdql_Context_t ctx );
+    void advance( hdql_Context_t ctx, hdql_Key * keyPtr );
     // sets iterator to first available item
     void reset( hdql_Datum_t newOwner
+              , hdql_Key_t key
               , hdql_Context_t ctx
               );
 };
@@ -101,7 +102,7 @@ struct Query : public SelectionItemT {
             ) {
         if(!next) {  // last query in a chain
             if(currentYielded) {  // already got, advance before return
-                SelectionItemT::advance(ctx);
+                SelectionItemT::advance(ctx, keys);
                 currentYielded = true;
             }
             if(!SelectionItemT::get_value(result, keys, ctx)) {
@@ -121,14 +122,14 @@ struct Query : public SelectionItemT {
 
         // this is not a terminal query in the chain 
         while(!next->get(keys ? hdql__keys_next(keys) : NULL, ctx)) {
-            SelectionItemT::advance(ctx);  // advance next one
+            SelectionItemT::advance(ctx, keys);  // advance next one  // TODO: not sure keys or next(keys)
             if(!SelectionItemT::get_value( result  // destination
                                          , keys
                                          , ctx
                                          ) ) {
                 return false;
             }
-            next->reset(result, ctx);  // reset next one
+            next->reset(result, keys, ctx);  // reset next one
         }
         return true;
     }
@@ -140,13 +141,13 @@ struct Query : public SelectionItemT {
         SelectionItemT::finalize_tier(ctx);
     }
 
-    void reset( hdql_Datum_t owner, hdql_Context_t ctx ) {
+    void reset( hdql_Datum_t owner, hdql_Key_t key, hdql_Context_t ctx ) {
         currentYielded = false;
-        SelectionItemT::reset(owner, ctx);
+        SelectionItemT::reset(owner, key, ctx);
         if(!SelectionItemT::get_value(result, NULL, ctx))
             return;
         if(!next) return;
-        next->reset(result, ctx);
+        next->reset(result, key, ctx);
     }
 
     std::size_t depth() const {
@@ -245,7 +246,7 @@ QueryState::get_value( hdql_Datum_t & value
     if(hdql_attr_def_is_collection(subject)) {
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
         assert(state.collection.iterator);
-        value = iface->dereference(state.collection.iterator, keyPtr);
+        value = iface->dereference(state.collection.iterator);
     } else {
         if(state.scalar.isVisited)
             return false;
@@ -263,7 +264,7 @@ QueryState::get_value( hdql_Datum_t & value
 
 // sets iterator to next available item, if possible, or sets it to end
 void
-QueryState::advance( hdql_Context_t ctx ) {
+QueryState::advance( hdql_Context_t ctx, hdql_Key * keyPtr ) {
     ((void) ctx);
     assert(subject);
     assert(owner);  // otherwise missing reset()
@@ -271,7 +272,7 @@ QueryState::advance( hdql_Context_t ctx ) {
         if(!state.collection.iterator)
             return;  // permitted state for empty collections
         const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(subject);
-        state.collection.iterator = iface->advance( state.collection.iterator );
+        state.collection.iterator = iface->advance( state.collection.iterator, keyPtr );
     } else {
         state.scalar.isVisited = true;
     }
@@ -279,6 +280,7 @@ QueryState::advance( hdql_Context_t ctx ) {
 
 void
 QueryState::reset( hdql_Datum_t newOwner
+                , hdql_Key_t key
                 , hdql_Context_t ctx
                 ) {
     assert(newOwner);
@@ -307,6 +309,7 @@ QueryState::reset( hdql_Datum_t newOwner
                     , newOwner
                     , iface->definitionData
                     , state.collection.selectionArgs
+                    , key
                     , ctx
                     );
     } else {
@@ -358,7 +361,6 @@ hdql_query_get( struct hdql_Query * query
               , struct hdql_Key * key
               , hdql_Context_t ctx
               ) {
-
     // evaluate query on data, return NULL if evaluation failed
     // Query::get() changes states of query chain and returns `false' if
     // full chain can not be evaluated
@@ -370,19 +372,20 @@ hdql_query_get( struct hdql_Query * query
     return current->result;
 }
 
-extern "C" int
+extern "C" hdql_Datum_t
 hdql_query_reset( struct hdql_Query * query
-                , hdql_Datum_t owner
-                , hdql_Context_t ctx
+                , hdql_Datum_t rootDatum
+                , hdql_Key * key
+                , hdql_Context_t context
                 ) {
     try {
-        query->reset(owner, ctx);
+        query->reset(rootDatum, key, context);
     } catch(std::runtime_error & e) {
-        hdql_context_err_push(ctx, HDQL_ERR_BAD_QUERY_STATE
+        hdql_context_err_push(context, HDQL_ERR_BAD_QUERY_STATE
                 , "can't re-set the query: %s", e.what());
-        return HDQL_ERR_BAD_QUERY_STATE;
+        return NULL;
     }
-    return HDQL_ERR_CODE_OK;
+    return query->result;
 }
 
 extern "C" void

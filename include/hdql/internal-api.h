@@ -1,6 +1,8 @@
 #ifndef H_HDQL_INTERNAL_API_H
 #define H_HDQL_INTERNAL_API_H 1
 
+#include <stdbool.h>
+
 /* These functions are used within the library and not supposed to be exported
  * to the public API */
 
@@ -8,8 +10,12 @@
 extern "C" {
 #endif
 
+struct hdql_ValueTypes;
+struct hdql_Context;
+struct hdql_AttrDef;
+
 /* from src/values.cc */
-struct hdql_ValueTypes * _hdql_value_types_table_create(hdql_ValueTypes *, struct hdql_Context *);
+struct hdql_ValueTypes * _hdql_value_types_table_create(struct hdql_ValueTypes *, struct hdql_Context *);
 void _hdql_value_types_table_destroy(struct hdql_ValueTypes *, struct hdql_Context *);
 
 struct hdql_Constants * _hdql_constants_create(struct hdql_Constants *, struct hdql_Context *);
@@ -34,6 +40,11 @@ void _hdql_randgen_destroy(struct hdql_RandGen *, struct hdql_Context *);
 /* from src/attr-def.c */
 bool _hdql__attr_def_is_fwd_query(const struct hdql_AttrDef * ad);
 struct hdql_Query * _hdql__attr_def_fwd_query(const struct hdql_AttrDef * ad);
+
+/* from src/query-key.c */
+struct hdql_Key * hdql__key_get_list_bgn(struct hdql_Key * k);
+struct hdql_Key * hdql__keys_next(struct hdql_Key * k);
+bool hdql__key_is_terminal(const struct hdql_Key * k);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -343,7 +343,7 @@ hdql_attr_def_create_static_atomic_scalar_value(
     bzero(&iface, sizeof(iface));
     iface.reset = _static_atomic_scalar_reset;
     iface.definitionData = valueDatum;
-    iface.destroy = NULL;
+    iface.destroy_dyn_data = NULL;
 
     ad->interface.scalar = iface;
 

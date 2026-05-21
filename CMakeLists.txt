@@ -131,6 +131,7 @@ if (BUILD_TESTS)
         test/basic/basic-query.cc
         test/basic/scalar-stateless.cc
         test/basic/scalar-stateful.cc
+        test/basic/collection.cc
         # Event structure based on C++ compounds
         test/samples.cc
         #test/events-struct.cc

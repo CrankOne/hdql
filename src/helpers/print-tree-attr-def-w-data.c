@@ -154,7 +154,7 @@ _ADD_resolve_datum_noeval(struct _ADDTreeLikeNode * nn
         /* for simple, non-forwarding scalar values we try to obtain the values */
         const struct hdql_ScalarAttrInterface * iface
             = hdql_attr_def_scalar_iface(nn->ad);
-        if(iface && !iface->instantiate) {
+        if(iface && !iface->new_dyn_data) {
             #if 1
             assert(false);
             #else

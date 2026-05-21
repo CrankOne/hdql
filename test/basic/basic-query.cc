@@ -7,12 +7,12 @@
 namespace hdql {
 namespace test {
 
-void BasicAttrDefQuery::SetUp() {
+void BasicQuery::SetUp() {
     _context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
     ASSERT_TRUE(_context);
 }
 
-void BasicAttrDefQuery::TearDown() {
+void BasicQuery::TearDown() {
     if(!_context) return;
     if(_q)
         hdql_query_destroy(_q, _context);

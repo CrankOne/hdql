@@ -80,15 +80,15 @@ destroy_a_stateful( hdql_Datum_t dynData
 
 hdql_ScalarAttrInterface statefulScalarAttrIFace {
     .definitionData = reinterpret_cast<hdql_Datum *>(&toCheckStateful),
-    .instantiate = instantiate_a_stateful,
+    .new_dyn_data = instantiate_a_stateful,
     .reset = reset_a_stateful,
-    .destroy = destroy_a_stateful
+    .destroy_dyn_data = destroy_a_stateful
 };
 }  // anon ns
 
 // Simple stateless scalar attribute
 //
-TEST_F(BasicAttrDefQuery, queryResolvesStatefulScalarOnce) {
+TEST_F(BasicQuery, queryResolvesStatefulScalarOnce) {
     // create simple attribute definition
     hdql_AtomicTypeFeatures typeInfo;
     typeInfo.arithTypeCode = 0x1;  // just to prevent assertions, must be unused

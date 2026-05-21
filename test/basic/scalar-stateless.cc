@@ -43,16 +43,16 @@ reset_a_stateless( hdql_Datum_t owner
 
 hdql_ScalarAttrInterface statelessScalarAttrIFace {
     .definitionData = reinterpret_cast<hdql_Datum *>(&toCheckStateless),
-    .instantiate = nullptr,
+    .new_dyn_data = nullptr,
     .reset = reset_a_stateless,
-    .destroy = nullptr
+    .destroy_dyn_data = nullptr
 };
 
 }  // anon ns
 
 // Simple stateless scalar attribute
 //
-TEST_F(BasicAttrDefQuery, queryResolvesStatelessScalarOnce) {
+TEST_F(BasicQuery, queryResolvesStatelessScalarOnce) {
     // create simple attribute definition
     hdql_AtomicTypeFeatures typeInfo;
     typeInfo.arithTypeCode = 0x1;  // just to prevent assertions, must be unused

@@ -63,9 +63,8 @@ hdql__query_reset( struct hdql_Query * q
         if(NULL == q->state.collection.iterator) {
             /* create new iterator for the collection dereferencing subject
              * attribute on owning datum */
-            q->state.collection.iterator = iface->create( owner /* new owner */
+            q->state.collection.iterator = iface->new_iterator( owner /* new owner */
                     , iface->definitionData  /* static attribute's data */
-                    , q->state.collection.selectionArgs  /* key filtering (selection) */
                     , context  /* context for allocations of iterator's dyn data */
                     );
             if(NULL == q->state.collection.iterator) {  /* iterator allocation failure */
@@ -76,7 +75,8 @@ hdql__query_reset( struct hdql_Query * q
             }
         }
         /* (re)initialize iterator */
-        q->state.collection.iterator = iface->reset( q->state.collection.iterator
+        hdql_Datum_t r = iface->reset_iterator(
+                  q->state.collection.iterator
                 , owner
                 , iface->definitionData
                 , q->state.collection.selectionArgs
@@ -90,8 +90,7 @@ hdql__query_reset( struct hdql_Query * q
                     , iface, owner );
             return NULL;
         }
-        return iface->get_next(q->state.collection.iterator
-                , iface->definitionData, key, context);
+        return r;
     }
     assert(hdql_attr_def_is_scalar(q->ad));
     const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(q->ad);
@@ -100,10 +99,10 @@ hdql__query_reset( struct hdql_Query * q
      * can be defined by the scalar interface (allocated
      * with `instantiate()`) providing a place to cache access utility
      * objects between `reset()` calls. Dynamic data is optional */
-    if(iface->instantiate) {
+    if(iface->new_dyn_data) {
         if(NULL == q->state.scalar.dynamicSuppData ) {
             q->state.scalar.dynamicSuppData
-                = iface->instantiate( owner
+                = iface->new_dyn_data( owner
                     , iface->definitionData
                     , context
                     );
@@ -171,7 +170,7 @@ hdql__query_yield( struct hdql_Query *q
     if(hdql_attr_def_is_scalar(q->ad)) return NULL;
     const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(q->ad);
     /* should tolerate "advance on depletion */
-    return iface->get_next(q->state.collection.iterator, iface->definitionData, key, context);
+    return iface->yield(q->state.collection.iterator, iface->definitionData, key, context);
 }
 
 /* exported API: advance and get */
@@ -199,7 +198,7 @@ hdql_query_get( struct hdql_Query *q
         }
         /* Descend again: reset each child iterator on the value
          * yielded by its parent. */
-        hdql__query_reset_descendant(cq, r, key, context);
+        hdql__query_reset_descendant(cq->next, r, key, context);
         /* Reached terminal query successfully. */
         if(NULL != r && NULL == cq->next)
             return r;
@@ -266,7 +265,7 @@ hdql__query_destroy(struct hdql_Query * q, struct hdql_Context * context) {
     if(hdql_attr_def_is_collection(q->ad)) {
         const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(q->ad);
         if(q->state.collection.iterator) {
-            iface->destroy( q->state.collection.iterator
+            iface->destroy_iterator( q->state.collection.iterator
                     , iface->definitionData, context );
             q->state.collection.iterator = NULL;
         }
@@ -280,8 +279,8 @@ hdql__query_destroy(struct hdql_Query * q, struct hdql_Context * context) {
         }
     } else {
         const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(q->ad);
-        if(iface->destroy)
-            iface->destroy( q->state.scalar.dynamicSuppData
+        if(iface->destroy_dyn_data)
+            iface->destroy_dyn_data( q->state.scalar.dynamicSuppData
                           , iface->definitionData
                           , context);
     }

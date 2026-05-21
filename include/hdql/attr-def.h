@@ -40,7 +40,7 @@ struct hdql_ScalarAttrInterface {
      *
      * \todo Add "enable key retrieval" option.
      * */
-    hdql_Datum_t (*instantiate)( hdql_Datum_t newOwner
+    hdql_Datum_t (*new_dyn_data)( hdql_Datum_t newOwner
                                , const hdql_Datum_t defData
                                , hdql_Context_t context
                                );
@@ -59,10 +59,10 @@ struct hdql_ScalarAttrInterface {
                  );
     /**\brief Should destroy selection supplementary data for scalar
      *        attribute, can be NULL */
-    void (*destroy)( hdql_Datum_t dynData
-                   , const hdql_Datum_t defData
-                   , hdql_Context_t
-                   );
+    void (*destroy_dyn_data)( hdql_Datum_t dynData
+                            , const hdql_Datum_t defData
+                            , hdql_Context_t
+                            );
 };
 
 /**\brief Collection keys list allocation callback
@@ -87,35 +87,30 @@ struct hdql_CollectionAttrInterface {
      * Mandatory. Iterator object initialization is not needed at this step.
      *
      * \return NULL on a fatal error, iterator dynamic data otherwise. */
-    hdql_It_t      (*create)        ( hdql_Datum_t owner
+    hdql_It_t      (*new_iterator)  ( hdql_Datum_t owner
                                     , const hdql_Datum_t defData
-                                    , hdql_SelectionArgs_t
                                     , hdql_Context_t
                                     );
     /** Should advance and dereference iterator object */
-    hdql_Datum_t   (*get_next)      ( hdql_It_t
-                                    , struct hdql_Datum *defData
+    hdql_Datum_t            (*yield)( hdql_It_t
+                                    , const struct hdql_Datum *defData
                                     , struct hdql_Key *key
                                     , struct hdql_Context *context
                                     );
-    /**\brief Should reset iterator object
-     *
-     * Should not return NULL except for unrecoverable errors. Iterator
-     * for empty collection should exist (usually in a special
-     * state, prohibiting further advance and returning NULL at dereference).
+    /**\brief Should reset iterator object and return corresponding datum
      *
      * Provided key is set on the first element, otherwise should be kept
      * intact. Key may not be provided (NULL). */
-    hdql_It_t       (*reset)        ( hdql_It_t
+    hdql_Datum_t  (*reset_iterator) ( hdql_It_t
                                     , hdql_Datum_t newOwner
-                                    , const hdql_Datum_t defData
+                                    , const struct hdql_Datum *defData
                                     , hdql_SelectionArgs_t
                                     , struct hdql_Key *
                                     , hdql_Context_t
                                     );
     /** Should delete iterator object */
-    void           (*destroy)       ( hdql_It_t
-                                    , hdql_Datum_t defData
+    void         (*destroy_iterator)( hdql_It_t
+                                    , const struct hdql_Datum *defData
                                     , hdql_Context_t
                                     );
 

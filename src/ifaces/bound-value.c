@@ -72,7 +72,6 @@ static hdql_Datum_t
 _bound_query_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t dd_
-        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t definitionData
         , hdql_Context_t ctx
         ) {
@@ -253,7 +252,7 @@ _hdql_cartesian_product_as_collection_advance( hdql_It_t it_, struct hdql_Key * 
         }
         #endif
         if(it->filterQuery) {
-            hdql_query_reset(it->filterQuery, it->owner, it->context);
+            hdql_query_reset(it->filterQuery, it->owner, key, it->context);
             hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);
             if(NULL == r) continue;
             assert(r);
@@ -296,7 +295,7 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
     }
     #endif
     while(it->filterQuery && rc != HDQL_ERR_EMPTY_SET) {
-        hdql_query_reset(it->filterQuery, it->owner, it->context);
+        hdql_query_reset(it->filterQuery, it->owner, key, it->context);
         hdql_Datum_t r = hdql_query_get(it->filterQuery, NULL, it->context);
         if(NULL == r) continue;
         assert(r);

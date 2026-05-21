@@ -17,7 +17,6 @@
 struct FwdQueryScalarState {
     struct hdql_Query * subQuery;
     hdql_Datum_t result;
-    struct hdql_Key * key;
     hdql_Context_t context;
 };
 
@@ -32,11 +31,7 @@ _fwd_query_scalar_interface_instantiate(
     it->subQuery = (struct hdql_Query *) definitionData;
     assert(it->subQuery);
     it->result = NULL;
-    it->key = hdql_key_new(ctx);
     it->context = ctx;
-    int rc = hdql_key_reserve_for_query(it->subQuery, it->key, ctx);
-    assert(rc == 0);
-    assert(it->key);
     return (hdql_Datum_t) it;
 }
 
@@ -44,17 +39,12 @@ static hdql_Datum_t
 _fwd_query_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t dd_
-        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t defData
-        , hdql_Context_t
+        , hdql_Context_t context
         ) {
+    ((void) context);
     assert(dd_);  /* dereference() without create() (and subsequent reset()) */
     struct FwdQueryScalarState * dd = (struct FwdQueryScalarState *) dd_;
-    if(key) {
-        assert(dd->key);
-        assert(hdql_key_is_list(key));
-        hdql_key_copy_value(key, dd->key, dd->context);
-    }
     return dd->result;
 }
 
@@ -63,6 +53,7 @@ _fwd_query_scalar_interface_reset(
           hdql_Datum_t newOwner
         , hdql_Datum_t dd_
         , const hdql_Datum_t defData
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
     assert(dd_);  /* reset() without create() */
@@ -74,8 +65,8 @@ _fwd_query_scalar_interface_reset(
         assert(fwdQ == dd->subQuery);  /* fwd q had changed query between create() and reset() */
     }
     #endif
-    hdql_query_reset(dd->subQuery, newOwner, ctx);
-    dd->result = hdql_query_get(dd->subQuery, dd->key, ctx);
+    hdql_query_reset(dd->subQuery, newOwner, key, ctx);
+    dd->result = hdql_query_get(dd->subQuery, key, ctx);
     return dd_;
 }
 
@@ -85,10 +76,6 @@ _fwd_query_scalar_interface_destroy(
         , const hdql_Datum_t defData
         , hdql_Context_t ctx
         ) {
-    struct FwdQueryScalarState * dd = (struct FwdQueryScalarState *) dd_;
-    if(dd && dd->key) {
-        hdql_key_destroy(dd->key, ctx);
-    }
     // NOTE: sub-queries get destroyed within virtual compound dtrs
     // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);` XXX
     // More strictly: scalar interface destroy must not deallocate definition

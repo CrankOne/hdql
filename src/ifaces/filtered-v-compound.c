@@ -57,14 +57,13 @@ static hdql_Datum_t
 _filtered_compound_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t s_
-        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t defData_
         , hdql_Context_t ctx
         ) {
     struct FilteredVCompoundState * s = hdql_cast(ctx, struct FilteredVCompoundState, s_);
     hdql_Datum_t r = hdql_query_get(s->filterQuery, NULL, ctx);
     if(NULL == r) return NULL;
-    hdql_query_reset(s->filterQuery, root, ctx);  // TODO: check why do we need this
+    //hdql_query_reset(s->filterQuery, root, key, ctx);  // TODO: check why do we need this
     assert(r);
     if(s->toLogicConverter) {
         int rc = s->toLogicConverter(((hdql_Datum_t) &(s->logicResult)), r);
@@ -82,11 +81,12 @@ _filtered_compound_scalar_interface_reset(
           hdql_Datum_t newOwner
         , hdql_Datum_t s_
         , const hdql_Datum_t defData_
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
     struct FilteredVCompoundState * s
         = hdql_cast(ctx, struct FilteredVCompoundState, s_);
-    hdql_query_reset(s->filterQuery, newOwner, ctx);
+    hdql_query_reset(s->filterQuery, newOwner, key, ctx);
     return s_;
 }
 

@@ -4,7 +4,7 @@
 #include "hdql/context.h"
 #include "hdql/errors.h"
 #include "hdql/types.h"
-#include "hdql/helpers/functions.hh"
+//#include "hdql/helpers/functions.hh"
 
 #include <cassert>
 #include <unordered_map>
@@ -73,6 +73,7 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
 
 int
 hdql_functions_add_standard_math(struct hdql_Functions * functions) {
+    #if 0
     using namespace hdql;
     #define _M_ADD_STD_MATH_FUNC(fname) \
         hdql_functions_define(functions, # fname, hdql::helpers::math_f_construct(:: fname), reinterpret_cast<void*>(&:: fname));
@@ -115,6 +116,9 @@ hdql_functions_add_standard_math(struct hdql_Functions * functions) {
     // ... other math functions?
     #undef _M_ADD_STD_MATH_FUNC
     return 0;
+    #else
+    assert(0);
+    #endif
 }
 
 

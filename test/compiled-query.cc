@@ -68,11 +68,18 @@ TestCompiledQuery::CompileQuery(const char * expression, bool enableKeys) {
 }
 
 void
-TestCompiledQuery::ResetQuery(void * datum) {
+TestCompiledQuery::ResetQuery(void *datum, void *&result) {
     ASSERT_TRUE(_query);
-    int rc = hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(datum)
-            , _compounds.context_ptr());
-    ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
+    result = hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(datum)
+                    , _queryKey
+                    , _compounds.context_ptr());
+    // TODO: assure context error stack is empty
+}
+
+void
+TestCompiledQuery::AdvanceQuery(void *&result) {
+    result = hdql_query_get(_query, _queryKey, _compounds.context_ptr());
+    // TODO: assure context error stack is empty
 }
 
 void

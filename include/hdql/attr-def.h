@@ -15,22 +15,21 @@ struct hdql_Key;  /* fwd */
 /**\brief Interface to scalar attribute definition
  *
  * Scalar attributes obeys simple lifecycle:
- *  1. Upon query initialization, the supplementary dynamic data gets
- *     instantiated (`instantiate()`).
- *  2. Upon applying the query, the attribute gets re-set (`reset()`) with an
- *     owning datum instance.
- *  3. Upon retrieving the value, the attribute gets
- *     dereferenced (`dereference()`).
- *  4. Once corresponding query destroyed, a `destroy()` gets called to delete
+ *  1. Upon query initialization, the supplementary dynamic data may be
+ *     instantiated (when `instantiate()` is not NULL).
+ *  2. Upon applying the query to a datum, the attribute gets re-set
+ *     (`reset()`) with an owning datum instance, yielding a value.
+ *  3. Once corresponding query destroyed, a `destroy()` gets called to delete
  *     dynamic data.
  *
  * Note the following important features:
- *  - scalar attribute can emit the key;
+ *  - scalar attribute can set the key;
  *  - scalar attribute can result in nothing.
  * */
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
     hdql_Datum_t definitionData;
+
     /**\brief Instantiate dynamic data for scalar attribute
      *
      * This method is optional (can be NULL). Should instantiate
@@ -45,36 +44,17 @@ struct hdql_ScalarAttrInterface {
                                , const hdql_Datum_t defData
                                , hdql_Context_t context
                                );
-    /** Scalar item dereference callback, required
+    /**\brief Called in case of owner change, shall return new data object or
+     *        null when unavailable
      *
-     * \return pointer to associated datum or NULL
-     *
-     * Raises an error (`HDQL_ERR_NO_KEY_SUPPORT), if \p key is not NULL,
-     * but keys were not ordered at `create()`.
-     *
-     * \note The call to dereference *must be idempotent* meaning that in
-     *       between of `reset()` calls, the returned value must not change.
-     *       Practically, that means that any calculus done upon call of
-     *       dereference has to be cached/stored and invalidated only on
-     *       next `reset()` call (dynamic data is an appropriate place to
-     *       accomodate this persistency, if needed).
-     * */
-    hdql_Datum_t (*dereference)( hdql_Datum_t root  // owning object
-                               , hdql_Datum_t dynData  // allocated with `instantiate()`
-                               , const hdql_Datum_t defData  // may be NULL
-                               , hdql_Context_t
-                               );
-    /**\brief Called in case of owner change, shall return new/re-initialized
-     *        dynamic data
-     *
-     * Set to NULL when `instantiate()` is NULL, otherwise required.
+     * \note \p key can be NULL.
      *
      * \return updated or reallocated dynamic data
      */
     hdql_Datum_t (*reset)( hdql_Datum_t newOwner
-                 , hdql_Datum_t prevDynData
+                 , hdql_Datum_t dynData
                  , const hdql_Datum_t defData
-                 , struct hdql_Key * key // may be NULL
+                 , struct hdql_Key *key
                  , hdql_Context_t
                  );
     /**\brief Should destroy selection supplementary data for scalar
@@ -112,16 +92,17 @@ struct hdql_CollectionAttrInterface {
                                     , hdql_SelectionArgs_t
                                     , hdql_Context_t
                                     );
-    /**\brief Dereferences iterator object, returning NULL if it is not
-     *        possible (no items available) */
-    hdql_Datum_t   (*dereference)   ( hdql_It_t );
-    /** Should advance iterator object */
-    hdql_It_t      (*advance)       ( hdql_It_t, struct hdql_Key * key );
+    /** Should advance and dereference iterator object */
+    hdql_Datum_t   (*get_next)      ( hdql_It_t
+                                    , struct hdql_Datum *defData
+                                    , struct hdql_Key *key
+                                    , struct hdql_Context *context
+                                    );
     /**\brief Should reset iterator object
      *
      * Should not return NULL except for unrecoverable errors. Iterator
-     * for empty collection should exist (but, probably, in a special
-     * state).
+     * for empty collection should exist (usually in a special
+     * state, prohibiting further advance and returning NULL at dereference).
      *
      * Provided key is set on the first element, otherwise should be kept
      * intact. Key may not be provided (NULL). */
@@ -134,6 +115,7 @@ struct hdql_CollectionAttrInterface {
                                     );
     /** Should delete iterator object */
     void           (*destroy)       ( hdql_It_t
+                                    , hdql_Datum_t defData
                                     , hdql_Context_t
                                     );
 

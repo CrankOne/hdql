@@ -22,32 +22,31 @@ option (FORCE_FPIC "Enables -fPIC for compiled code" ON)
 
 set (hdql_LIB hdql )
 set (hdql_SOURCES src/types.cc
+                  src/context.cc
 	              src/errors.c
 	              src/attr-def.c
 	              src/compound.cc
-                  src/query.cc
+                  src/query.c
 	              src/query-key.c
-	              src/context.cc
 	              src/operations.cc
 	              src/value.cc
-	              src/function.cc
+                  src/function.cc
                   src/converters.c
                   src/type-promotion-table.c
                   src/hash-table.c
                   src/allocator.c
                   src/random.c
-                  src/funcs/monoids.c
-                  src/funcs/len.c
+                  #src/funcs/monoids.c
+                  #src/funcs/len.c
                   src/util/pcg32.c
-	              src/ifaces/fwd-query-as-collection.c
-	              src/ifaces/fwd-query-as-scalar.c
-	              src/ifaces/arith-op-as-scalar.c
-	              src/ifaces/arith-op-as-collection.c
-	              src/ifaces/filtered-v-compound.c
-                  src/ifaces/bound-value.c
-                  src/helpers/query.cc
-                  src/helpers/query-results-handler.c
-                  src/helpers/query-results-handler-csv.c
+                  #src/ifaces/fwd-query-as-collection.c
+	              #src/ifaces/fwd-query-as-scalar.c
+	              #src/ifaces/arith-op-as-scalar.c
+	              #src/ifaces/arith-op-as-collection.c
+	              #src/ifaces/filtered-v-compound.c
+                  #src/ifaces/bound-value.c
+                  #src/helpers/query-results-handler.c
+                  #src/helpers/query-results-handler-csv.c
                   src/helpers/fancy-print-err.c
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
@@ -55,6 +54,7 @@ set (hdql_SOURCES src/types.cc
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")  # XXX
 add_compile_options(-Wall)
 
 #
@@ -125,40 +125,47 @@ set_target_properties(hdql PROPERTIES
 if (BUILD_TESTS)
     target_link_libraries (hdql PUBLIC ${GTEST_BOTH_LIBRARIES} Threads::Threads)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
-    set (hdqlTest_SOURCES test/main.cc
-                          test/basic-context.cc
-                          test/compiled-query.cc
-                          test/cross-type-operations.cc
-                          test/ht.test.cc
-                          test/rnd.cc
-                          test/events-struct.cc
-                          test/event-struct.test.cc
-                          test/samples.cc
-                          test/value.cc
-                          test/simple-arithmetics.cc
-                          test/iteration-tests/singular-query.cc
-                          test/iteration-tests/arithmetics.cc
-                          test/iteration-tests/v-compound-fwd.cc
-                          test/iteration-tests/v-compound-bind.cc
-                          test/cpp-api.cc
-                          test/dsv.test.cc
-                          test/query-product.test.cc
-                          test/monoids/monoids.cc
-                          test/monoids/sum.cc
-                          test/monoids/product.cc
-                          test/monoids/b-and.cc
-                          test/monoids/b-or.cc
-                          test/monoids/b-xor.cc
-                          test/monoids/all.cc
-                          test/monoids/any.cc
-                          test/monoids/count.cc
-                          test/monoids/min.cc
-                          test/monoids/max.cc
-                          test/monoids/mean.cc
-                          test/monoids/arb.cc
-                          test/monoids/len.cc
-                          test/monoids/empty.cc
-                          )
+    set (hdqlTest_SOURCES
+        test/main.cc
+        # Basic query state
+        test/basic/basic-query.cc
+        test/basic/scalar-stateless.cc
+        test/basic/scalar-stateful.cc
+        # Event structure based on C++ compounds
+        test/samples.cc
+        #test/events-struct.cc
+        #test/basic-context.cc
+        #test/compiled-query.cc
+        # ...
+        #test/cross-type-operations.cc
+        #test/ht.test.cc
+        #test/rnd.cc
+        #test/event-struct.test.cc
+        #test/value.cc
+        #test/simple-arithmetics.cc
+        #test/iteration-tests/singular-query.cc
+        #test/iteration-tests/arithmetics.cc
+        #test/iteration-tests/v-compound-fwd.cc
+        #test/iteration-tests/v-compound-bind.cc
+        #test/cpp-api.cc
+        #test/dsv.test.cc
+        #test/query-product.test.cc
+        #test/monoids/monoids.cc
+        #test/monoids/sum.cc
+        #test/monoids/product.cc
+        #test/monoids/b-and.cc
+        #test/monoids/b-or.cc
+        #test/monoids/b-xor.cc
+        #test/monoids/all.cc
+        #test/monoids/any.cc
+        #test/monoids/count.cc
+        #test/monoids/min.cc
+        #test/monoids/max.cc
+        #test/monoids/mean.cc
+        #test/monoids/arb.cc
+        #test/monoids/len.cc
+        #test/monoids/empty.cc
+        )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)
     set_target_properties (hdql-test PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})

@@ -37,6 +37,7 @@ static hdql_Datum_t
 _len_empty__reset ( hdql_Datum_t newOwner
             , hdql_Datum_t prevDynData_
             , const hdql_Datum_t defData_
+            , struct hdql_Key * key
             , hdql_Context_t context
             ) {
     assert(defData_);
@@ -44,7 +45,7 @@ _len_empty__reset ( hdql_Datum_t newOwner
      * the length */
     const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
     LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, prevDynData_);
-    hdql_query_reset(defData->query, newOwner, context);
+    hdql_query_reset(defData->query, newOwner, key, context);
     dynData->counter = 0;
     dynData->isValid = false;
     dynData->isEmpty = true;
@@ -55,13 +56,11 @@ static hdql_Datum_t
 _len__dereference
             ( hdql_Datum_t root  /* owning object */
             , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , struct hdql_Key * keys /* may be NULL */
             , const hdql_Datum_t defData_ /* may be NULL */
             , hdql_Context_t context
             ) {
     assert(defData_);
     assert(dynData_);
-    ((void) keys);  /* unused (no element to return) */
     const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
     LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, dynData_);
     if(!dynData->isValid) {
@@ -78,13 +77,11 @@ static hdql_Datum_t
 _empty__dereference
             ( hdql_Datum_t root  /* owning object */
             , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , struct hdql_Key * keys /* may be NULL */
             , const hdql_Datum_t defData_ /* may be NULL */
             , hdql_Context_t context
             ) {
     assert(defData_);
     assert(dynData_);
-    ((void) keys);  /* unused (no element to return) */
     const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
     LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, dynData_);
     if(!dynData->isValid) {

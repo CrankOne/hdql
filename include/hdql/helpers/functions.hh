@@ -134,7 +134,6 @@ struct AutoFunction {
     static hdql_Datum_t
     dereference( hdql_Datum_t root
                , hdql_Datum_t state_
-               , struct hdql_Key * key
                , const hdql_Datum_t fInstArgs_
                , hdql_Context_t context
             ) {
@@ -176,6 +175,7 @@ struct AutoFunction {
     reset( hdql_Datum_t newOwner
          , hdql_Datum_t state_
          , const hdql_Datum_t fInstArgs_
+         , hdql_Key * key
          , hdql_Context_t ctx
          ) {
         assert(state_);
@@ -183,7 +183,7 @@ struct AutoFunction {
                 reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
         ScalarState * state = reinterpret_cast<ScalarState*>(state_);
         for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q) {
-            hdql_query_reset(*q, newOwner, ctx);
+            hdql_query_reset(*q, newOwner, key, ctx);
         }
         state->isExhausted = state->isValid = false;
         return state_;

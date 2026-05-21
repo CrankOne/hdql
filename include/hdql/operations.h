@@ -14,6 +14,7 @@ extern "C" {
 
 struct hdql_CollectionAttrInterface;  /* fwd */
 struct hdql_Query;  /* fwd */
+struct hdql_Key;  /* fwd */
 
 /**\brief Index type for table of defined arithmetic operations */
 struct hdql_Operations;
@@ -109,7 +110,9 @@ HDQL_API hdql_Datum_t hdql_scalar_arith_op_create( struct hdql_Query * a
 /**\brief Implements scalar attribute dereference method for scalar arithmetic
  *
  * Used for query attribute definition. */
-HDQL_API hdql_Datum_t hdql_scalar_arith_op_dereference( hdql_Datum_t root
+HDQL_API hdql_Datum_t hdql_scalar_arith_op_dereference(
+          hdql_Datum_t root
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         , hdql_Datum_t scalarOperation );
 

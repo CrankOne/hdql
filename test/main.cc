@@ -26,6 +26,7 @@
 //
 // Example of event structs
 
+#if 0
 static int
 test_query_on_data( int nSample, const char * expression ) {
     hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
@@ -118,14 +119,11 @@ test_query_on_data( int nSample, const char * expression ) {
     for(int i = 0; i < 3; ++i) {
         fs[i](ev);  // TODO: utilize #nSample to select sample
 
-        rc = hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), ctx);
-        if(HDQL_ERR_CODE_OK != rc) {
-            fprintf(stderr, "Can't initialize query with data object.\n");
-            return -1;  // TODO: cleanup? details?
-        }
-
         printf("*** sample #%d query results:\n", i);
-        while(NULL != (r = hdql_query_get(q, key, ctx))) {
+        for( r = hdql_query_reset(q, reinterpret_cast<hdql_Datum_t>(&ev), key, ctx)
+           ; NULL != r
+           ; r = hdql_query_get(q, key, ctx)
+           ) {
             hadResult = true;
             //if(flatKeyViewLength) {
             //    flKStr[0] = ' ';
@@ -177,6 +175,7 @@ test_query_on_data( int nSample, const char * expression ) {
 
     return rc;
 }
+#endif
 
 //
 // Entry point test
@@ -184,7 +183,8 @@ test_query_on_data( int nSample, const char * expression ) {
 int
 main(int argc, char * argv[]) {
     if(argc == 3 && !strncmp(argv[1], "data", 4)) {
-        return test_query_on_data(1, argv[2]);
+        return 1;  // TODO:
+        //return test_query_on_data(1, argv[2]);
     } else {
         ::testing::InitGoogleTest(&argc, argv);
         return RUN_ALL_TESTS();

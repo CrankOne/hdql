@@ -309,12 +309,13 @@ _handle_collection_as_csv_entry( struct hdql_CSVHandler * csv
                 , ownerDatum
                 , ciface->definitionData
                 , NULL
+                , NULL
                 , csv->ctx
                 );
     while( h->dynamicData.collectionIt ) {  /* null is allowed for iterator (empty collections) */
-        hdql_Datum_t check = ciface->dereference(h->dynamicData.collectionIt, NULL);
+        hdql_Datum_t check = ciface->dereference(h->dynamicData.collectionIt);
         if(!check) break;
-        h->dynamicData.collectionIt = ciface->advance(h->dynamicData.collectionIt);
+        h->dynamicData.collectionIt = ciface->advance(h->dynamicData.collectionIt, NULL);
         ++nItems;
     }
 
@@ -337,13 +338,13 @@ _get_scalar_data(struct hdql_CSVHandler * csv
         h->dynamicData.scSupp = siface->reset(ownerDatum
                 , h->dynamicData.scSupp
                 , siface->definitionData
+                , NULL
                 , csv->ctx
                 );
     }
     assert(siface->dereference);
     return siface->dereference( ownerDatum
             , h->dynamicData.scSupp
-            , NULL
             , siface->definitionData
             , csv->ctx
             );
@@ -485,6 +486,7 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
                              , datum
                              , ciface->definitionData
                              , NULL /* select all */
+                             , NULL
                              , ctx
                              );
         } else {  /* scalar */
@@ -500,6 +502,7 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
                 ah->dynamicData.scSupp = siface->reset( datum
                         , ah->dynamicData.scSupp
                         , siface->definitionData
+                        , NULL
                         , ctx
                         );
             }

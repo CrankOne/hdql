@@ -89,7 +89,8 @@ struct SelectionTraits<test::SimpleRangeSelection, T[N]> {
 
     static size_t reset( T & owner
                        , const test::SimpleRangeSelection * sel
-                       , size_t current) {
+                       , size_t current
+                       ) {
         if(sel) {
             return sel->first;
         }
@@ -171,7 +172,8 @@ struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
     using iterator = typename Container::iterator;
     static iterator advance( Container & owner
             , const test::SimpleRangeSelection * sel
-            , iterator it) {
+            , iterator it
+            ) {
         if(!sel) {
             if(it != owner.end()) ++it;
             return it;

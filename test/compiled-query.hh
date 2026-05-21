@@ -24,7 +24,8 @@ public:
     TestCompiledQuery();
 
     virtual void CompileQuery(const char *, bool enableKeys=false);
-    void ResetQuery(void * datum);
+    void ResetQuery(void *datum, void *&result);
+    void AdvanceQuery(void *&result);
 
     void SetUp() override;
     void TearDown() override;

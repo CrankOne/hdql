@@ -49,10 +49,20 @@ struct hdql_Key * hdql__keys_next(struct hdql_Key * cur) {
 }
 
 /* internal API call */
+struct hdql_Key * hdql__keys_prev(struct hdql_Key * cur) {
+    return cur - 1;
+}
+
+/* internal API call */
 struct hdql_Key * hdql__key_get_list_bgn(struct hdql_Key * k) {
     assert(k->plType == KEY_PL_TYPE_LIST);
     assert(k->pl.keysList);
     return k->pl.keysList;
+}
+
+struct hdql_Key *
+hdql__key_get_list_at(struct hdql_Key * k, size_t n) {
+    return k->pl.keysList + n;
 }
 
 /* internal API call */
@@ -266,10 +276,10 @@ hdql_key_reserve_for_query( struct hdql_Query * query
     do {
         assert(cKey - rootKey->pl.keysList < (ssize_t) nKeys);
         assert(query);
-        if( hdql_query_is_labeled(query) )
-            cKey->label = hdql_query_get_label(query);
-        else
-            cKey->label = NULL;
+        //if( hdql_query_is_labeled(query) )
+        //    cKey->label = hdql_query_get_label(query);
+        //else
+            cKey->label = NULL;  // TODO
         const struct hdql_AttrDef * subj = hdql_query_get_subject(query);
         assert(subj);
         cKey->code = hdql_attr_def_get_key_type_code(subj);

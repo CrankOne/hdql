@@ -805,7 +805,6 @@ _resolve_query_top_as_compound( struct hdql_Query * q
 /* returns "owner" as result */
 static hdql_Datum_t _dereference_to_self( hdql_Datum_t d
     , hdql_Datum_t dynData
-    , struct hdql_Key * key
     , const hdql_Datum_t defData
     , hdql_Context_t ctx
     ) { return d; }
@@ -849,7 +848,8 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         struct hdql_ScalarAttrInterface iface;
         if(NULL == filterQuery) {
             bzero(&iface, sizeof(iface));
-            iface.dereference = _dereference_to_self;
+            assert(false);  // TODO
+            //iface.dereference = _dereference_to_self;
         } else {
             iface = _hdql_gFilteredCompoundIFace;
             iface.definitionData = (hdql_Datum_t) filterQuery;

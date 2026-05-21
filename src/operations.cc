@@ -540,7 +540,6 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
 // internal struct, represents arithmetic operation
 struct ScalarOperation {
     struct hdql_Query * argQueries[2];
-    struct hdql_Key * keys[2];
     hdql_OperationEvaluator evaluator;
     hdql_Datum_t result;
 };
@@ -556,37 +555,21 @@ hdql_scalar_arith_op_create( hdql_Query * a
     scalarOp->argQueries[1] = b;
     scalarOp->evaluator = *evaluator;
     scalarOp->result = hdql_create_value(evaluator->returnType, ctx);
-
-    for(int i = 0; i < 2; ++i) {
-        if(NULL == scalarOp->argQueries[i]) {
-            scalarOp->keys[i] = NULL;
-            continue;
-        }
-        /* TODO: this code seems to be not covered with UTs */
-        scalarOp->keys[i] = hdql_key_new(ctx);
-    }
-
     return reinterpret_cast<hdql_Datum_t>(scalarOp);
 }
 
 extern "C" hdql_Datum_t
 hdql_scalar_arith_op_dereference( hdql_Datum_t root
+                                , struct hdql_Key * key
                                 , hdql_Context_t ctx
                                 , hdql_Datum_t scalarOperation
                                 ) {
     struct ScalarOperation * op = hdql_cast(ctx, struct ScalarOperation, scalarOperation);
     assert(op->argQueries[0]);
-    hdql_query_reset(op->argQueries[0], root, ctx);
+    hdql_Datum_t a, b;
+    a = hdql_query_reset(op->argQueries[0], root, hdql_key_get_list_item(key, 0), ctx);
     if(op->argQueries[1])
-        hdql_query_reset(op->argQueries[1], root, ctx);
-    hdql_Datum_t a = hdql_query_get(op->argQueries[0], op->keys[0], ctx);
-    hdql_Datum_t b = op->argQueries[1]
-                   ? hdql_query_get(op->argQueries[1], op->keys[1], ctx)
-                   : NULL
-               //, c = op->argQueries[2]  // TODO
-               //    ? hdql_query_get(op->argQueries[2], root, op->keys[2], ctx)
-               //    : NULL
-               ;
+        b = hdql_query_reset(op->argQueries[1], root, hdql_key_get_list_item(key, 1), ctx);
     assert(a);
     int rc = op->evaluator.op(a, b, op->result);
     if(0 != rc) {
@@ -601,8 +584,6 @@ hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
         = hdql_cast(ctx, struct ScalarOperation, scalarOp_);
     for(int i = 0; i < 2; ++i) {
         if(scalarOp->argQueries[i]) {
-            assert(scalarOp->keys[i]);
-            hdql_key_destroy(scalarOp->keys[i], ctx);
             hdql_query_destroy(scalarOp->argQueries[i], ctx);
         }
     }

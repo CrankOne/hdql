@@ -4,10 +4,10 @@
 #include "hdql/helpers/print-tree.h"
 #include "hdql/types.h"
 
+#include "hdql/internal-api.h"
+
 #include <string.h>
 #include <assert.h>
-
-bool _hdql__attr_def_is_fwd_query(hdql_AttrDef_t ad);
 
 void
 hdql_print_value_shallow( const struct hdql_Datum * r
@@ -49,9 +49,9 @@ hdql_print_value_shallow( const struct hdql_Datum * r
                 _M_append_strbuf(" (no value interface)");
             }
         }
-    } else if(_hdql__attr_def_is_fwd_query(topAttrDef)) {
+    } else if(hdql__attr_def_is_fwd_query(topAttrDef)) {
         /* forwarding query */
-        _M_append_strbuf("forwarding query %p", _hdql__attr_def_fwd_query(topAttrDef));
+        _M_append_strbuf("forwarding query %p", hdql__attr_def_fwd_query(topAttrDef));
     } else if(!hdql_attr_def_is_atomic(topAttrDef)) {  // compound instance(s) of certain type
         assert(hdql_attr_def_is_compound(topAttrDef));
         const struct hdql_Compound * ct = hdql_attr_def_compound_type_info(topAttrDef);
@@ -149,18 +149,21 @@ _ADD_resolve_datum_noeval(struct _ADDTreeLikeNode * nn
         ) {
     if( owner
      && hdql_attr_def_is_scalar(nn->ad)
-     && (!_hdql__attr_def_is_fwd_query(nn->ad))
+     && (!hdql__attr_def_is_fwd_query(nn->ad))
      ) {
         /* for simple, non-forwarding scalar values we try to obtain the values */
         const struct hdql_ScalarAttrInterface * iface
             = hdql_attr_def_scalar_iface(nn->ad);
         if(iface && !iface->instantiate) {
+            #if 1
+            assert(false);
+            #else
             nn->datum = iface->dereference(owner
                     , NULL  /* no dyn. data (no instantiate) */
-                    , NULL  /* no key */
                     , iface->definitionData
                     , context
                     );
+            #endif
         } else {
             /* failed to get the interface, or it has a complex lifecycle */
             nn->datum = NULL;

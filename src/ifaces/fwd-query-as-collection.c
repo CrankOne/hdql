@@ -63,6 +63,7 @@ _fwd_query_collection_interface_reset(
         , hdql_Datum_t newOwner
         , const hdql_Datum_t defData
         , hdql_SelectionArgs_t sel
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
     ((void) sel);
@@ -76,7 +77,7 @@ _fwd_query_collection_interface_reset(
     }
     #endif
     assert(newOwner);
-    hdql_query_reset(it->subQuery, newOwner, ctx);
+    hdql_query_reset(it->subQuery, newOwner, key, ctx);
     it->result = NULL;
     return it_;
 }

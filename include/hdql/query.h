@@ -136,7 +136,7 @@ HDQL_API void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
  * */
 HDQL_API int
 hdql_query_product_reset( struct hdql_Query ** qs
-        , struct hdql_Key ** keys
+        , struct hdql_Key * key
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n
@@ -156,7 +156,7 @@ hdql_query_product_reset( struct hdql_Query ** qs
  * */
 HDQL_API int
 hdql_query_product_advance( struct hdql_Query ** qs
-        , struct hdql_Key ** keys
+        , struct hdql_Key * key
         , hdql_Datum_t * values
         , hdql_Datum_t d
         , size_t n

@@ -129,6 +129,7 @@ _monoid__reset
             ( hdql_Datum_t newOwner
             , hdql_Datum_t prevDynData_
             , const hdql_Datum_t defData_
+            , struct hdql_Key * key
             , hdql_Context_t context
             ) {
     /* Note: following lazy computation logic we do not immediately compute
@@ -141,7 +142,7 @@ _monoid__reset
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, prevDynData_);
     dynData->validFlags = 0x0;
     for(size_t i = 0; i < defData->nQueries; ++i) {
-        hdql_query_reset(defData->queries[i], newOwner, context);
+        hdql_query_reset(defData->queries[i], newOwner, key, context);
     }
     /* set result to neutral element */
     defData->monoidDef->set_neutral(dynData->result);
@@ -152,13 +153,11 @@ static hdql_Datum_t
 _monoid__dereference
             ( hdql_Datum_t root  /* owning object */
             , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , struct hdql_Key * keys /* may be NULL */
             , const hdql_Datum_t defData_ /* may be NULL */
             , hdql_Context_t context
             ) {
     assert(defData_);
     assert(dynData_);
-    ((void) keys);  /* unused for convolutional monoids (no element to return) */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, dynData_);
     assert(dynData->result);

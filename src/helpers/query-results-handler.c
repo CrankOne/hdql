@@ -102,14 +102,8 @@ hdql_query_results_init(
 int
 hdql_query_results_process_records_from( struct hdql_Datum * d
         , struct hdql_QueryResultsWorkspace * ws ) {
-    int rc = hdql_query_reset(ws->q, d, ws->ctx);
-    if(rc != HDQL_ERR_CODE_OK) {
-        /* TODO communicate error other way */
-        fprintf(stderr, "Can't set query subject: %d\n", rc);
-        return rc;
-    }
     hdql_Datum_t r;
-    while(NULL != (r = hdql_query_get(ws->q, ws->keys, ws->ctx))) {
+    while(NULL != (r = hdql_query_reset(ws->q, d, ws->keys, ws->ctx))) {
         ws->iqr->handle_record(r, ws->iqr->userdata);
     }
     return HDQL_ERR_CODE_OK;

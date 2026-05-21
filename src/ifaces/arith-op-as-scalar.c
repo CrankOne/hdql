@@ -40,10 +40,10 @@ static hdql_Datum_t
 _arith_op_scalar_interface_dereference(
           hdql_Datum_t root
         , hdql_Datum_t s_
-        , struct hdql_Key * key  // can be null
         , const hdql_Datum_t defData_
-        , hdql_Context_t
+        , hdql_Context_t context
         ) {
+    ((void) context);
     assert(s_);
     //printf("XXX dereference()\n");
     // ^^^ TODO: set bp here to debug doubling dereference() -- it seems to be
@@ -57,15 +57,16 @@ _arith_op_scalar_interface_reset(
           hdql_Datum_t newOwner
         , hdql_Datum_t state_
         , const hdql_Datum_t defData_
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
     assert(state_);
     assert(defData_);
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpScalarState * state = (struct ArithOpScalarState *) state_;
-    hdql_query_reset(defData->args[0], newOwner, ctx);
+    hdql_query_reset(defData->args[0], newOwner, key, ctx);
     if(defData->args[1]) {
-        hdql_query_reset(defData->args[1], newOwner, ctx);
+        hdql_query_reset(defData->args[1], newOwner, key, ctx);
     }
     hdql_Datum_t a =                    hdql_query_get(defData->args[0], NULL, ctx)
                , b = defData->args[1] ? hdql_query_get(defData->args[1], NULL, ctx) : NULL

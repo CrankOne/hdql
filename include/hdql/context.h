@@ -103,6 +103,9 @@ HDQL_API void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Comp
 /**\brief Used to keep error details in case of unwidning errors */
 HDQL_API void hdql_context_err_push(hdql_Context_t, hdql_Err_t, const char * format, ...);
 
+/**\brief Retrurns true if error stack is not empty */
+HDQL_API bool hdql_context_has_errors(hdql_Context_t);
+
 /**\brief Destroys HDQL expression evaluation context */
 HDQL_API void hdql_context_destroy(hdql_Context_t);
 

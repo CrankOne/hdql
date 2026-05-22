@@ -137,7 +137,7 @@ hdql__query_reset_descendant(struct hdql_Query * q
         if(!datum) { return NULL; }
         /* advance key and ptr to current query */
         q = q->next;
-        if(q && key) hdql__keys_next(key);
+        if(q && key) key = hdql__keys_next(key);
     }
     return datum;
 }
@@ -151,7 +151,7 @@ hdql_query_reset( struct hdql_Query * q
                 ) {
     /* get pointer to key list begin */
     if(key) {
-        assert(hdql_key_is_list(key));  /* query key is always a list */
+        assert(hdql_key_is_list(key));  /* query key must always be a list */
         key = hdql__key_get_list_bgn(key);
     }
     return hdql__query_reset_descendant(q, datum, key, context);
@@ -167,10 +167,11 @@ static hdql_Datum_t
 hdql__query_yield( struct hdql_Query *q
               , struct hdql_Key *key
               , hdql_Context_t context ) {
-    if(hdql_attr_def_is_scalar(q->ad)) return NULL;
+    if(hdql_attr_def_is_scalar(q->ad))
+        return NULL;  /* scalars never yield, anly reset() can access its value */
     const struct hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(q->ad);
-    /* should tolerate "advance on depletion */
     return iface->yield(q->state.collection.iterator, iface->definitionData, key, context);
+    /* ^^^ note: yield should tolerate advancing when depletion */
 }
 
 /* exported API: advance and get */
@@ -198,7 +199,14 @@ hdql_query_get( struct hdql_Query *q
         }
         /* Descend again: reset each child iterator on the value
          * yielded by its parent. */
-        hdql__query_reset_descendant(cq->next, r, key, context);
+        while(cq->next) {
+            cq = cq->next;
+            if(key) key = hdql__keys_next(key);
+            r = hdql__query_reset(cq, r, key, context);
+            /* Empty child collection. Need to backtrack from this child on the
+             * next outer iteration. */
+            if(NULL == r) break;
+        }
         /* Reached terminal query successfully. */
         if(NULL != r && NULL == cq->next)
             return r;

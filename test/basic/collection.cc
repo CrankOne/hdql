@@ -1,3 +1,8 @@
+
+// Test very basic query iteration of collection attribute definition.
+// Attribute definitions used in these queries are created just in the code
+// and not provided by any compound definitions.
+
 #include "hdql/attr-def.h"
 #include "hdql/context.h"
 #include "hdql/errors.h"

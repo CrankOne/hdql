@@ -406,21 +406,21 @@ struct IFace< ptr
     static constexpr bool isCollection = false;
 
     static hdql_Datum_t
-    dereference( hdql_Datum_t root  // owning object
-               , hdql_Datum_t dynData  // allocated with `instantiate()`
-               , const hdql_Datum_t  // may be NULL
-               , hdql_Context_t
-               ) {
+    reset( hdql_Datum_t root  // owning object
+         , hdql_Datum_t dynData  // allocated with `instantiate()`
+         , const hdql_Datum_t  defData
+         , hdql_Key * key
+         , hdql_Context_t context
+         ) {
         return reinterpret_cast<hdql_Datum_t>(&(reinterpret_cast<OwnerT *>(root)->*ptr));
     }
 
     static hdql_ScalarAttrInterface iface() {
         return hdql_ScalarAttrInterface{
                   .definitionData = NULL
-                , .instantiate = NULL
-                , .dereference = dereference
-                , .reset = NULL
-                , .destroy = NULL
+                , .new_dyn_data = NULL
+                , .reset = reset
+                , .destroy_dyn_data = NULL
             };
     }
 
@@ -436,11 +436,12 @@ struct IFace< ptr
     static constexpr bool isCollection = false;
 
     static hdql_Datum_t
-    dereference( hdql_Datum_t root  // owning object
-               , hdql_Datum_t dynData  // allocated with `instantiate()`
-               , const hdql_Datum_t  // may be NULL
-               , hdql_Context_t
-               ) {
+    reset( hdql_Datum_t root  // owning object
+         , hdql_Datum_t dynData  // allocated with `instantiate()`
+         , const hdql_Datum_t defData // may be NULL
+         , hdql_Key_t key
+         , hdql_Context_t context
+         ) {
         auto p = detail::IndirectAccessTraits<AttrT>::get(reinterpret_cast<OwnerT *>(root)->*ptr);
         return reinterpret_cast<hdql_Datum_t>(p);
     }
@@ -448,10 +449,9 @@ struct IFace< ptr
     static hdql_ScalarAttrInterface iface() {
         return hdql_ScalarAttrInterface{
                   .definitionData = NULL
-                , .instantiate = NULL
-                , .dereference = dereference
-                , .reset = NULL
-                , .destroy = NULL
+                , .new_dyn_data = NULL
+                , .reset = reset
+                , .destroy_dyn_data = NULL
             };
     }
 
@@ -482,40 +482,36 @@ struct IFace< ptr
     };
 
     static hdql_It_t
-    create( hdql_Datum_t owner
+    new_iterator( hdql_Datum_t owner
           , const hdql_Datum_t defData
-          , hdql_SelectionArgs_t selection
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
-        assert(NULL == selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
     static hdql_Datum_t
-    dereference( hdql_It_t it_ ) {
+    yield( hdql_It_t it_
+         , const hdql_Datum *defData
+         , hdql_Key *key
+         , hdql_Context_t context
+         ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return NULL;
-        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
-    }
-
-    static hdql_It_t
-    advance( hdql_It_t it_, hdql_Key *key ) {
-        Iterator * it = reinterpret_cast<Iterator*>(it_);
-        if(it->cIndex == std::extent<AttrT>::value) return it_;
         ++(it->cIndex);
+        if(it->cIndex == std::extent<AttrT>::value) return NULL;
         if(key) {
             assert(hdql_key_datum_get(key));
             *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
 
-    static hdql_It_t
-    reset( hdql_It_t it_
+    static hdql_Datum_t
+    reset_iterator( hdql_It_t it_
          , hdql_Datum_t newOwner
-         , const hdql_Datum_t defData
+         , const hdql_Datum *defData
          , hdql_SelectionArgs_t selection
          , hdql_Key *key
          , hdql_Context_t ) {
@@ -527,11 +523,12 @@ struct IFace< ptr
             assert(hdql_key_datum_get(key));
             *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
 
     static void
-    destroy( hdql_It_t it_
+    destroy_iterator( hdql_It_t it_
+           , const hdql_Datum *defData
            , hdql_Context_t context ) {
         hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
     }
@@ -539,11 +536,10 @@ struct IFace< ptr
     static hdql_CollectionAttrInterface iface() {
         return hdql_CollectionAttrInterface{
                   .definitionData = NULL
-                , .create = create
-                , .dereference = dereference
-                , .advance = advance
-                , .reset = reset
-                , .destroy = destroy
+                , .new_iterator = new_iterator
+                , .yield = yield
+                , .reset_iterator = reset_iterator
+                , .destroy_iterator = destroy_iterator
                 , .compile_selection = NULL
                 , .free_selection = NULL
             };
@@ -582,62 +578,59 @@ struct IFace< ptr
     };
 
     static hdql_It_t
-    create( hdql_Datum_t owner
+    new_iterator( hdql_Datum_t owner
           , const hdql_Datum_t defData
-          , hdql_SelectionArgs_t selection_
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
-        it->selection = reinterpret_cast<SelectionT *>(selection_);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
     static hdql_Datum_t
-    dereference( hdql_It_t it_
-               ) {
+    yield( hdql_It_t it_
+          , const hdql_Datum *defData
+          , hdql_Key * key
+          , hdql_Context_t
+          ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         if(it->cIndex == std::extent<AttrT>::value) return NULL;
-        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
-    }
-
-    static hdql_It_t
-    advance( hdql_It_t it_, hdql_Key * key ) {
-        Iterator * it = reinterpret_cast<Iterator*>(it_);
-        if(it->cIndex == std::extent<AttrT>::value) return it_;
         it->cIndex = ConcreteSelectionTraits::advance( it->owner->*ptr
                                                      , it->selection
                                                      , it->cIndex
                                                      );
+        if(it->cIndex == std::extent<AttrT>::value) return NULL;
         if(key) {
             assert(hdql_key_datum_get(key));
             *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
 
-    static hdql_It_t
-    reset( hdql_It_t it_
+    static hdql_Datum_t
+    reset_iterator( hdql_It_t it_
          , hdql_Datum_t newOwner
-         , const hdql_Datum_t defData
+         , const hdql_Datum *defData
          , hdql_SelectionArgs_t selection
          , hdql_Key *key
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        it->selection = selection ? reinterpret_cast<SelectionT*>(selection) : nullptr;
         it->cIndex = ConcreteSelectionTraits::reset( *(it->owner->*ptr)
-                        , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
+                        , it->selection
                         , it->cIndex
                         );
         if(key) {
             assert(hdql_key_datum_get(key));
             *reinterpret_cast<size_t *>(hdql_key_datum_get(key)) = it->cIndex;
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>((it->owner->*ptr) + it->cIndex);
     }
 
     static void
-    destroy( hdql_It_t it_
+    destroy_iterator( hdql_It_t it_
+           , const hdql_Datum *defData
            , hdql_Context_t context ) {
         hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
     }
@@ -663,11 +656,10 @@ struct IFace< ptr
     static hdql_CollectionAttrInterface iface() {
         return hdql_CollectionAttrInterface{
                   .definitionData = NULL
-                , .create = create
-                , .dereference = dereference
-                , .advance = advance
-                , .reset = reset
-                , .destroy = destroy
+                , .new_iterator = new_iterator
+                , .yield = yield
+                , .reset_iterator = reset_iterator
+                , .destroy_iterator = destroy_iterator
                 , .compile_selection = compile_selection
                 , .free_selection = free_selection
             };
@@ -704,44 +696,48 @@ struct IFace< ptr
     };
 
     static hdql_It_t
-    create( hdql_Datum_t owner
+    new_iterator( hdql_Datum_t owner
           , const hdql_Datum_t defData
-          , hdql_SelectionArgs_t selection
           , hdql_Context_t context
           ) {
         assert(owner);
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
         it->it = (it->owner->*ptr).begin();
-        assert(NULL == selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
-    static hdql_Datum_t
-    dereference( hdql_It_t it_ ) {
-        Iterator * it = reinterpret_cast<Iterator*>(it_);
-        assert(it->owner);
-        if((it->owner->*ptr).end() == it->it) return NULL;
-        return reinterpret_cast<hdql_Datum_t>(
-                detail::STLContainerTraits<AttrT>::get(it->it));
-    }
+    //static hdql_Datum_t
+    //dereference( hdql_It_t it_ ) {
+    //    Iterator * it = reinterpret_cast<Iterator*>(it_);
+    //    assert(it->owner);
+    //    if((it->owner->*ptr).end() == it->it) return NULL;
+    //    return reinterpret_cast<hdql_Datum_t>(
+    //            detail::STLContainerTraits<AttrT>::get(it->it));
+    //}
 
-    static hdql_It_t
-    advance( hdql_It_t it_, hdql_Key * key ) {
+    static hdql_Datum_t
+    yield( hdql_It_t it_
+         , const hdql_Datum *defData
+         , hdql_Key * key
+         , hdql_Context *context
+         ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
-        if(it->it == (it->owner->*ptr).end()) return it_;
+        if(it->it == (it->owner->*ptr).end()) return NULL;
         ++(it->it);
+        if(it->it == (it->owner->*ptr).end()) return NULL;
         if(key) {
             assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>(
+                detail::STLContainerTraits<AttrT>::get(it->it));
     }
 
-    static hdql_It_t
-    reset( hdql_It_t it_
+    static hdql_Datum_t
+    reset_iterator( hdql_It_t it_
          , hdql_Datum_t newOwner
-         , const hdql_Datum_t defData
+         , const hdql_Datum *defData
          , hdql_SelectionArgs_t selection
          , hdql_Key *key
          , hdql_Context_t ) {
@@ -749,15 +745,18 @@ struct IFace< ptr
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
         assert(NULL == selection);
         it->it = (it->owner->*ptr).begin();
+        if(it->it == (it->owner->*ptr).end()) return NULL;
         if(key) {
             assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>(
+                detail::STLContainerTraits<AttrT>::get(it->it));
     }
 
     static void
-    destroy( hdql_It_t it_
+    destroy_iterator( hdql_It_t it_
+           , const hdql_Datum *defData
            , hdql_Context_t context ) {
         hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
     }
@@ -765,11 +764,10 @@ struct IFace< ptr
     static hdql_CollectionAttrInterface iface() {
         return hdql_CollectionAttrInterface{
                   .definitionData = NULL
-                , .create = create
-                , .dereference = dereference
-                , .advance = advance
-                , .reset = reset
-                , .destroy = destroy
+                , .new_iterator = new_iterator
+                , .yield = yield
+                , .reset_iterator = reset_iterator
+                , .destroy_iterator = destroy_iterator
                 , .compile_selection = NULL
                 , .free_selection = NULL
             };
@@ -802,52 +800,57 @@ struct IFace< ptr
     };
 
     static hdql_It_t
-    create( hdql_Datum_t owner
+    new_iterator( hdql_Datum_t owner
           , const hdql_Datum_t defData
-          , hdql_SelectionArgs_t selection
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
         it->owner = reinterpret_cast<OwnerT*>(owner);
-        it->selection = reinterpret_cast<SelectionT *>(selection);
         return reinterpret_cast<hdql_It_t>(it);
     }
 
-    static hdql_Datum_t
-    dereference( hdql_It_t it_
-               ) {
-        assert(it_);
-        Iterator * it = reinterpret_cast<Iterator*>(it_);
-        assert(it->owner);
-        if((it->owner->*ptr).end() == it->it) return NULL;
-        return reinterpret_cast<hdql_Datum_t>(
-                detail::STLContainerTraits<AttrT>::get(it->it));
-    }
+    //static hdql_Datum_t
+    //dereference( hdql_It_t it_
+    //           ) {
+    //    assert(it_);
+    //    Iterator * it = reinterpret_cast<Iterator*>(it_);
+    //    assert(it->owner);
+    //    if((it->owner->*ptr).end() == it->it) return NULL;
+    //    return reinterpret_cast<hdql_Datum_t>(
+    //            detail::STLContainerTraits<AttrT>::get(it->it));
+    //}
 
-    static hdql_It_t
-    advance( hdql_It_t it_, hdql_Key * key) {
+    static hdql_Datum_t
+    yield( hdql_It_t it_
+         , const hdql_Datum *defData
+         , hdql_Key *key
+         , hdql_Context *context
+         ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
-        if(it->it == (it->owner->*ptr).end()) return it_;
+        if(it->it == (it->owner->*ptr).end()) return NULL;
         it->it = ConcreteSelectionTraits::advance( it->owner->*ptr
                 , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
                 , it->it
                 );
+        if((it->owner->*ptr).end() == it->it) return NULL;
         if(key && (it->owner->*ptr).end() != it->it) {
             assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
-        return it_;
+        return reinterpret_cast<hdql_Datum_t>(
+                detail::STLContainerTraits<AttrT>::get(it->it));
     }
 
-    static hdql_It_t
-    reset( hdql_It_t it_
+    static hdql_Datum_t
+    reset_iterator( hdql_It_t it_
          , hdql_Datum_t newOwner
-         , const hdql_Datum_t defData
+         , const struct hdql_Datum *defData
          , hdql_SelectionArgs_t selection
          , hdql_Key *key
          , hdql_Context_t ) {
         Iterator * it = reinterpret_cast<Iterator*>(it_);
         it->owner = reinterpret_cast<OwnerT *>(newOwner);
+        it->selection = reinterpret_cast<SelectionT *>(selection);
         it->it = ConcreteSelectionTraits::reset( it->owner->*ptr
                 , it->selection ? reinterpret_cast<SelectionT*>(it->selection) : nullptr
                 , it->it
@@ -856,11 +859,14 @@ struct IFace< ptr
             assert(0x0 != hdql_key_datum_get_type_code(key));
             detail::STLContainerTraits<AttrT>::get_key(*it->owner.*ptr, it->it, *key);
         }
-        return it_;
+        if((it->owner->*ptr).end() == it->it) return NULL;
+        return reinterpret_cast<hdql_Datum_t>(
+                detail::STLContainerTraits<AttrT>::get(it->it));
     }
 
     static void
-    destroy( hdql_It_t it_
+    destroy_iterator( hdql_It_t it_
+           , const hdql_Datum *defData
            , hdql_Context_t context ) {
         hdql_context_free(context, reinterpret_cast<hdql_Datum_t>(it_));
     }
@@ -888,11 +894,10 @@ struct IFace< ptr
     static hdql_CollectionAttrInterface iface() {
         return hdql_CollectionAttrInterface{
                   .definitionData = NULL
-                , .create = create
-                , .dereference = dereference
-                , .advance = advance
-                , .reset = reset
-                , .destroy = destroy
+                , .new_iterator = new_iterator
+                , .yield = yield
+                , .reset_iterator = reset_iterator
+                , .destroy_iterator = destroy_iterator
                 , .compile_selection = compile_selection
                 , .free_selection = free_selection
             };

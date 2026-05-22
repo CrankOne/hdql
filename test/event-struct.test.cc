@@ -1,3 +1,12 @@
+
+// Test very basic query iteration of attributes definitions of various kinds
+// (atomic and compound, scalar and collection) created by C++ helpers.
+// 
+// Simple 1-level queries are tested.
+//
+// Attribute definitions used in these queries are defined in testing event
+// struct compounds.
+
 #include "events-struct.hh"
 
 #include "hdql/attr-def.h"
@@ -71,16 +80,15 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     // we expect scalar attribute access interface to have only
     // one method set
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_FALSE(iface->instantiate);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_FALSE(iface->destroy);
-    ASSERT_FALSE(iface->reset);
+    ASSERT_FALSE(iface->new_dyn_data);
+    ASSERT_TRUE(iface->reset);
+    ASSERT_FALSE(iface->destroy_dyn_data);
 
     // dereference without a key
-    hdql_Datum_t result = iface->dereference( reinterpret_cast<hdql_Datum_t>(&rawDataInstance)
+    hdql_Datum_t result = iface->reset( reinterpret_cast<hdql_Datum_t>(&rawDataInstance)
             , NULL  // no dynamic data for simple scalar attribute
-            , NULL  // key to (reserved) pointer, optional
             , iface->definitionData
+            , NULL  // key to (reserved) pointer, optional
             , context
             );
 
@@ -90,10 +98,10 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
 
     // dereference 2nd time with a key (won't be set)
     hdql_Key_t key = hdql_key_new(context);
-    result = iface->dereference( reinterpret_cast<hdql_Datum_t>(&rawDataInstance)
+    result = iface->reset( reinterpret_cast<hdql_Datum_t>(&rawDataInstance)
             , NULL  // no dynamic data for simple scalar attribute
-            , NULL  // key to (reserved) pointer, optional
             , iface->definitionData
+            , NULL  // key to (reserved) pointer, optional
             , context
             );
     EXPECT_TRUE(hdql_key_is_empty(key));
@@ -163,11 +171,10 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(ad);
 
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_TRUE(iface->create);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_TRUE(iface->advance);
-    ASSERT_TRUE(iface->reset);
-    ASSERT_TRUE(iface->destroy);
+    ASSERT_TRUE(iface->new_iterator);
+    ASSERT_TRUE(iface->yield);
+    ASSERT_TRUE(iface->reset_iterator);
+    ASSERT_TRUE(iface->destroy_iterator);
     EXPECT_FALSE(iface->compile_selection);
     EXPECT_FALSE(iface->free_selection);
 
@@ -190,29 +197,31 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     for(int i = 0; i < 4; ++i) {
         struct hdql::test::RawData & root = rawDataInstance[i%2];
         if(0 == i) {
-            it = iface->create( reinterpret_cast<hdql_Datum_t>( &root )
+            it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>( &root )
                               , iface->definitionData
-                              , NULL
                               , context );
         }
-        it = iface->reset( it, reinterpret_cast<hdql_Datum_t>( &root )
-                         , iface->definitionData
-                         , NULL
-                         , context );
-        ASSERT_TRUE(it);
-        for(size_t j = 0; j < nSamples; ++j) {
-            hdql_Datum_t value = iface->dereference(it, (i >> 1) ? key : NULL );  // (i/2) ? key : NULL);
+        size_t j = 0;
+        hdql_Datum_t value = iface->reset_iterator( it
+                , reinterpret_cast<hdql_Datum_t>( &root )
+                , iface->definitionData
+                , NULL
+                , (i >> 1) ? key : NULL
+                , context );
+        ASSERT_TRUE(value);
+        for(; j < nSamples; ++j) {
             EXPECT_EQ(*reinterpret_cast<std::remove_reference<decltype(*hdql::test::RawData::samples)>::type *>(value)
                     , root.samples[j] );
             if(i >> 1) {
                 EXPECT_EQ(*reinterpret_cast<size_t*>(hdql_key_datum_get(key)), ((size_t) j));
             }
-
-            it = iface->advance(it);
-            ASSERT_TRUE(it);
+            value = iface->yield(it, iface->definitionData
+                    , (i >> 1) ? key : NULL
+                    , context
+                    );
         }
     }
-    iface->destroy(it, context);
+    iface->destroy_iterator(it, iface->definitionData, context);
     hdql_key_destroy(key, context);
 
     hdql_compound_destroy(rawDataCompound, context);
@@ -279,11 +288,10 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(ad);
 
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_TRUE(iface->create);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_TRUE(iface->advance);
-    ASSERT_TRUE(iface->reset);
-    ASSERT_TRUE(iface->destroy);
+    ASSERT_TRUE(iface->new_iterator);
+    ASSERT_TRUE(iface->yield);
+    ASSERT_TRUE(iface->reset_iterator);
+    ASSERT_TRUE(iface->destroy_iterator);
     ASSERT_TRUE(iface->compile_selection);
     ASSERT_TRUE(iface->free_selection);
 
@@ -308,29 +316,32 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     for(int i = 0; i < 4; ++i) {
         struct hdql::test::RawData & root = rawDataInstance[i%2];
         if(0 == i) {
-            it = iface->create( reinterpret_cast<hdql_Datum_t>( &root )
+            it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>( &root )
                               , iface->definitionData
-                              , selArgs
                               , context );
         }
-        it = iface->reset( it, reinterpret_cast<hdql_Datum_t>( &root )
-                         , iface->definitionData
-                         , selArgs
-                         , context );
         ASSERT_TRUE(it);
-        for(size_t j = 2; j < 4; ++j) {
-            hdql_Datum_t value = iface->dereference(it, (i >> 1) ? key : NULL );  // (i/2) ? key : NULL);
+        size_t j = 2;
+        hdql_Datum_t value = iface->reset_iterator( it
+                , reinterpret_cast<hdql_Datum_t>( &root )
+                , iface->definitionData
+                , selArgs
+                , (i >> 1) ? key : NULL
+                , context );
+        ASSERT_TRUE(it);
+        for(; j < 4; ++j) {
             EXPECT_EQ(*reinterpret_cast<std::remove_reference<decltype(*hdql::test::RawData::samples)>::type *>(value)
                     , root.samples[j] );
             if(i >> 1) {
                 EXPECT_EQ(*reinterpret_cast<size_t*>(hdql_key_datum_get(key)), ((size_t) j));
             }
-
-            it = iface->advance(it);
-            ASSERT_TRUE(it);
+            value = iface->yield(it, iface->definitionData
+                    , (i >> 1) ? key : NULL
+                    , context
+                    );
         }
     }
-    iface->destroy(it, context);
+    iface->destroy_iterator(it, iface->definitionData, context);
     hdql_key_destroy(key, context);
 
     iface->free_selection(iface->definitionData, selArgs, context);
@@ -339,6 +350,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     // delete context
     hdql_context_destroy(context);
 }  // }}} TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection)
+
 
 //
 // Map of compound values attribute
@@ -421,11 +433,10 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(ad);
 
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_TRUE(iface->create);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_TRUE(iface->advance);
-    ASSERT_TRUE(iface->reset);
-    ASSERT_TRUE(iface->destroy);
+    ASSERT_TRUE(iface->new_iterator);
+    ASSERT_TRUE(iface->yield);
+    ASSERT_TRUE(iface->reset_iterator);
+    ASSERT_TRUE(iface->destroy_iterator);
     EXPECT_FALSE(iface->compile_selection);
     EXPECT_FALSE(iface->free_selection);
 
@@ -444,20 +455,18 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     }
 
     std::set<hdql::test::DetID_t> hitOccurencies;
-    hdql_It_t it = iface->create( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, NULL, context );
-    for( iface->reset(it, reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, NULL, context)
-       ;
-       ; it = iface->advance(it) ) {
-        // try to dereference iterator (may fail)
-        hdql_Datum_t hit_ = iface->dereference(it, key);
-        if(!hit_) break;  // if dereference failed, sequence is depleted
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, context );
+    for( hdql_Datum_t hit_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&track)
+                    , iface->definitionData, NULL, key, context)
+       ; hit_
+       ; hit_ = iface->yield(it, iface->definitionData, key, context) ) {
         // add key to counts
         hdql::test::DetID_t hitID = *reinterpret_cast<hdql::test::DetID_t*>(hdql_key_datum_get(key));
         if(hitID == 101 || hitID == 102) {
             EXPECT_EQ(reinterpret_cast<hdql::test::Hit*>(hit_), hit1.get());  // no implicit copies
         }
         auto ir = hitOccurencies.insert(hitID);
-        ASSERT_TRUE(ir.second);
+        EXPECT_TRUE(ir.second) << " repeated id=" << hitID;
     }
     EXPECT_EQ(hitOccurencies.size(), 4);
 
@@ -471,7 +480,7 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     iit = hitOccurencies.find(301);
     EXPECT_NE(hitOccurencies.end(), iit);
 
-    iface->destroy(it, context);
+    iface->destroy_iterator(it, iface->definitionData, context);
 
     hdql_key_destroy(key, context);
 
@@ -565,11 +574,10 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(ad);
 
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_TRUE(iface->create);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_TRUE(iface->advance);
-    ASSERT_TRUE(iface->reset);
-    ASSERT_TRUE(iface->destroy);
+    ASSERT_TRUE(iface->new_iterator);
+    ASSERT_TRUE(iface->yield);
+    ASSERT_TRUE(iface->reset_iterator);
+    ASSERT_TRUE(iface->destroy_iterator);
     ASSERT_TRUE(iface->compile_selection);
     ASSERT_TRUE(iface->free_selection);
 
@@ -592,12 +600,12 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     ASSERT_TRUE(selArgs);
 
     std::set<hdql::test::DetID_t> hitOccurencies;
-    hdql_It_t it = iface->create( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, selArgs, context );
-    for( iface->reset(it, reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, selArgs, context)
-       ;
-       ; it = iface->advance(it) ) {
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, context );
+    for( hdql_Datum_t hit_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&track)
+                , iface->definitionData, selArgs, key, context)
+       ; hit_
+       ; hit_ = iface->yield(it, iface->definitionData, key, context) ) {
         // try to dereference iterator (may fail)
-        hdql_Datum_t hit_ = iface->dereference(it, key);
         if(!hit_) break;  // if dereference failed, sequence is depleted
         // add key to counts
         hdql::test::DetID_t hitID = *reinterpret_cast<hdql::test::DetID_t*>(hdql_key_datum_get(key));
@@ -618,7 +626,7 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
 
     iface->free_selection(iface->definitionData, selArgs, context);
 
-    iface->destroy(it, context);
+    iface->destroy_iterator(it, iface->definitionData, context);
 
     hdql_key_destroy(key, context);
 
@@ -694,11 +702,10 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     const hdql_CollectionAttrInterface * iface = hdql_attr_def_collection_iface(ad);
 
     ASSERT_FALSE(iface->definitionData);
-    ASSERT_TRUE(iface->create);
-    ASSERT_TRUE(iface->dereference);
-    ASSERT_TRUE(iface->advance);
-    ASSERT_TRUE(iface->reset);
-    ASSERT_TRUE(iface->destroy);
+    ASSERT_TRUE(iface->new_iterator);
+    ASSERT_TRUE(iface->yield);
+    ASSERT_TRUE(iface->reset_iterator);
+    ASSERT_TRUE(iface->destroy_iterator);
     EXPECT_FALSE(iface->compile_selection);
     EXPECT_FALSE(iface->free_selection);
 
@@ -717,12 +724,11 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     }
 
     std::set<size_t> trackOccurences;
-    hdql_It_t it = iface->create( reinterpret_cast<hdql_Datum_t>(&event), iface->definitionData, NULL, context );
-    for( iface->reset(it, reinterpret_cast<hdql_Datum_t>(&event), iface->definitionData, NULL, context)
-       ;
-       ; it = iface->advance(it) ) {
-        // try to dereference iterator (may fail)
-        hdql_Datum_t track_ = iface->dereference(it, key);
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&event), iface->definitionData, context );
+    for( hdql_Datum_t track_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&event)
+                , iface->definitionData, NULL, key, context)
+       ; track_
+       ; track_ = iface->yield(it, iface->definitionData, key, context) ) {
         if(!track_) break;  // if dereference failed, sequence is depleted
         // add key to counts
         size_t trackNo = *reinterpret_cast<size_t*>(hdql_key_datum_get(key));
@@ -739,7 +745,7 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     }
     EXPECT_EQ(trackOccurences.size(), 4);
 
-    iface->destroy(it, context);
+    iface->destroy_iterator(it, iface->definitionData, context);
     hdql_key_destroy(key, context);
 
     hdql_compound_destroy(trackCompound, context);
@@ -748,5 +754,4 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     // delete context
     hdql_context_destroy(context);
 }  // }}} TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess)
-
 

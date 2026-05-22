@@ -31,11 +31,10 @@ struct ArithOpCollectionState {
 };
 
 static hdql_It_t
-_arith_op_collection_create( hdql_Datum_t owner
-                           , const hdql_Datum_t defData_
-                           , hdql_SelectionArgs_t selArgs_
-                           , hdql_Context_t ctx
-                           ) {
+_arith_op_new_iterator( hdql_Datum_t owner
+                      , const hdql_Datum_t defData_
+                      , hdql_Context_t ctx
+                      ) {
     const struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpCollectionState * state
         = (struct ArithOpCollectionState *)
@@ -47,40 +46,38 @@ _arith_op_collection_create( hdql_Datum_t owner
     return (hdql_It_t) state;
 }
 
-static hdql_It_t
-_arith_op_collection_reset( hdql_It_t it_
+static hdql_Datum_t
+_arith_op_collection_iterator_reset( hdql_It_t it_
                           , hdql_Datum_t newOwner
-                          , const hdql_Datum_t defData_
+                          , const struct hdql_Datum *defData_
                           , hdql_SelectionArgs_t sel
-                          , struct hdql_Key * key
-                          , hdql_Context_t ctx
+                          , struct hdql_Key *key
+                          , hdql_Context_t context
                           ) {
-    ((void) sel); /* TODO: forward to collection's compiler? */
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    hdql_Datum_t a = hdql_query_reset(defData->args[0], newOwner
-            , state->nArgToAdvance ? key : NULL, ctx)
-        , b = NULL;
-    if(!a) {  /* empty a */
+    hdql_Datum_t cr = hdql_query_reset( defData->args[state->nArgToAdvance]
+                                      , newOwner
+                                      , state->nArgToAdvance ? key : NULL
+                                      , context);
+    state->other = hdql_query_reset(defData->args[!state->nArgToAdvance]
+                    , newOwner, NULL, context);
+    if(!cr || (defData->args[1] && !state->other) ) {
         state->exhausted = 0x1;
-        return it_;
-    }
-
-    if(defData->args[1]) {
-        b = hdql_query_reset(defData->args[1], newOwner, key, ctx);
-    }
-    if(!b) {  /* empty b */
-        state->exhausted = 0x1;
-        return it_;
+        return NULL;
     }
     state->exhausted = 0x0;
-    defData->evaluator->op(a, b, state->cResult);
-    return it_;
+    if(state->nArgToAdvance) {
+        defData->evaluator->op(state->other, cr, state->cResult);
+    } else {
+        defData->evaluator->op(cr, state->other, state->cResult);
+    }
+    return state->cResult;
 }
 
-static hdql_It_t
-_arith_op_collection_advance( hdql_It_t it_
-        , struct hdql_Datum * defData_
+static hdql_Datum_t
+_arith_op_collection_yield( hdql_It_t it_
+        , const struct hdql_Datum * defData_
         , struct hdql_Key * key
         , struct hdql_Context * context
         ) {
@@ -94,10 +91,10 @@ _arith_op_collection_advance( hdql_It_t it_
 
 
 static void
-_arith_op_collection_destroy( hdql_It_t it_
-                            , struct hdql_Datum * defData_
-                            , hdql_Context_t context
-                            ) {
+_arith_op_collection_destroy_iterator( hdql_It_t it_
+        , const struct hdql_Datum * defData_
+        , hdql_Context_t context
+        ) {
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     /* TODO: perhaps, redundant checks to handle remergency delete situation... */
     if(NULL == it_) return;
@@ -156,11 +153,10 @@ hdql_reserve_arith_op_collection_key(struct hdql_Key * key
 
 const struct hdql_CollectionAttrInterface _hdql_gCollectionArithOpIFace = {
       .definitionData = NULL
-    , .create = _arith_op_collection_create
-    , .dereference = _arith_op_collection_dereference
-    , .advance = _arith_op_collection_advance
-    , .reset = _arith_op_collection_reset
-    , .destroy = _arith_op_collection_destroy
+    , .new_iterator = _arith_op_new_iterator
+    , .yield = _arith_op_collection_yield
+    , .reset_iterator = _arith_op_collection_iterator_reset
+    , .destroy_iterator = _arith_op_collection_destroy_iterator
     , .compile_selection = NULL
     , .free_selection = NULL
 };

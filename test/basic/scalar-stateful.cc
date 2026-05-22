@@ -1,3 +1,8 @@
+
+// Test a very basic query iteration of stateful scalar attribute definition.
+// Attribute definitions used in these queries are created just in the code
+// and not provided by any compound definitions.
+
 #include "hdql/attr-def.h"
 #include "hdql/query.h"
 #include "hdql/types.h"

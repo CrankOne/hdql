@@ -5,6 +5,7 @@
 #include "hdql/helpers/compounds.hh"
 
 #include "basic-context.hh"
+#include "hdql/types.h"
 
 namespace hdql {
 namespace test {
@@ -24,8 +25,8 @@ public:
     TestCompiledQuery();
 
     virtual void CompileQuery(const char *, bool enableKeys=false);
-    void ResetQuery(void *datum, void *&result);
-    void AdvanceQuery(void *&result);
+    void ResetQuery(hdql_Datum *datum, hdql_Datum *&result);
+    void AdvanceQuery(hdql_Datum *&result);
 
     void SetUp() override;
     void TearDown() override;

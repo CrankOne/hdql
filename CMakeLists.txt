@@ -42,7 +42,7 @@ set (hdql_SOURCES src/types.cc
                   #src/ifaces/fwd-query-as-collection.c
 	              #src/ifaces/fwd-query-as-scalar.c
 	              #src/ifaces/arith-op-as-scalar.c
-	              #src/ifaces/arith-op-as-collection.c
+	              src/ifaces/arith-op-as-collection.c
 	              #src/ifaces/filtered-v-compound.c
                   #src/ifaces/bound-value.c
                   #src/helpers/query-results-handler.c
@@ -134,17 +134,18 @@ if (BUILD_TESTS)
         test/basic/collection.cc
         # Event structure based on C++ compounds
         test/samples.cc
-        #test/events-struct.cc
-        #test/basic-context.cc
-        #test/compiled-query.cc
+        test/basic-context.cc
+        test/compiled-query.cc
+        test/events-struct.cc
+        test/event-struct.test.cc
+        test/iteration-results.cc
+        test/iteration-tests/singular-query.cc
         # ...
         #test/cross-type-operations.cc
         #test/ht.test.cc
         #test/rnd.cc
-        #test/event-struct.test.cc
         #test/value.cc
         #test/simple-arithmetics.cc
-        #test/iteration-tests/singular-query.cc
         #test/iteration-tests/arithmetics.cc
         #test/iteration-tests/v-compound-fwd.cc
         #test/iteration-tests/v-compound-bind.cc

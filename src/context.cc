@@ -294,6 +294,11 @@ hdql_context_err_push( hdql_Context_t context
     context->errors.push_back(std::pair<hdql_Err_t, std::string>(code, errBuf));
 }
 
+extern "C" bool
+hdql_context_has_errors(hdql_Context_t context) {
+    return !context->errors.empty();
+}
+
 
 extern "C" int
 hdql_context_custom_data_add(

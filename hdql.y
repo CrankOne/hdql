@@ -851,7 +851,8 @@ _new_virtual_compound_query( YYLTYPE * yylloc
             assert(false);  // TODO
             //iface.dereference = _dereference_to_self;
         } else {
-            iface = _hdql_gFilteredCompoundIFace;
+            assert(false);  // TODO
+            //iface = _hdql_gFilteredCompoundIFace;
             iface.definitionData = (hdql_Datum_t) filterQuery;
         }
         vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
@@ -874,7 +875,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
          * Re-setting or advancing query to bound v-compound shall cause
          * evaluation of the bound forwarding queries first, setting
          * corresponding attributes. */
-        struct hdql_CollectionAttrInterface iface = _hdql_gBindingCompoundCollectionIFace;
+        struct hdql_CollectionAttrInterface iface; assert(false);  // TODO = _hdql_gBindingCompoundCollectionIFace;
         /* filtering query and pointer to (not yet finalized) virtual compound
          * definition have to be transferred to the iterator instantiation
          * in order to compose (optionally filtered) sequence of Cartesian
@@ -1040,7 +1041,7 @@ _operation( struct hdql_Query * a
     defData->evaluator = evaluator;
     if(attrAIsFullScalar && attrBIsFullScalar) {
         /* operation results in scalar */
-        struct hdql_ScalarAttrInterface scalarIFace = _hdql_gScalarArithOpIFace;
+        struct hdql_ScalarAttrInterface scalarIFace; assert(false);  // = _hdql_gScalarArithOpIFace;
         scalarIFace.definitionData = (hdql_Datum_t) defData;
         rAD = hdql_attr_def_create_atomic_scalar(
                 &typeInfo, &scalarIFace, 0x0, NULL, ws->context );

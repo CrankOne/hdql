@@ -50,10 +50,11 @@ set (hdql_SOURCES src/types.cc
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
-                  src/helpers/query.cc
                   # C++ API
-                  #src/helpers/query-results-handler.c
-                  #src/helpers/query-results-handler-csv.c
+                  src/helpers/query.cc
+                  # DSV
+                  src/helpers/query-results-handler.c
+                  src/helpers/query-results-handler-csv.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -170,7 +171,7 @@ if (BUILD_TESTS)
         test/monoids/len.cc
         test/monoids/empty.cc
         test/cpp-api.cc
-        #test/dsv.test.cc
+        test/dsv.test.cc
         )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

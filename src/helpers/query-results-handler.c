@@ -103,7 +103,10 @@ int
 hdql_query_results_process_records_from( struct hdql_Datum * d
         , struct hdql_QueryResultsWorkspace * ws ) {
     hdql_Datum_t r;
-    while(NULL != (r = hdql_query_reset(ws->q, d, ws->keys, ws->ctx))) {
+    for( r = hdql_query_reset(ws->q, d, ws->keys, ws->ctx)
+       ; r
+       ; r = hdql_query_get(ws->q, ws->keys, ws->ctx)
+       ) {
         ws->iqr->handle_record(r, ws->iqr->userdata);
     }
     return HDQL_ERR_CODE_OK;

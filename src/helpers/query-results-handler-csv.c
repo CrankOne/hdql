@@ -49,7 +49,7 @@ struct hdql_CSVAttrHandler {
 
     union {
         /* callback used to stringify atomic scalar value */
-        int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize, hdql_Context_t);
+        int (*get_as_string)(const struct hdql_Datum *, char * buf, size_t bufSize, hdql_Context_t);
         /* child tiers to stringify compounds */
         struct hdql_AttrHandlerTier attrHandlers;
     } payload;
@@ -296,13 +296,14 @@ _handle_collection_as_csv_entry( struct hdql_CSVHandler * csv
         = hdql_attr_def_collection_iface(h->ad);
     assert(ciface);
 
+    size_t nItems = 0;
+    #if 0
     /* count items
      *
      * Note, that for non-empty collections, iterator is always not null, even
      * if it can not be further advanced. Proper way to check the end of
      * collection is to retrieve the value (dereference).
      * */
-    size_t nItems = 0;
     if(h->dynamicData.collectionIt)
         h->dynamicData.collectionIt = ciface->reset( 
                   h->dynamicData.collectionIt
@@ -318,6 +319,15 @@ _handle_collection_as_csv_entry( struct hdql_CSVHandler * csv
         h->dynamicData.collectionIt = ciface->advance(h->dynamicData.collectionIt, NULL);
         ++nItems;
     }
+    #else
+    if(h->dynamicData.collectionIt) {
+        for( hdql_Datum_t check = ciface->reset_iterator(h->dynamicData.collectionIt, ownerDatum, ciface->definitionData, NULL, NULL, csv->ctx)
+           ; check
+           ; check = ciface->yield(h->dynamicData.collectionIt, ciface->definitionData, NULL, csv->ctx)) {
+            ++nItems;
+        }
+    }
+    #endif
 
     char buf[32];
     snprintf(buf, sizeof(buf), "%zu", nItems);
@@ -334,22 +344,12 @@ _get_scalar_data(struct hdql_CSVHandler * csv
         = hdql_attr_def_scalar_iface(h->ad);
     assert(siface);
 
-    if(siface->reset) {
-        h->dynamicData.scSupp = siface->reset(ownerDatum
+    return siface->reset(ownerDatum
                 , h->dynamicData.scSupp
                 , siface->definitionData
                 , NULL
                 , csv->ctx
                 );
-    }
-    assert(siface->dereference);
-    return siface->dereference( ownerDatum
-            , h->dynamicData.scSupp
-            , siface->definitionData
-            , csv->ctx
-            );
-    /* note: we do not call destroy() here as siface->reset() has to already
-     * take care of it */
 }
 
 /* Scalar atomic attribute yields single column with simple printing */
@@ -401,8 +401,7 @@ _handle_scalar_compound_as_csv_entry( struct hdql_CSVHandler * csv
     hdql_Datum_t r = _get_scalar_data(csv, ownerDatum, h);
 
     //assert(hdql_attr_def_is_compound(topAD))
-    _reset_dynamic_states(&h->payload.attrHandlers
-                        , r, csv->ctx);
+    _reset_dynamic_states(&h->payload.attrHandlers, r, csv->ctx);
 
     for(size_t i = 0; i < h->payload.attrHandlers.n; ++i) {
         struct hdql_CSVAttrHandler * ah = h->payload.attrHandlers.handlers[i];
@@ -475,36 +474,20 @@ _reset_dynamic_states(struct hdql_AttrHandlerTier * t, hdql_Datum_t datum, struc
             const struct hdql_CollectionAttrInterface * ciface
                 = hdql_attr_def_collection_iface(ah->ad);
             assert(ciface);
-            assert(ciface->reset);
-            if((!ah->dynamicData.collectionIt) && ciface->create)
-                ah->dynamicData.collectionIt = ciface->create( datum
+            if((!ah->dynamicData.collectionIt) && ciface->new_iterator)
+                ah->dynamicData.collectionIt = ciface->new_iterator( datum
                         , ciface->definitionData
-                        , NULL  /* select all */
                         , ctx
                         );
-            ah->dynamicData.collectionIt = ciface->reset( ah->dynamicData.collectionIt
-                             , datum
-                             , ciface->definitionData
-                             , NULL /* select all */
-                             , NULL
-                             , ctx
-                             );
         } else {  /* scalar */
             assert(hdql_attr_def_is_scalar(topAD));
             const struct hdql_ScalarAttrInterface * siface = hdql_attr_def_scalar_iface(ah->ad);
-            if(siface->instantiate) {
+            if(siface->new_dyn_data) {
                 if(NULL == ah->dynamicData.scSupp) {
                     ah->dynamicData.scSupp
-                        = siface->instantiate(datum, siface->definitionData, ctx);
+                        = siface->new_dyn_data(datum, siface->definitionData, ctx);
                     assert(ah->dynamicData.scSupp);
                 }
-                assert(siface->reset);
-                ah->dynamicData.scSupp = siface->reset( datum
-                        , ah->dynamicData.scSupp
-                        , siface->definitionData
-                        , NULL
-                        , ctx
-                        );
             }
         }
     }
@@ -734,15 +717,15 @@ _free_attr_handler(struct hdql_CSVAttrHandler * ah, hdql_Context_t ctx) {
         /* get collection iface to destroy dynamic iteration state */
         const struct hdql_CollectionAttrInterface * ciface
             = hdql_attr_def_collection_iface(ah->ad);
-        if(ciface->destroy && ah->dynamicData.collectionIt) {
-            ciface->destroy(ah->dynamicData.collectionIt, ctx);
+        if(ciface->destroy_iterator && ah->dynamicData.collectionIt) {
+            ciface->destroy_iterator(ah->dynamicData.collectionIt, ciface->definitionData, ctx);
             //ah->dynamicData.collectionIt = NULL;
         }
     } else if(hdql_attr_def_is_atomic(topAD)) {
         const struct hdql_ScalarAttrInterface * siface
             = hdql_attr_def_scalar_iface(ah->ad);
-        if(siface->destroy && ah->dynamicData.scSupp) {
-            siface->destroy(ah->dynamicData.scSupp, siface->definitionData, ctx);
+        if(siface->destroy_dyn_data && ah->dynamicData.scSupp) {
+            siface->destroy_dyn_data(ah->dynamicData.scSupp, siface->definitionData, ctx);
             //ah->dynamicData.scSupp = NULL;
         }
     } else if(hdql_attr_def_is_compound(topAD)) {

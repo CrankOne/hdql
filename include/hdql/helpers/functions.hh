@@ -101,17 +101,16 @@ struct AutoFunction {
          * pointer is managed by the context. Otherwise (when conversion
          * function is not set), this is the data pointer returned by query. */
         hdql_Datum_t * argValuesPtrs;
-        bool isValid, isExhausted;
     };
 
     static hdql_Datum_t
     instantiate( hdql_Datum_t root
-               , const hdql_Datum_t fInstArgs_
+               , const struct hdql_Datum *fInstArgs_
                , hdql_Context_t context
                ) {
         ScalarState * state = hdql_alloc(context, ScalarState);
         FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
-                reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
+                reinterpret_cast<const FunctionInstantiationArgs *>(fInstArgs_));
         /* Allocate array of pointers for argument values */
         {
             const size_t argArrLenBytes = sizeof(hdql_Datum_t*)*sizeof...(ArgsT);
@@ -132,61 +131,38 @@ struct AutoFunction {
     }
 
     static hdql_Datum_t
-    dereference( hdql_Datum_t root
-               , hdql_Datum_t state_
-               , const hdql_Datum_t fInstArgs_
-               , hdql_Context_t context
-            ) {
-        ScalarState * state = reinterpret_cast<ScalarState*>(state_);
-        if(state->isExhausted) return NULL;  // TODO: must be prohibited, in principle...
-        if(!state->isValid) {
-            FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
-                reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
-            size_t nArg = 0;
-            for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q, ++nArg) {
-                // get value from query (may need a conversion)
-                hdql_Datum_t argValuePtr = hdql_query_get(*q, NULL, context);
-                if(NULL == argValuePtr) {
-                    // at least one of the arguments did not provide a value;
-                    // we consider result as empty
-                    state->isExhausted = true;
-                    return NULL;
-                }
-                // if value needs a conversion, do it, otherwise just set it
-                // as is.
-                if(fInstArgs->converters[nArg].func) {
-                    // converter syntax is: dest, src
-                    int rc = fInstArgs->converters[nArg].func(state->argValuesPtrs[nArg], argValuePtr);
-                    if(HDQL_ERR_CODE_OK != rc) {
-                        hdql_context_err_push(context, HDQL_ERR_CONVERSION
-                                , "Conversion failed with code %d", rc);  // TODO: elaborate
-                    }
-                } else {
-                    state->argValuesPtrs[nArg] = argValuePtr;
-                }
-            }
-            state->result = apply(fInstArgs->functionPointer, state->argValuesPtrs);
-            state->isValid = true;
-        }
-        return reinterpret_cast<hdql_Datum_t>(&state->result);
-    }
-
-    static hdql_Datum_t
-    reset( hdql_Datum_t newOwner
+    reset( hdql_Datum_t root
          , hdql_Datum_t state_
-         , const hdql_Datum_t fInstArgs_
-         , hdql_Key * key
-         , hdql_Context_t ctx
+         , const struct hdql_Datum *fInstArgs_
+         , struct hdql_Key *key
+         , hdql_Context_t context
          ) {
-        assert(state_);
-        FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
-                reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
         ScalarState * state = reinterpret_cast<ScalarState*>(state_);
-        for(hdql_Query ** q = fInstArgs->args; NULL != *q; ++q) {
-            hdql_query_reset(*q, newOwner, key, ctx);
+        FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
+            reinterpret_cast<const FunctionInstantiationArgs *>(fInstArgs_));
+
+        size_t nArg = 0;
+        hdql_Datum_t argValuePtr;
+        for(hdql_Query **q = fInstArgs->args; NULL != *q; ++q, ++nArg) {
+            argValuePtr = hdql_query_reset(*q, root, NULL, context);
+            if(NULL == argValuePtr) {
+                // at least one of the arguments did not provide a value;
+                // consider result as empty
+                return NULL;
+            }
+            if(fInstArgs->converters[nArg].func) {
+                // converter syntax is: dest, src
+                int rc = fInstArgs->converters[nArg].func(state->argValuesPtrs[nArg], argValuePtr);
+                if(HDQL_ERR_CODE_OK != rc) {
+                    hdql_context_err_push(context, HDQL_ERR_CONVERSION
+                            , "Conversion failed with code %d", rc);  // TODO: elaborate
+                }
+            } else {
+                state->argValuesPtrs[nArg] = argValuePtr;
+            }
         }
-        state->isExhausted = state->isValid = false;
-        return state_;
+        state->result = apply(fInstArgs->functionPointer, state->argValuesPtrs);
+        return reinterpret_cast<hdql_Datum_t>(&state->result);
     }
 
     static void _transient_dtr__func_args(hdql_Datum_t d, hdql_Context_t ctx) {
@@ -206,11 +182,11 @@ struct AutoFunction {
     static void
     destroy(
           hdql_Datum_t state_
-        , const hdql_Datum_t fInstArgs_
+        , const struct hdql_Datum *fInstArgs_
         , hdql_Context_t ctx
         ) {
         FunctionInstantiationArgs * fInstArgs = const_cast<FunctionInstantiationArgs*>(
-                reinterpret_cast<FunctionInstantiationArgs *>(fInstArgs_));
+                reinterpret_cast<const FunctionInstantiationArgs *>(fInstArgs_));
         if(state_) {
             ScalarState * state = reinterpret_cast<ScalarState*>(state_);
             if(state->argValuesPtrs) {
@@ -393,10 +369,9 @@ struct AutoFunction {
         // instantiate scalar interface
         hdql_ScalarAttrInterface iface{
                 .definitionData = reinterpret_cast<hdql_Datum_t>(fArgs),
-                .instantiate = instantiate,
-                .dereference = dereference,
+                .new_dyn_data = instantiate,
                 .reset = reset,
-                .destroy = destroy,
+                .destroy_dyn_data = destroy,
             };
         auto r = hdql_attr_def_create_atomic_scalar(
                   &retFts

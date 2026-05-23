@@ -26,7 +26,6 @@
 //
 // Example of event structs
 
-#if 0
 static int
 test_query_on_data( int nSample, const char * expression ) {
     hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
@@ -175,7 +174,6 @@ test_query_on_data( int nSample, const char * expression ) {
 
     return rc;
 }
-#endif
 
 //
 // Entry point test
@@ -183,8 +181,7 @@ test_query_on_data( int nSample, const char * expression ) {
 int
 main(int argc, char * argv[]) {
     if(argc == 3 && !strncmp(argv[1], "data", 4)) {
-        return 1;  // TODO:
-        //return test_query_on_data(1, argv[2]);
+        return test_query_on_data(1, argv[2]);
     } else {
         ::testing::InitGoogleTest(&argc, argv);
         return RUN_ALL_TESTS();

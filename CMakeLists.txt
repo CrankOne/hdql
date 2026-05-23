@@ -144,15 +144,15 @@ if (BUILD_TESTS)
         test/iteration-results.cc
         test/iteration-tests/singular-query.cc
         test/iteration-tests/arithmetics.cc
+        test/query-product.test.cc
         # ...
         test/cross-type-operations.cc
         test/value.cc
         test/simple-arithmetics.cc
         test/iteration-tests/v-compound-fwd.cc
-        #test/iteration-tests/v-compound-bind.cc
+        test/iteration-tests/v-compound-bind.cc
         #test/cpp-api.cc
         #test/dsv.test.cc
-        #test/query-product.test.cc
         #test/monoids/monoids.cc
         #test/monoids/sum.cc
         #test/monoids/product.cc

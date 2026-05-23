@@ -1,15 +1,10 @@
 #include <cmath>
 #include <gtest/gtest.h>
 
-#include "events-struct.hh"
-#include "hdql/attr-def.h"
-#include "hdql/compound.h"
 #include "hdql/context.h"
 #include "hdql/errors.h"
 #include "hdql/query-key.h"
 #include "hdql/query.h"
-#include "hdql/types.h"
-#include "hdql/value.h"
 #include "samples.hh"
 
 namespace hdql {
@@ -129,10 +124,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
              ;
     hdql_Query * queries[3] = {NULL, NULL, NULL};
     hdql_Datum_t  values[3];
-    hdql_Key * keys[3] = { hdql_key_new(_compounds.context_ptr())
-                         , hdql_key_new(_compounds.context_ptr())
-                         , hdql_key_new(_compounds.context_ptr())
-                         };
+
     // create and populate object
     hdql::test::Event ev;
     fill_data_sample_1(ev);
@@ -155,14 +147,6 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     hdql_ValueTypeCode_t tc = hdql_attr_def_get_atomic_value_type_code(ad);
     const struct hdql_ValueInterface * vi1 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi1 != NULL);
-    // allocate keys storage and their flat views
-    rc = hdql_key_reserve_for_query(queries[0], keys[0], _ctx);
-    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl1 = hdql_key_flat_view_size(keys[0], _ctx);
-    ASSERT_GT(flkl1, 0);
-    ASSERT_EQ(flkl1, 1);
-    std::vector<hdql_Key *> kv1(flkl1, NULL);
-    hdql_key_flat_view_populate(keys[0], kv1.data());
 
     queries[1] = hdql_compile_query( q2Expr
                               , _rootCompound
@@ -179,14 +163,6 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     tc = hdql_attr_def_get_atomic_value_type_code(ad);
     const struct hdql_ValueInterface * vi2 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi2 != NULL);
-    // allocate keys storage and their flat views
-    rc = hdql_key_reserve_for_query(queries[1], keys[1], _ctx);
-    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl2 = hdql_key_flat_view_size(keys[1], _ctx);
-    ASSERT_GT(flkl2, 0);
-    ASSERT_EQ(flkl2, 1);
-    std::vector<hdql_Key*> kv2(flkl2, NULL);
-    hdql_key_flat_view_populate(keys[1], kv2.data());
 
     queries[2] = hdql_compile_query( q3Expr
                               , _rootCompound
@@ -202,29 +178,26 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     tc = hdql_attr_def_get_atomic_value_type_code(ad);
     const struct hdql_ValueInterface * vi3 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi3 != NULL);
-    // allocate keys storage and their flat views
-    rc = hdql_key_reserve_for_query(queries[2], keys[2], _ctx);
+
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    rc = hdql_query_product_reserve_key(queries, key, 3, _compounds.context_ptr());
+    ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
+    size_t flvLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
+    ASSERT_EQ(flvLen, 5);
+    hdql_Key **flvks = reinterpret_cast<hdql_Key **>(alloca(flvLen*sizeof(hdql_Key *)));
+    rc = hdql_key_flat_view_populate(key, flvks);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl3 = hdql_key_flat_view_size(keys[2], _ctx);
-    ASSERT_GT(flkl3, 0);
-    ASSERT_EQ(flkl3, 3);
-    std::vector<hdql_Key *> kv3(flkl3, NULL);
-    hdql_key_flat_view_populate(keys[2], kv3.data());
 
     // init flat key interface
     const hdql_ValueInterface * kvifs[5] = {
-        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(kv1[0])),
+        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(flvks[0])),
 
-        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(kv2[0])),
+        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(flvks[1])),
 
-        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(kv3[0])),
-        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(kv3[1])),
-        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(kv3[2])),
+        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(flvks[2])),
+        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(flvks[3])),
+        hdql_types_get_type(_valueTypes, hdql_key_datum_get_type_code(flvks[4])),
     };
-
-    // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, keys, values, (hdql_Datum_t) &ev, 3, _ctx);
-    ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
     
     // build test set: a vector of items that must be found in the cartesian
     // product result
@@ -243,15 +216,18 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
         //   0  1    2  3    4  5       6    7   8
     };
     
+    // re-set the product, getting first item in a list
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 3, _ctx);
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
 
     do {
-        int k11 = kvifs[0]->get_as_int(hdql_key_datum_get(kv1[0]));
+        int k11 = kvifs[0]->get_as_int(hdql_key_datum_get(flvks[0]));
 
-        int k21 = kvifs[1]->get_as_int(hdql_key_datum_get(kv2[0]));
+        int k21 = kvifs[1]->get_as_int(hdql_key_datum_get(flvks[1]));
 
-        int k31 = kvifs[2]->get_as_int(hdql_key_datum_get(kv3[0]));
-        int k32 = kvifs[3]->get_as_int(hdql_key_datum_get(kv3[1]));
-        int k33 = kvifs[4]->get_as_int(hdql_key_datum_get(kv3[2]));
+        int k31 = kvifs[2]->get_as_int(hdql_key_datum_get(flvks[2]));
+        int k32 = kvifs[3]->get_as_int(hdql_key_datum_get(flvks[3]));
+        int k33 = kvifs[4]->get_as_int(hdql_key_datum_get(flvks[4]));
 
         int   v1 = vi1->get_as_int(values[0]);
         float v2 = vi2->get_as_int(values[1]);
@@ -278,7 +254,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
             << k11 << ", k21=" << k21
             << ", k31=" << k31 << ", k32=" << k32 << ", k33=" << k33 << ", "
             << v1 << ", " << v2 << ", " << v3 << ") which is not anticipated";
-    } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, keys, values
+    } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, key, values
                 , (hdql_Datum_t) &ev, 3, _ctx));
     // check that all combinations passed
     for(const auto & item : check) {
@@ -288,10 +264,9 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     hdql_query_destroy(queries[1], _ctx);
     hdql_query_destroy(queries[2], _ctx);
 
-    hdql_key_destroy(keys[0], _ctx);
-    hdql_key_destroy(keys[1], _ctx);
-    hdql_key_destroy(keys[2], _ctx);
+    hdql_key_destroy(key, _compounds.context_ptr());
 }  // worksOnThreeSeriesWithKeys
+
 
 TEST_F(QueryProductTest, worksOnSingleQueryWithoutKeys) {
     const char q1Expr[] = ".hits[1:200].energyDeposition"
@@ -364,7 +339,6 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
              ;
     hdql_Query * queries[1] = {NULL};
     hdql_Datum_t  values[1];
-    hdql_Key * keys[1] = {hdql_key_new(_compounds.context_ptr())};
     // create and populate object
     hdql::test::Event ev;
     fill_data_sample_1(ev);
@@ -388,17 +362,15 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
     const struct hdql_ValueInterface * vi1 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi1 != NULL);
     // allocate keys storage and their flat views
-    int rc = hdql_key_reserve_for_query(queries[0], *keys, _ctx);
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    int rc = hdql_query_product_reserve_key(queries, key, 1, _compounds.context_ptr());
+    ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
+    size_t flvLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
+    ASSERT_EQ(flvLen, 1);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl1 = hdql_key_flat_view_size(keys[0], _ctx);
-    ASSERT_GT(flkl1, 0);
-    ASSERT_EQ(flkl1, 1);
-    std::vector<hdql_Key *> kv1(flkl1, NULL);
-    hdql_key_flat_view_populate(keys[0], kv1.data());
 
-    // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, keys, values, (hdql_Datum_t) &ev, 1, _ctx);
-    ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
+    std::vector<hdql_Key *> flkvs_(flvLen, NULL);
+    rc = hdql_key_flat_view_populate(key, flkvs_.data());
     
     // build test set: a vector of items that must be found in the cartesian
     // product result
@@ -411,10 +383,13 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
     check.push_back(r);
 
     const hdql_ValueInterface * kvif = hdql_types_get_type(_valueTypes
-                , hdql_key_datum_get_type_code(kv1[0]));
+                , hdql_key_datum_get_type_code(flkvs_[0]));
 
+    // re-set the product, getting first item in a list
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _ctx);
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
     do {
-        int k11 = kvif->get_as_int(hdql_key_datum_get(kv1[0]));
+        int k11 = kvif->get_as_int(hdql_key_datum_get(flkvs_[0]));
         int v1 = vi1->get_as_int(values[0]);
 
         // find item in checklist
@@ -429,8 +404,9 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
         ASSERT_TRUE(found)
             << "product yielded ("
             << v1 << ") which is not anticipated";
-    } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, keys, values
-                , (hdql_Datum_t) &ev, 1, _ctx));
+    } while(HDQL_ERR_CODE_OK == (rc = hdql_query_product_advance(queries, key, values
+                , (hdql_Datum_t) &ev, 1, _ctx)));
+    EXPECT_EQ(rc, HDQL_ERR_EMPTY_SET);
     // check that all combinations passed
     for(const auto & item : check) {
         EXPECT_TRUE(std::get<0>(item)) << " item ("
@@ -438,15 +414,15 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
             << ") was not produced by product";
     }
     hdql_query_destroy(queries[0], _ctx);
-    hdql_key_destroy(keys[0], _ctx);
+    hdql_key_destroy(key, _ctx);
 }  // worksOnSingleQueryWithKeys
+
 
 TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
     const char q1Expr[] = ".hits{:.energyDeposition>1.0e+6}.x"
              ;
     hdql_Query * queries[1] = {NULL};
     hdql_Datum_t  values[1];
-    hdql_Key * keys[1] = {hdql_key_new(_compounds.context_ptr())};
     // create and populate object
     hdql::test::Event ev;
     fill_data_sample_1(ev);
@@ -469,19 +445,21 @@ TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
     hdql_ValueTypeCode_t tc = hdql_attr_def_get_atomic_value_type_code(ad);
     const struct hdql_ValueInterface * vi1 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi1 != NULL);
+
     // allocate keys storage and their flat views
-    int rc = hdql_key_reserve_for_query(queries[0], *keys, _ctx);
+    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    int rc = hdql_query_product_reserve_key(queries, key, 1, _ctx);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl1 = hdql_key_flat_view_size(keys[0], _ctx);
+    size_t flkl1 = hdql_key_flat_view_size(key, _ctx);
     ASSERT_GT(flkl1, 0);
     ASSERT_EQ(flkl1, 1);
     std::vector<hdql_Key*> kv1(flkl1, NULL);
-    hdql_key_flat_view_populate(*keys, kv1.data());
+    hdql_key_flat_view_populate(key, kv1.data());
 
     // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, keys, values, (hdql_Datum_t) &ev, 1, _ctx);
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _ctx);
     ASSERT_EQ(rc, HDQL_ERR_EMPTY_SET);
-    hdql_key_destroy(keys[0], _ctx);
+    hdql_key_destroy(key, _ctx);
     hdql_query_destroy(queries[0], _ctx);
 }  // singleEmptyQueryYieldsEmptySet
 

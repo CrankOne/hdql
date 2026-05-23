@@ -120,6 +120,14 @@ HDQL_API void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 /**\brief Dumps built query internals */
 HDQL_API void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
 
+/**\brief Reserves key for product of N query results */
+int
+hdql_query_product_reserve_key(struct hdql_Query ** qs
+        , struct hdql_Key *key
+        , size_t n
+        , struct hdql_Context *context
+        );
+
 /**\brief Re-sets a set of queries built on top of the same root object
  *
  * Used to initialize ground state and get first item in a cartesian product

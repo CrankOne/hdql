@@ -1,4 +1,5 @@
 #include "hdql/query.h"
+#include "hdql/context.h"
 #include "hdql/types.h"
 #include "hdql/attr-def.h"
 #include "hdql/query-key.h"
@@ -138,17 +139,6 @@ hdql__query_reset_descendant(struct hdql_Query * q
                 ) {
     if(!q) return NULL;
 
-    #if 0
-    while(q) {
-        /* reset and dereference 1st in collection */
-        datum = hdql__query_reset(q, datum, key, context);
-        if(!datum) { return NULL; }
-        /* advance key and ptr to current query */
-        q = q->next;
-        if(q && key) key = hdql__keys_next(key);
-    }
-    return datum;
-    #else
     struct hdql_Query *cq = q;
     hdql_Key_t ckey = key;
     hdql_Datum_t r = datum;
@@ -176,7 +166,6 @@ hdql__query_reset_descendant(struct hdql_Query * q
         cq = cq->next;
         if(ckey) ckey = hdql__keys_next(ckey);
     }
-    #endif
 }
 
 /* public API: chained reset of the query */
@@ -434,23 +423,48 @@ hdql_query_top_attr(const struct hdql_Query * q) {
     return hdql_attr_def_top_attr(hdql_query_get_subject(q));
 }
 
+
+/*
+ * Query product
+ */
+
+int
+hdql_query_product_reserve_key(struct hdql_Query ** qs
+        , struct hdql_Key *key
+        , size_t n
+        , struct hdql_Context *context
+        ) {
+    hdql_key_mark_as_list(key, n, context);
+    for(size_t i = 0; i < n; ++i) {
+        int rc = hdql_key_reserve_for_query( qs[i]
+                , hdql_key_get_list_item(key, i)
+                , context );
+        if(HDQL_ERR_CODE_OK != rc) {
+            hdql_context_err_push(context, rc, "failed to reserve key for"
+                    " query product itme #%zu, abrupt product key allocation", i);
+            return rc;
+        }
+    }
+    return HDQL_ERR_CODE_OK;
+}
+
 /* module API */
 static int
-hdql__query_product_reset( struct hdql_Query ** qs
-        , struct hdql_Key * locKey
-        , hdql_Datum_t * v
+hdql__query_product_reset( struct hdql_Query **qs
+        , struct hdql_Key *locKey
+        , hdql_Datum_t *v
         , hdql_Datum_t d
         , size_t n
         , hdql_Context_t context
         ) {
-    /* re-set all queries in list,  */
+    /* re-set all queries in a list */
     size_t i = 0;
-    for(struct hdql_Query ** q = qs; i < n; ++q, ++i) {
+    const size_t iLast = n - 1;
+    for(struct hdql_Query **q = qs; i < n; ++q, ++i) {
         if(!(*v = hdql_query_reset(*q, d, locKey, context)))
             return HDQL_ERR_EMPTY_SET;
         ++v;
-        if(locKey)
-            locKey = hdql__keys_next(locKey);
+        if(locKey && i != iLast) locKey = hdql__keys_next(locKey);
     }
     return HDQL_ERR_CODE_OK;
 }
@@ -458,51 +472,53 @@ hdql__query_product_reset( struct hdql_Query ** qs
 /* public API */
 int
 hdql_query_product_reset( struct hdql_Query ** qs
-        , struct hdql_Key * key
+        , struct hdql_Key *key
         , hdql_Datum_t * v
         , hdql_Datum_t d
         , size_t n
         , hdql_Context_t context
         ) {
-    struct hdql_Key * locKey = key ? hdql__key_get_list_bgn(key) : NULL;
+    struct hdql_Key *locKey = key ? hdql__key_get_list_bgn(key) : NULL;
     return hdql__query_product_reset(qs, locKey, v, d, n, context);
 }
 
 /* public API */
 int
-hdql_query_product_advance( struct hdql_Query ** qs
-        , struct hdql_Key * key
-        , hdql_Datum_t * values
+hdql_query_product_advance( struct hdql_Query **qs
+        , struct hdql_Key *key
+        , hdql_Datum_t *values
         , hdql_Datum_t d
         , size_t n
         , hdql_Context_t context
         ) {
-    int rc;
-    const size_t n1 = n-1;
-    /* iterate backward */
-    size_t i = n;
-    assert(i > 0);
-    struct hdql_Key * locKey = key
-            ? hdql__key_get_list_at(key, n1)
-            : NULL;
-    hdql_Datum_t * v = values + n1;
-    for(struct hdql_Query ** q = qs + n1; 0 != i; --q, --v) {
-        --i;
-        if(NULL == (*v = hdql_query_get(*q, key ? locKey : NULL, context))) {
-            if(key) locKey = hdql__keys_prev(locKey);
-            continue;  /* i-th query did not yield a value */
-        }
-        /* otherwise, re-set ones to the right (with j > i) */
-        for(size_t j = i + 1; j < n; ++j) {
-            if(HDQL_ERR_CODE_OK != (rc = hdql__query_product_reset(qs + j, locKey, v, d, n - j, context))) {
-                assert(0);
-                return rc;
+    assert(qs);
+    assert(values);
+    if(!n) return HDQL_ERR_EMPTY_SET;
+    size_t i = n - 1;
+    struct hdql_Key *locKey = key ? hdql__key_get_list_at(key, i) : NULL;
+    for(;;) {
+        hdql_Datum_t r = hdql_query_get(qs[i], locKey, context);
+        if(r) { /* q[i] advanced, reset all to the right: q[i+1] ... q[n-1]. */
+            values[i] = r;
+            if(i + 1 < n) {
+                struct hdql_Key *suffixKey = locKey
+                        ? hdql__keys_next(locKey)
+                        : NULL;
+                int rc = hdql__query_product_reset( qs + i + 1
+                                                  , suffixKey
+                                                  , values + i + 1
+                                                  , d
+                                                  , n - i - 1
+                                                  , context );
+                if(rc != HDQL_ERR_CODE_OK) return rc;
             }
+            return HDQL_ERR_CODE_OK;
         }
-        return HDQL_ERR_CODE_OK;
+        /* Current digit depleted. Move left. */
+        if(0 == i) return HDQL_ERR_EMPTY_SET;
+        --i;
+        if(locKey) locKey = hdql__keys_prev(locKey);
     }
-    /* none of queries in the list yielded values */
-    return HDQL_ERR_EMPTY_SET;
 }
 
 /* public API */

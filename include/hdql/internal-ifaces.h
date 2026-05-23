@@ -32,7 +32,7 @@ HDQL_API extern const struct hdql_CollectionAttrInterface    _hdql_gCollectionAr
 
 HDQL_API int
 hdql_reserve_arith_op_collection_key(struct hdql_Key * key
-        , const hdql_Datum_t dd_
+        , const struct hdql_Datum * dd_
         , hdql_Context_t context);
 
 /*
@@ -69,7 +69,7 @@ HDQL_API hdql_Datum_t hdql_bound_compound_collection_interface_definition_data_i
 
 HDQL_API void hdql_bound_compound_collection_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_t ctx);
 
-HDQL_API int hdql_bound_compound_key_reserve(struct hdql_Key *, const hdql_Datum_t defData_, hdql_Context_t ctx);
+HDQL_API int hdql_bound_compound_key_reserve(struct hdql_Key *, const struct hdql_Datum * defData_, hdql_Context_t ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

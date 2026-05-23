@@ -330,12 +330,7 @@ template< typename T
 /**\brief Selection traits template
  *
  * Default is not defined, user code must provide specialization for their
- * selection types. Specialization must implement following methods templated:
- *
- *      static Iterator advance(AttrT & owner, const SelectionT &, Iterator current)
- *      static Iterator reset  (AttrT & owner, const SelectionT &, Iterator current)
- *      static SelectionT * compile(const char *, const hdql_Datum_t, hdql_Context);
- *      static void destroy(SelectionT *, const hdql_Datum_t, hdql_Context);
+ * selection types. Specialization must implement iface methods templated.
  */
 template< typename T
         , typename AttrT
@@ -483,7 +478,7 @@ struct IFace< ptr
 
     static hdql_It_t
     new_iterator( hdql_Datum_t owner
-          , const hdql_Datum_t defData
+          , const struct hdql_Datum * defData
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
@@ -579,7 +574,7 @@ struct IFace< ptr
 
     static hdql_It_t
     new_iterator( hdql_Datum_t owner
-          , const hdql_Datum_t defData
+          , const struct hdql_Datum * defData
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
@@ -637,7 +632,7 @@ struct IFace< ptr
 
     static hdql_SelectionArgs_t
     compile_selection( const char * expt
-                     , const hdql_Datum_t definitionData
+                     , const struct hdql_Datum * definitionData
                      , hdql_Context_t context
                      ) {
         SelectionT * selection
@@ -646,7 +641,7 @@ struct IFace< ptr
     }
 
     static void
-    free_selection( const hdql_Datum_t definitionData
+    free_selection( const struct hdql_Datum * definitionData
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
         ConcreteSelectionTraits::destroy( reinterpret_cast<SelectionT *>(sArgs)
@@ -697,7 +692,7 @@ struct IFace< ptr
 
     static hdql_It_t
     new_iterator( hdql_Datum_t owner
-          , const hdql_Datum_t defData
+          , const struct hdql_Datum * defData
           , hdql_Context_t context
           ) {
         assert(owner);
@@ -801,7 +796,7 @@ struct IFace< ptr
 
     static hdql_It_t
     new_iterator( hdql_Datum_t owner
-          , const hdql_Datum_t defData
+          , const struct hdql_Datum * defData
           , hdql_Context_t context
           ) {
         Iterator * it = reinterpret_cast<Iterator *>(hdql_context_alloc(context, sizeof(Iterator)));
@@ -873,7 +868,7 @@ struct IFace< ptr
 
     static hdql_SelectionArgs_t
     compile_selection( const char * expt
-                     , const hdql_Datum_t definitionData
+                     , const struct hdql_Datum * definitionData
                      , hdql_Context_t context
                      ) {
         return reinterpret_cast<hdql_SelectionArgs_t>(
@@ -884,7 +879,7 @@ struct IFace< ptr
     }
 
     static void
-    free_selection( const hdql_Datum_t definitionData
+    free_selection( const struct hdql_Datum * definitionData
                   , hdql_SelectionArgs_t sArgs
                   , hdql_Context_t context ) {
         ConcreteSelectionTraits::destroy(reinterpret_cast<SelectionT*>(sArgs)

@@ -28,7 +28,7 @@ struct hdql_Key;  /* fwd */
  * */
 struct hdql_ScalarAttrInterface {
     /** Supplementary data for getter, can be NULL */
-    hdql_Datum_t definitionData;
+    const struct hdql_Datum *definitionData;
 
     /**\brief Instantiate dynamic data for scalar attribute
      *
@@ -41,7 +41,7 @@ struct hdql_ScalarAttrInterface {
      * \todo Add "enable key retrieval" option.
      * */
     hdql_Datum_t (*new_dyn_data)( hdql_Datum_t newOwner
-                               , const hdql_Datum_t defData  // TODO: const hdql_Datum *defData
+                               , const struct hdql_Datum *defData
                                , hdql_Context_t context
                                );
     /**\brief Called in case of owner change, shall return new data object or
@@ -76,19 +76,19 @@ struct hdql_ScalarAttrInterface {
  *       required by #18
  * */
 typedef int (*hdql_ReserveKeysListCallback_t)( struct hdql_Key *,
-            const hdql_Datum_t defData, hdql_Context_t );
+            const struct hdql_Datum *defData, hdql_Context_t );
 
 /**\brief Interface to collection attribute (foreign column or array) */
 struct hdql_CollectionAttrInterface {
     /**\brief Static definition data for collection interface */
-    hdql_Datum_t definitionData;
+    const struct hdql_Datum *definitionData;
     /**\brief Allocates new iterator object
      *
      * Mandatory. Iterator object initialization is not needed at this step.
      *
      * \return NULL on a fatal error, iterator dynamic data otherwise. */
     hdql_It_t      (*new_iterator)  ( hdql_Datum_t owner
-                                    , const hdql_Datum_t defData
+                                    , const struct hdql_Datum *defData
                                     , hdql_Context_t
                                     );
     /** Should advance and dereference iterator object */
@@ -123,10 +123,10 @@ struct hdql_CollectionAttrInterface {
      * provided as \p ctx.
      * */
     hdql_SelectionArgs_t (*compile_selection)( const char * expr
-                                             , const hdql_Datum_t definitionData
+                                             , const struct hdql_Datum *definitionData
                                              , hdql_Context_t ctx );
     /**\brief Destroys selection object */
-    void (*free_selection)( const hdql_Datum_t definitionData
+    void (*free_selection)( const struct hdql_Datum *definitionData
                           , hdql_SelectionArgs_t
                           , hdql_Context_t ctx
                           );
@@ -268,7 +268,7 @@ hdql_attr_def_create_bound(
 HDQL_API struct hdql_AttrDef *
 hdql_attr_def_create_static_atomic_scalar_value(
           hdql_ValueTypeCode_t valueType
-        , const hdql_Datum_t valueDatum
+        , const struct hdql_Datum *valueDatum
         , hdql_Context_t
         );
 
@@ -306,27 +306,27 @@ HDQL_API bool hdql_attr_def_is_bound(hdql_AttrDef_t);
 
 /**\brief Returns type code for (optionally static) atomic value */
 HDQL_API hdql_ValueTypeCode_t
-hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t);
+hdql_attr_def_get_atomic_value_type_code(const struct hdql_AttrDef *);
 
 /**\breif Returns key type code or zero */
 HDQL_API hdql_ValueTypeCode_t
-hdql_attr_def_get_key_type_code(const hdql_AttrDef_t);
+hdql_attr_def_get_key_type_code(const struct hdql_AttrDef *);
 
 HDQL_API const struct hdql_AtomicTypeFeatures *
-hdql_attr_def_atomic_type_info(const hdql_AttrDef_t);
+hdql_attr_def_atomic_type_info(const struct hdql_AttrDef *);
 
 HDQL_API const struct hdql_Compound *
-hdql_attr_def_compound_type_info(const hdql_AttrDef_t);
+hdql_attr_def_compound_type_info(const struct hdql_AttrDef *);
 
 HDQL_API const struct hdql_ScalarAttrInterface *
-hdql_attr_def_scalar_iface(const hdql_AttrDef_t);
+hdql_attr_def_scalar_iface(const struct hdql_AttrDef *);
 
 HDQL_API const struct hdql_CollectionAttrInterface *
-hdql_attr_def_collection_iface(const hdql_AttrDef_t);
+hdql_attr_def_collection_iface(const struct hdql_AttrDef *);
 
 /**\brief Returns ptr to referenced datum instance */
-hdql_Datum_t
-hdql_attr_def_get_static_value(const hdql_AttrDef_t);
+const struct hdql_Datum *
+hdql_attr_def_get_static_value(const struct hdql_AttrDef *);
 
 /**\brief Forwards to collection or scalar reserve keys callback, if set
  *
@@ -334,12 +334,12 @@ hdql_attr_def_get_static_value(const hdql_AttrDef_t);
  *         callback, but callback returned NULL.
  * \return HDQL_ERR_CODE_OK otherwise.
  * */
-HDQL_API int hdql_attr_def_reserve_key(const hdql_AttrDef_t, struct hdql_Key *, hdql_Context_t);
+HDQL_API int hdql_attr_def_reserve_key(const struct hdql_AttrDef *, struct hdql_Key *, hdql_Context_t);
 
 /**\brief Retrieves attribute definition recursively, until it is not a fwd query
  *
  * Similar to `hdql_query_top_attr()`. */
-HDQL_API hdql_AttrDef_t hdql_attr_def_top_attr(const hdql_AttrDef_t);
+HDQL_API hdql_AttrDef_t hdql_attr_def_top_attr(const struct hdql_AttrDef *);
 
 HDQL_API void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 

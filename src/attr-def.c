@@ -55,7 +55,7 @@ struct hdql_AttrDef {
 /* internal API */
 bool hdql__attr_def_is_fwd_query(hdql_AttrDef_t ad) { return ad->isFwdQuery; }
 
-struct hdql_Query * hdql__attr_def_fwd_query(const hdql_AttrDef_t ad) {
+struct hdql_Query * hdql__attr_def_fwd_query(const struct hdql_AttrDef * ad) {
     assert(ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
     if(hdql_attr_def_is_collection(ad)) {
@@ -235,7 +235,7 @@ hdql_attr_def_create_compound_collection(
 /* Key allocation callback for forwarding query */
 static int _hdql_reserve_key_for_fwd_query(
           struct hdql_Key * k
-        , const hdql_Datum_t fwdQ_
+        , const struct hdql_Datum *fwdQ_
         , hdql_Context_t context
         ) {
     struct hdql_Query * sq = (struct hdql_Query *) fwdQ_;
@@ -323,7 +323,7 @@ _transient_dtr__static_atomic(hdql_Datum_t datum, hdql_Context_t ctx) {
 struct hdql_AttrDef *
 hdql_attr_def_create_static_atomic_scalar_value(
           hdql_ValueTypeCode_t valueType
-        , const hdql_Datum_t valueDatum
+        , const struct hdql_Datum *valueDatum
         , hdql_Context_t context
         ) {
     assert(valueType != 0x0);
@@ -429,14 +429,14 @@ hdql_attr_def_set_transient(struct hdql_AttrDef * ad
 }
 
 bool
-hdql_attr_def_is_atomic(const hdql_AttrDef_t ad) {
+hdql_attr_def_is_atomic(const struct hdql_AttrDef * ad) {
     if(ad->isFwdQuery) return false;
     /* if(0x0 != ad->staticValueFlags) return false;  XXX ?! */
     return ad->isAtomic;
 }
 
 bool
-hdql_attr_def_is_compound(const hdql_AttrDef_t ad) {
+hdql_attr_def_is_compound(const struct hdql_AttrDef * ad) {
     if(ad->isFwdQuery) return false;
     if(0x0 != ad->staticValueFlags) return false;
     return !ad->isAtomic;
@@ -462,18 +462,18 @@ bool hdql_attr_def_is_bound(hdql_AttrDef_t ad) {
 }
 
 hdql_ValueTypeCode_t
-hdql_attr_def_get_atomic_value_type_code(const hdql_AttrDef_t ad) {
+hdql_attr_def_get_atomic_value_type_code(const struct hdql_AttrDef * ad) {
     assert(ad->isAtomic || 0x0 != ad->staticValueFlags);  // unguarded type code
     return ad->typeInfo.atomic.arithTypeCode;
 }
 
 hdql_ValueTypeCode_t
-hdql_attr_def_get_key_type_code(const hdql_AttrDef_t ad) {
+hdql_attr_def_get_key_type_code(const struct hdql_AttrDef * ad) {
     return ad->keyTypeCode;
 }
 
 const struct hdql_AtomicTypeFeatures *
-hdql_attr_def_atomic_type_info(const hdql_AttrDef_t ad) {
+hdql_attr_def_atomic_type_info(const struct hdql_AttrDef * ad) {
     assert(ad->isAtomic);
     assert(!ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
@@ -481,7 +481,7 @@ hdql_attr_def_atomic_type_info(const hdql_AttrDef_t ad) {
 }
 
 const struct hdql_Compound *
-hdql_attr_def_compound_type_info(const hdql_AttrDef_t ad) {
+hdql_attr_def_compound_type_info(const struct hdql_AttrDef * ad) {
     assert(!ad->isAtomic);
     assert(!ad->isFwdQuery);
     assert(0x0 == ad->staticValueFlags);
@@ -489,19 +489,19 @@ hdql_attr_def_compound_type_info(const hdql_AttrDef_t ad) {
 }
 
 const struct hdql_ScalarAttrInterface *
-hdql_attr_def_scalar_iface(const hdql_AttrDef_t ad) {
+hdql_attr_def_scalar_iface(const struct hdql_AttrDef * ad) {
     assert(!ad->isCollection);
     return &ad->interface.scalar;
 }
 
 const struct hdql_CollectionAttrInterface *
-hdql_attr_def_collection_iface(const hdql_AttrDef_t ad) {
+hdql_attr_def_collection_iface(const struct hdql_AttrDef * ad) {
     assert(ad->isCollection);
     return &ad->interface.collection;
 }
 
-hdql_Datum_t
-hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
+const struct hdql_Datum *
+hdql_attr_def_get_static_value(const struct hdql_AttrDef * ad) {
     assert(0x1 == ad->staticValueFlags);  /* const static, otherwise TODO: dynamic extern values */
     if(hdql_attr_def_is_collection(ad)) {
         return ad->interface.collection.definitionData;
@@ -511,7 +511,7 @@ hdql_attr_def_get_static_value(const hdql_AttrDef_t ad) {
 }
 
 int
-hdql_attr_def_reserve_key( const hdql_AttrDef_t ad
+hdql_attr_def_reserve_key( const struct hdql_AttrDef * ad
                          , struct hdql_Key * key
                          , hdql_Context_t context
                          ) {
@@ -563,7 +563,7 @@ hdql_attr_def_reserve_key( const hdql_AttrDef_t ad
 }
 
 hdql_AttrDef_t
-hdql_attr_def_top_attr(const hdql_AttrDef_t ad) {
+hdql_attr_def_top_attr(const struct hdql_AttrDef * ad) {
     assert(ad);
     const struct hdql_AttrDef * topAD = ad;
     while(hdql__attr_def_is_fwd_query(topAD)) {
@@ -578,9 +578,9 @@ hdql_attr_def_destroy( hdql_AttrDef_t ad, hdql_Context_t ctx) {
         /* "transient" attribute means that it manages its interface definition
          * data */
         if(hdql_attr_def_is_collection(ad) && ad->transient_dtr) {
-            ad->transient_dtr(ad->interface.collection.definitionData, ctx);
+            ad->transient_dtr((hdql_Datum_t) ad->interface.collection.definitionData, ctx);
         } else if(hdql_attr_def_is_scalar(ad) && ad->transient_dtr) {
-            ad->transient_dtr(ad->interface.scalar.definitionData, ctx);
+            ad->transient_dtr((hdql_Datum_t) ad->interface.scalar.definitionData, ctx);
         }
         #ifndef NDEBUG
         else if(ad->transient_dtr) {

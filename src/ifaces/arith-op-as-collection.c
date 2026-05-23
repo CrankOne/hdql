@@ -31,7 +31,7 @@ struct ArithOpCollectionState {
 
 static hdql_It_t
 _arith_op_new_iterator( hdql_Datum_t owner
-                      , const hdql_Datum_t defData_
+                      , const struct hdql_Datum * defData_
                       , hdql_Context_t ctx
                       ) {
     const struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
@@ -124,7 +124,7 @@ _arith_op_collection_destroy_iterator( hdql_It_t it_
 
 int
 hdql_reserve_arith_op_collection_key(struct hdql_Key * key
-        , const hdql_Datum_t dd_
+        , const struct hdql_Datum *dd_
         , hdql_Context_t context
         ) {
     struct hdql_ArithOpDefData * dd = (struct hdql_ArithOpDefData *) dd_;

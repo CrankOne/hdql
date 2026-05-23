@@ -229,7 +229,7 @@ hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts, hdql_Conte
     m( Divide,  /, __VA_ARGS__ )
 
 #define _M_implement_arith_op(op, sign, t1, t2) \
-    static int _ ## t1 ## _ ## op ## _ ## t2 (const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \
+    static int _ ## t1 ## _ ## op ## _ ## t2 (const struct hdql_Datum * a_, const struct hdql_Datum * b_, hdql_Datum_t r_) { \
         assert(a_); \
         assert(b_); \
         assert(r_); \
@@ -253,7 +253,7 @@ _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_implement_
     m( XOr,   !=, __VA_ARGS__ )
 
 #define _M_implement_logic_op(op, sign, t1, t2) \
-    static int _ ## t1 ## _L ## op ## _ ## t2 (const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \
+    static int _ ## t1 ## _L ## op ## _ ## t2 (const struct hdql_Datum * a_, const struct hdql_Datum * b_, hdql_Datum_t r_) { \
         assert(a_); \
         assert(b_); \
         assert(r_); \
@@ -281,7 +281,7 @@ _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_logic_
     m( NEq,   !=, __VA_ARGS__ )
 
 #define _M_implement_comparison_op(op, sign, t1, t2) \
-    static int _ ## t1 ## _ ## op ## _ ## t2 (const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \
+    static int _ ## t1 ## _ ## op ## _ ## t2 (const struct hdql_Datum * a_, const struct hdql_Datum * b_, hdql_Datum_t r_) { \
         *reinterpret_cast<hdql_Bool_t *>(r_) \
             = *reinterpret_cast<const t1 *>(a_) \
             sign *reinterpret_cast<const t2 *>(b_); \
@@ -310,7 +310,7 @@ _M_EXPAND(_M_for_each_atomic_type(_M_for_each_atomic_type__, _M_implement_compar
     m( BOr,       |,   __VA_ARGS__ ) \
 
 #define _M_implement_integer_arithmetic_op(op, sign, t1, t2) \
-    static int _ ## t1 ## _ ## op ## _ ## t2 (const hdql_Datum_t a_, const hdql_Datum_t b_, hdql_Datum_t r_) { \
+    static int _ ## t1 ## _ ## op ## _ ## t2 (const struct hdql_Datum * a_, const struct hdql_Datum * b_, hdql_Datum_t r_) { \
         *reinterpret_cast<hdql_Int_t *>(r_) \
             = *reinterpret_cast<const t1 *>(a_) \
             sign *reinterpret_cast<const t2 *>(b_); \
@@ -331,9 +331,9 @@ template<typename T, typename enable=void> struct UnaryMinusSpec;
 template<typename T>
 struct UnaryMinusSpec<T, typename std::enable_if<std::is_signed<T>::value>::type> {
     typedef T Result_t;
-    static int op(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r_) {
+    static int op(const struct hdql_Datum * a_, const struct hdql_Datum * unused_, hdql_Datum_t r_) {
         assert(NULL == unused_);
-        *reinterpret_cast<Result_t*>(r_) = - *reinterpret_cast<T*>(a_);
+        *reinterpret_cast<Result_t*>(r_) = - *reinterpret_cast<const T*>(a_);
         return 0;
     }
 };
@@ -341,9 +341,9 @@ struct UnaryMinusSpec<T, typename std::enable_if<std::is_signed<T>::value>::type
 template<typename T>
 struct UnaryMinusSpec<T, typename std::enable_if<(!std::is_signed<T>::value) && std::is_integral<T>::value>::type> {
     typedef hdql_Int_t Result_t;
-    static int op(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r_) {
+    static int op(const struct hdql_Datum * a_, const struct hdql_Datum * unused_, hdql_Datum_t r_) {
         assert(NULL == unused_);
-        *reinterpret_cast<hdql_Int_t*>(r_) = - static_cast<hdql_Int_t>(*reinterpret_cast<T*>(a_));
+        *reinterpret_cast<hdql_Int_t*>(r_) = - static_cast<hdql_Int_t>(*reinterpret_cast<const T*>(a_));
         return 0;
     }
 };
@@ -351,7 +351,7 @@ struct UnaryMinusSpec<T, typename std::enable_if<(!std::is_signed<T>::value) && 
 template<typename T>
 struct UnaryMinusSpec<T, typename std::enable_if<(!std::is_signed<T>::value) && std::is_floating_point<T>::value>::type> {
     typedef hdql_Flt_t Result_t;
-    static int op(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r_) {
+    static int op(const struct hdql_Datum * a_, const struct hdql_Datum * unused_, hdql_Datum_t r_) {
         assert(NULL == unused_);
         *reinterpret_cast<hdql_Flt_t*>(r_) = - static_cast<hdql_Flt_t>(*reinterpret_cast<T*>(a_));
         return 0;
@@ -361,17 +361,17 @@ struct UnaryMinusSpec<T, typename std::enable_if<(!std::is_signed<T>::value) && 
 
 
 template<typename T> int
-_T_unary_b_not(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r_) {
+_T_unary_b_not(const struct hdql_Datum * a_, const struct hdql_Datum * unused_, hdql_Datum_t r_) {
     static_assert(std::is_integral<T>::value);
     assert(NULL == unused_);
-    *reinterpret_cast<T*>(r_) = ~ *reinterpret_cast<T*>(a_);
+    *reinterpret_cast<T*>(r_) = ~ *reinterpret_cast<const T*>(a_);
     return 0;
 }
 
 template<typename T> static int
-_T_unary_l_not(const hdql_Datum_t a_, const hdql_Datum_t unused_, hdql_Datum_t r_) {
+_T_unary_l_not(const struct hdql_Datum * a_, const struct hdql_Datum * unused_, hdql_Datum_t r_) {
     assert(NULL == unused_);
-    *reinterpret_cast<hdql_Bool_t*>(r_) = ! *reinterpret_cast<T*>(a_);
+    *reinterpret_cast<hdql_Bool_t*>(r_) = ! *reinterpret_cast<const T*>(a_);
     return 0;
 }
 

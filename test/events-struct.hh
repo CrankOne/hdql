@@ -99,14 +99,14 @@ struct SelectionTraits<test::SimpleRangeSelection, T[N]> {
 
     static test::SimpleRangeSelection *
     compile( const char * strexpr
-           , const hdql_Datum_t defData
+           , const struct hdql_Datum * defData
            , hdql_Context & context) {
         hdql_Datum_t buf = hdql_context_alloc(&context, sizeof(test::SimpleRangeSelection));
         return new (buf) test::SimpleRangeSelection(test::compile_simple_selection(strexpr));
     }
 
     static void destroy( test::SimpleRangeSelection * selPtr
-                       , const hdql_Datum_t defData
+                       , const struct hdql_Datum * defData
                        , hdql_Context & context ) {
         selPtr->test::SimpleRangeSelection::~SimpleRangeSelection();
         hdql_context_free(&context, reinterpret_cast<hdql_Datum_t>(selPtr));
@@ -149,14 +149,14 @@ struct SelectionTraits< test::SimpleRangeSelection, std::unordered_map<KeyT, Val
 
     static test::SimpleRangeSelection *
     compile( const char * strexpr
-           , const hdql_Datum_t defData
+           , const struct hdql_Datum * defData
            , hdql_Context & context) {
         hdql_Datum_t buf = hdql_context_alloc(&context, sizeof(test::SimpleRangeSelection));
         return new (buf) test::SimpleRangeSelection(test::compile_simple_selection(strexpr));
     }
 
     static void destroy( test::SimpleRangeSelection * selPtr
-                       , const hdql_Datum_t defData
+                       , const struct hdql_Datum * defData
                        , hdql_Context & context ) {
         selPtr->test::SimpleRangeSelection::~SimpleRangeSelection();
         hdql_context_free(&context, reinterpret_cast<hdql_Datum_t>(selPtr));
@@ -196,14 +196,14 @@ struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
 
     static test::SimpleRangeSelection *
     compile( const char * strexpr
-           , const hdql_Datum_t defData
+           , const struct hdql_Datum * defData
            , hdql_Context & context) {
         hdql_Datum_t buf = hdql_context_alloc(&context, sizeof(test::SimpleRangeSelection));
         return new (buf) test::SimpleRangeSelection(test::compile_simple_selection(strexpr));
     }
 
     static void destroy( test::SimpleRangeSelection * selPtr
-                       , const hdql_Datum_t defData
+                       , const struct hdql_Datum * defData
                        , hdql_Context & context ) {
         selPtr->test::SimpleRangeSelection::~SimpleRangeSelection();
         hdql_context_free(&context, reinterpret_cast<hdql_Datum_t>(selPtr));

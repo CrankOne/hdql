@@ -44,20 +44,20 @@ struct hdql_ValueInterface {
     /**\brief Type datum destructor */
     int (*destroy)(hdql_Datum_t, size_t, hdql_Context_t);
     /**\brief Type datum copy function */
-    int (*copy)(hdql_Datum_t dest, const hdql_Datum_t src, size_t, hdql_Context_t);
+    int (*copy)(hdql_Datum_t dest, const struct hdql_Datum * src, size_t, hdql_Context_t);
 
     /* TODO: delete in favor of conversion funcs */
-    hdql_Bool_t (*get_as_logic)(const hdql_Datum_t);
+    hdql_Bool_t (*get_as_logic)(const struct hdql_Datum *);
     void (*set_as_logic)(hdql_Datum_t, hdql_Bool_t);
 
-    hdql_Int_t (*get_as_int)(const hdql_Datum_t);
+    hdql_Int_t (*get_as_int)(const struct hdql_Datum *);
     void (*set_as_int)(hdql_Datum_t, hdql_Int_t);
 
-    hdql_Flt_t (*get_as_float)(const hdql_Datum_t);
+    hdql_Flt_t (*get_as_float)(const struct hdql_Datum *);
     void (*set_as_float)(hdql_Datum_t, hdql_Flt_t);
 
     /* TODO: re-consider this (seemed to be useful) */
-    int (*get_as_string)(const hdql_Datum_t, char * buf, size_t bufSize, hdql_Context_t);
+    int (*get_as_string)(const struct hdql_Datum *, char * buf, size_t bufSize, hdql_Context_t);
     int (*set_from_string)(hdql_Datum_t, const char *, hdql_Context_t);
 };
 

@@ -2,18 +2,14 @@
 #include "hdql/context.h"
 #include "hdql/errors.h"
 #include "hdql/types.h"
-#include "hdql/query.h"
 
 #include <cassert>
-#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
-#include <vector>
 #include <string>
 #include <cstring>
-#include <algorithm>
 
 #include <cmath>
 
@@ -427,28 +423,28 @@ template<typename T>
 struct StdArithInterface {
     static const size_t size = sizeof(T);
 
-    static int copy(hdql_Datum_t dest, const hdql_Datum_t src, size_t byteLen, hdql_Context_t) {
+    static int copy(hdql_Datum_t dest, const struct hdql_Datum * src, size_t byteLen, hdql_Context_t) {
         assert(byteLen == sizeof(T));
         memcpy(dest, src, byteLen);
         return 0;
     }
 
-    static hdql_Bool_t get_as_bool(const hdql_Datum_t d_)
+    static hdql_Bool_t get_as_bool(const struct hdql_Datum * d_)
         { return *reinterpret_cast<const T*>(d_) ? 0x1 : 0x0; }
     static void set_as_bool(hdql_Datum_t d_, hdql_Bool_t newVal)
         { *reinterpret_cast<T*>(d_) = newVal; }
 
-    static hdql_Int_t get_as_int(const hdql_Datum_t d_)
+    static hdql_Int_t get_as_int(const struct hdql_Datum * d_)
         { return static_cast<hdql_Int_t>(*reinterpret_cast<const T*>(d_)); }
     static void set_as_int(hdql_Datum_t d_, hdql_Int_t newVal)
         { *reinterpret_cast<T*>(d_) = newVal; }
 
-    static hdql_Flt_t get_as_float(const hdql_Datum_t d_)
+    static hdql_Flt_t get_as_float(const struct hdql_Datum * d_)
         { return static_cast<hdql_Flt_t>(*reinterpret_cast<const T*>(d_)); }
     static void set_as_float(hdql_Datum_t d_, hdql_Flt_t newVal)
         { *reinterpret_cast<T*>(d_) = newVal; }
 
-    static int get_as_string( const hdql_Datum_t d_, char * buf, size_t bufSize, hdql_Context_t)
+    static int get_as_string( const struct hdql_Datum * d_, char * buf, size_t bufSize, hdql_Context_t)
         { return StrTraits<T>::to_string(*reinterpret_cast<const T*>(d_), buf, bufSize); }
     static int set_from_string(hdql_Datum_t d_, const char * strexpr, hdql_Context_t)
         { return StrTraits<T>::from_string(*reinterpret_cast<T*>(d_), strexpr); }
@@ -528,7 +524,7 @@ _str_destroy( hdql_Datum_t
 
 int
 _str_copy( hdql_Datum_t dest
-          , const hdql_Datum_t src
+          , const struct hdql_Datum * src
           , size_t
           , hdql_Context_t
           ) {

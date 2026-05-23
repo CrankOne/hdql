@@ -997,9 +997,10 @@ _operation( struct hdql_Query * a
          * need an owner object, so we do not rely on query resolution
          * mechanics here, by directly retrieving values from attr defs and
          * making an op */
-        const hdql_Datum_t valueA =     hdql_attr_def_get_static_value(attrA)
-                         , valueB = b ? hdql_attr_def_get_static_value(attrB) : NULL
-                         ;
+        const struct hdql_Datum *
+                   valueA =     hdql_attr_def_get_static_value(attrA)
+                , *valueB = b ? hdql_attr_def_get_static_value(attrB) : NULL
+                ;
         assert(valueA);
         assert((!b) || NULL != valueB);
         hdql_Datum_t result = hdql_create_value(evaluator->returnType, ws->context);

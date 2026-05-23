@@ -154,7 +154,7 @@ _bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrA
 
 static hdql_It_t
 _hdql_cartesian_product_as_collection_new_iterator( hdql_Datum_t owner
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum * defData_
         , hdql_Context_t ctx
         ) {
     struct hdql_BindingCompoundCollectionDefData * dd
@@ -371,7 +371,7 @@ _reserve_keys_list_for_binding_query( const char * attrName
  * per each list item. */
 int
 hdql_bound_compound_key_reserve( struct hdql_Key * key,
-            const hdql_Datum_t defData_, hdql_Context_t ctx) {
+            const struct hdql_Datum * defData_, hdql_Context_t ctx) {
     /* expect AD definition data to be of special type,
      * `hdql_BindingCompoundCollectionDefData`, that must be allocated and
      * initilized by parser (see `_new_virtual_compound_query()` */

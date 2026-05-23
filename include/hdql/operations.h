@@ -19,7 +19,7 @@ struct hdql_Key;  /* fwd */
 /**\brief Index type for table of defined arithmetic operations */
 struct hdql_Operations;
 
-typedef int (*hdql_ArithOpCallback_t)(const hdql_Datum_t a, const hdql_Datum_t b, hdql_Datum_t result);
+typedef int (*hdql_ArithOpCallback_t)(const struct hdql_Datum * a, const struct hdql_Datum * b, hdql_Datum_t result);
 
 /**\brief Callback type for operation */
 typedef const struct hdql_OperationEvaluator {

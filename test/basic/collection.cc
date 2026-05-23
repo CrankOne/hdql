@@ -28,7 +28,7 @@ typedef int *It;
 
 hdql_It_t
 new_iterator( hdql_Datum_t newOwner
-            , const hdql_Datum_t defData
+            , const struct hdql_Datum * defData
             , hdql_Context_t context
             ) {
     if(!newOwner) throw std::runtime_error("no owner");
@@ -191,7 +191,7 @@ struct SelIt {
 
 hdql_SelectionArgs_t
 compile_selection( const char * expr
-                 , const hdql_Datum_t definitionData
+                 , const struct hdql_Datum * definitionData
                  , hdql_Context_t context ) {
     if(!expr) throw std::runtime_error("no sel expr");
     if(!definitionData) throw std::runtime_error("no def. data");
@@ -204,7 +204,7 @@ compile_selection( const char * expr
 }
 
 void 
-free_selection( const hdql_Datum_t definitionData
+free_selection( const struct hdql_Datum * definitionData
               , hdql_SelectionArgs_t sel
               , hdql_Context_t context
               ) {
@@ -217,7 +217,7 @@ free_selection( const hdql_Datum_t definitionData
 
 hdql_It_t
 new_iterator_s( hdql_Datum_t newOwner
-            , const hdql_Datum_t defData
+            , const struct hdql_Datum * defData
             , hdql_Context_t context
             ) {
     if(!newOwner) throw std::runtime_error("no owner");
@@ -330,7 +330,7 @@ hdql_CollectionAttrInterface collectionAttrIFaceSelection {
 
 int
 reserve_keys( struct hdql_Key * key
-            , const hdql_Datum_t defData
+            , const struct hdql_Datum * defData
             , hdql_Context_t context) {
     if(!hdql_key_is_empty(key)) throw std::runtime_error("non-empty key for reserve");
     hdql_Datum_t keyDatum = hdql_context_alloc(context, sizeof(uint16_t));

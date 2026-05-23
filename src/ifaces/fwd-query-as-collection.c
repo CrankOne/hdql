@@ -17,7 +17,7 @@
 static hdql_It_t
 _fwd_query_collection_new_iterator(
           hdql_Datum_t ownerDatum
-        , const hdql_Datum_t definitionData
+        , const struct hdql_Datum *definitionData
         , hdql_Context_t ctx
         ) {
     assert(definitionData);  /* required as should bring fwd query target */

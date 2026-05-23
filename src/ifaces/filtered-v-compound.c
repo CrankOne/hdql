@@ -20,7 +20,7 @@ struct FilteredVCompoundState {
 static hdql_Datum_t
 _filtered_compound_scalar_interface_instantiate(
           hdql_Datum_t ownerDatum
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum * defData_
         , hdql_Context_t ctx
         ) {
     assert(defData_);

@@ -31,14 +31,14 @@ int toCheckStateful = 1337;
 
 hdql_Datum_t
 instantiate_a_stateful( hdql_Datum_t newOwner
-                      , const hdql_Datum_t defData
+                      , const struct hdql_Datum * defData
                       , hdql_Context_t context
                       ) {
     if(!newOwner) throw std::runtime_error("no owner");
     if(!defData) throw std::runtime_error("empty def data");
     if(!context) throw std::runtime_error("no context");
     int *dynData = new int;
-    *dynData = *reinterpret_cast<int*>(defData);
+    *dynData = *reinterpret_cast<const int*>(defData);
     return reinterpret_cast<hdql_Datum *>(dynData);
 }
 

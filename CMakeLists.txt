@@ -39,12 +39,12 @@ set (hdql_SOURCES src/types.cc
                   #src/funcs/monoids.c
                   #src/funcs/len.c
                   src/util/pcg32.c
-                  #src/ifaces/fwd-query-as-collection.c
-	              #src/ifaces/fwd-query-as-scalar.c
-	              #src/ifaces/arith-op-as-scalar.c
+                  src/ifaces/fwd-query-as-collection.c
+	              src/ifaces/fwd-query-as-scalar.c
+	              src/ifaces/arith-op-as-scalar.c
 	              src/ifaces/arith-op-as-collection.c
-	              #src/ifaces/filtered-v-compound.c
-                  #src/ifaces/bound-value.c
+	              src/ifaces/filtered-v-compound.c
+                  src/ifaces/bound-value.c
                   #src/helpers/query-results-handler.c
                   #src/helpers/query-results-handler-csv.c
                   src/helpers/fancy-print-err.c
@@ -127,6 +127,9 @@ if (BUILD_TESTS)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES
         test/main.cc
+        # utils
+        test/ht.test.cc
+        test/rnd.cc
         # Basic query state
         test/basic/basic-query.cc
         test/basic/scalar-stateless.cc
@@ -140,14 +143,12 @@ if (BUILD_TESTS)
         test/event-struct.test.cc
         test/iteration-results.cc
         test/iteration-tests/singular-query.cc
+        test/iteration-tests/arithmetics.cc
         # ...
-        #test/cross-type-operations.cc
-        #test/ht.test.cc
-        #test/rnd.cc
-        #test/value.cc
-        #test/simple-arithmetics.cc
-        #test/iteration-tests/arithmetics.cc
-        #test/iteration-tests/v-compound-fwd.cc
+        test/cross-type-operations.cc
+        test/value.cc
+        test/simple-arithmetics.cc
+        test/iteration-tests/v-compound-fwd.cc
         #test/iteration-tests/v-compound-bind.cc
         #test/cpp-api.cc
         #test/dsv.test.cc

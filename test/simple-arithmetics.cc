@@ -44,18 +44,18 @@ public:
         _rootItem.a.push_back(item2);
 
         _rootItem.u16f = 42;
-
-        ResetQuery(&_rootItem);
     }
 
     void ExpectFloatResults(const double * values, size_t n) {
         size_t nEl = 0;
         hdql_Datum_t r;
-        while(!!(r = hdql_query_get(_query, NULL, _compounds.context_ptr()))) {
+        ResetQuery(reinterpret_cast<hdql_Datum_t>(&_rootItem), r);
+        while(r) {
             EXPECT_NEAR( values[nEl]
                        , _rIFace->get_as_float(r)
                        , 1e-6  // this crude is in use since .ff is float (not double)
                        );
+            AdvanceQuery(r);
             ++nEl;
         }
         EXPECT_EQ(nEl, n);
@@ -170,7 +170,7 @@ TEST_F(TestSimpleNumericExpressions, priority_prodOverSub) {
 TEST_F(TestSimpleNumericExpressions, priority_divOverSum) {
     CompileQuery("2 + 12/3", false);
     UseSample1();
-    double expectedResults[] = { 2 + 12/3 };
+    double expectedResults[] = { 2 + 12./3 };
     ExpectFloatResults(expectedResults, 1);
 }
 

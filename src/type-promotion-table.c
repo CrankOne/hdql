@@ -3,58 +3,13 @@
 #include "hdql/types.h"
 #include "hdql/value.h"
 
+#include "hdql/internal-api.h"
+
 #include <stdlib.h>
 
 #ifndef HDQL_PROMOTION_TABLE_MAX_ENTRIES
 #   define HDQL_PROMOTION_TABLE_MAX_ENTRIES 64
 #endif
-
-#define _M_for_each_arith_types_pair(m) \
-    m(  int8_t,   uint8_t,  int16_t ) \
-    m(  int8_t,   int16_t,  int16_t ) \
-    m(  int8_t,  uint16_t,  int32_t ) \
-    m(  int8_t,   int32_t,  int32_t ) \
-    m(  int8_t,  uint32_t,  int64_t ) \
-    m(  int8_t,   int64_t,  int64_t ) \
-    m(  int8_t,  uint64_t, uint64_t ) \
-    m(  int8_t,     float,    float ) \
-    m(  int8_t,    double,   double ) \
-    m( uint8_t,   int16_t,  int16_t ) \
-    m( uint8_t,  uint16_t, uint16_t ) \
-    m( uint8_t,   int32_t,  int32_t ) \
-    m( uint8_t,  uint32_t, uint32_t ) \
-    m( uint8_t,   int64_t,  int64_t ) \
-    m( uint8_t,  uint64_t, uint64_t ) \
-    m( uint8_t,     float,    float ) \
-    m( uint8_t,    double,   double ) \
-    m( int16_t,  uint16_t,  int32_t ) \
-    m( int16_t,   int32_t,  int32_t ) \
-    m( int16_t,  uint32_t,  int64_t ) \
-    m( int16_t,   int64_t,  int64_t ) \
-    m( int16_t,  uint64_t, uint64_t ) \
-    m( int16_t,     float,    float ) \
-    m( int16_t,    double,   double ) \
-    m(uint16_t,   int32_t,  int32_t ) \
-    m(uint16_t,  uint32_t, uint32_t ) \
-    m(uint16_t,   int64_t,  int64_t ) \
-    m(uint16_t,  uint64_t, uint64_t ) \
-    m(uint16_t,     float,    float ) \
-    m(uint16_t,    double,   double ) \
-    m( int32_t,  uint32_t,  int64_t ) \
-    m( int32_t,   int64_t,  int64_t ) \
-    m( int32_t,  uint64_t, uint64_t ) \
-    m( int32_t,     float,    float ) \
-    m( int32_t,    double,   double ) \
-    m(uint32_t,   int64_t,  int64_t ) \
-    m(uint32_t,  uint64_t, uint64_t ) \
-    m(uint32_t,     float,    float ) \
-    m(uint32_t,    double,   double ) \
-    m( int64_t,  uint64_t, uint64_t ) \
-    m( int64_t,     float,    float ) \
-    m( int64_t,    double,   double ) \
-    m(uint64_t,     float,    float ) \
-    m(uint64_t,    double,   double ) \
-    m(   float,    double,   double )
 
 typedef struct {
     union {
@@ -116,7 +71,7 @@ hdql_arith_type_promotion_rebuild(const struct hdql_ValueTypes * vt,
         }  \
         t->records[n++].r            = r;  \
     }
-    _M_for_each_arith_types_pair(_M_add_entry);
+    hdql_M_for_each_arith_types_pair(_M_add_entry);
     t->nEntres = n;
     if(0 == n) return HDQL_ERR_EMPTY_SET;
     /* sort table */

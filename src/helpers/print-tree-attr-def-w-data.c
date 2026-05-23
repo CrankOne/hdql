@@ -156,7 +156,7 @@ _ADD_resolve_datum_noeval(struct _ADDTreeLikeNode * nn
             = hdql_attr_def_scalar_iface(nn->ad);
         if(iface && !iface->new_dyn_data) {
             #if 1
-            assert(false);
+            nn->datum = NULL;
             #else
             nn->datum = iface->dereference(owner
                     , NULL  /* no dyn. data (no instantiate) */

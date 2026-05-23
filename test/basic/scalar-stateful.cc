@@ -45,7 +45,7 @@ instantiate_a_stateful( hdql_Datum_t newOwner
 hdql_Datum_t 
 reset_a_stateful( hdql_Datum_t owner
        , hdql_Datum_t dynData
-       , const hdql_Datum_t defData
+       , const struct hdql_Datum *defData
        , struct hdql_Key * key
        , hdql_Context_t context
        ) {
@@ -53,7 +53,7 @@ reset_a_stateful( hdql_Datum_t owner
     if(!defData) throw std::runtime_error("def. data not set for stateful scalar");
     if(defData != reinterpret_cast<hdql_Datum_t>(&toCheckStateful))
         throw std::runtime_error("addr differs for def.data, stateful case");
-    if(*reinterpret_cast<int*>(defData) != toCheckStateful)
+    if(*reinterpret_cast<const int*>(defData) != toCheckStateful)
         throw std::runtime_error("def. data differs for def.data, stateful case");
     if(!context) throw std::runtime_error("no context");
     if(!dynData) throw std::runtime_error("no dyn. data");
@@ -67,13 +67,13 @@ reset_a_stateful( hdql_Datum_t owner
 
 void 
 destroy_a_stateful( hdql_Datum_t dynData
-                  , const hdql_Datum_t defData
+                  , const struct hdql_Datum *defData
                   , hdql_Context_t context
                   ) {
     if(!defData) throw std::runtime_error("def. data not set for stateful scalar");
     if(defData != reinterpret_cast<hdql_Datum_t>(&toCheckStateful))
         throw std::runtime_error("addr differs for def.data, stateful case");
-    if(*reinterpret_cast<int*>(defData) != toCheckStateful)
+    if(*reinterpret_cast<const int*>(defData) != toCheckStateful)
         throw std::runtime_error("def. data differs for def.data, stateful case");
     if(!context) throw std::runtime_error("no context");
     if(!dynData) throw std::runtime_error("no dyn. data");

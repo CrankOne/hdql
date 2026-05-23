@@ -124,6 +124,11 @@ hdql__query_reset( struct hdql_Query * q
             );
 }
 
+static hdql_Datum_t
+hdql__query_yield( struct hdql_Query *q
+              , struct hdql_Key *key
+              , hdql_Context_t context );  /* need by reset() */
+
 /* module-local API: reset till descendants, not the key is list bgn */
 static hdql_Datum_t
 hdql__query_reset_descendant(struct hdql_Query * q
@@ -131,6 +136,9 @@ hdql__query_reset_descendant(struct hdql_Query * q
                 , hdql_Key_t key
                 , hdql_Context_t context
                 ) {
+    if(!q) return NULL;
+
+    #if 0
     while(q) {
         /* reset and dereference 1st in collection */
         datum = hdql__query_reset(q, datum, key, context);
@@ -140,6 +148,35 @@ hdql__query_reset_descendant(struct hdql_Query * q
         if(q && key) key = hdql__keys_next(key);
     }
     return datum;
+    #else
+    struct hdql_Query *cq = q;
+    hdql_Key_t ckey = key;
+    hdql_Datum_t r = datum;
+
+    for(;;) {
+        /* Descend as far as possible. */
+        while(cq) {
+            r = hdql__query_reset(cq, r, ckey, context);
+            if(!r) break;
+            if(!cq->next) return r;  /* full chain initialized */
+            cq = cq->next;
+            if(ckey) ckey = hdql__keys_next(ckey);
+        }
+        /* Reset failed at cq.  Climb to parent and try to advance it. */
+        while(cq) {
+            if(!cq->prev) return NULL;  /* root exhausted or initially empty */
+            cq = cq->prev;
+            if(ckey) ckey = hdql__keys_prev(ckey);
+            r = hdql__query_yield(cq, ckey, context);
+            if(r)
+                break;
+        }
+        /* Parent yielded a new datum.  Try descendants again. */
+        if(!cq->next) return r;
+        cq = cq->next;
+        if(ckey) ckey = hdql__keys_next(ckey);
+    }
+    #endif
 }
 
 /* public API: chained reset of the query */
@@ -193,7 +230,9 @@ hdql_query_get( struct hdql_Query *q
         hdql_Datum_t r = NULL;
         /* Backtrack until some iterator yields a value. */
         while(NULL == (r = hdql__query_yield(cq, key, context))) {
-            if(NULL == cq->prev) return NULL;  /* whole query chain depleted */
+            if(NULL == cq->prev) {
+                return NULL;  /* whole query chain depleted */
+            }
             cq = cq->prev;
             if(key) key = hdql__keys_prev(key);
         }

@@ -53,4 +53,52 @@ bool hdql__key_is_terminal(const struct hdql_Key * k);
 }  // extern "C"
 #endif
 
+/* A crude way to define usual type promotion rules, as used in C. */
+#define hdql_M_for_each_arith_types_pair(m) \
+    m(  int8_t,   uint8_t,  int16_t ) \
+    m(  int8_t,   int16_t,  int16_t ) \
+    m(  int8_t,  uint16_t,  int32_t ) \
+    m(  int8_t,   int32_t,  int32_t ) \
+    m(  int8_t,  uint32_t,  int64_t ) \
+    m(  int8_t,   int64_t,  int64_t ) \
+    m(  int8_t,  uint64_t, uint64_t ) \
+    m(  int8_t,     float,    float ) \
+    m(  int8_t,    double,   double ) \
+    m( uint8_t,   int16_t,  int16_t ) \
+    m( uint8_t,  uint16_t, uint16_t ) \
+    m( uint8_t,   int32_t,  int32_t ) \
+    m( uint8_t,  uint32_t, uint32_t ) \
+    m( uint8_t,   int64_t,  int64_t ) \
+    m( uint8_t,  uint64_t, uint64_t ) \
+    m( uint8_t,     float,    float ) \
+    m( uint8_t,    double,   double ) \
+    m( int16_t,  uint16_t,  int32_t ) \
+    m( int16_t,   int32_t,  int32_t ) \
+    m( int16_t,  uint32_t,  int64_t ) \
+    m( int16_t,   int64_t,  int64_t ) \
+    m( int16_t,  uint64_t, uint64_t ) \
+    m( int16_t,     float,    float ) \
+    m( int16_t,    double,   double ) \
+    m(uint16_t,   int32_t,  int32_t ) \
+    m(uint16_t,  uint32_t, uint32_t ) \
+    m(uint16_t,   int64_t,  int64_t ) \
+    m(uint16_t,  uint64_t, uint64_t ) \
+    m(uint16_t,     float,    float ) \
+    m(uint16_t,    double,   double ) \
+    m( int32_t,  uint32_t,  int64_t ) \
+    m( int32_t,   int64_t,  int64_t ) \
+    m( int32_t,  uint64_t, uint64_t ) \
+    m( int32_t,     float,    float ) \
+    m( int32_t,    double,   double ) \
+    m(uint32_t,   int64_t,  int64_t ) \
+    m(uint32_t,  uint64_t, uint64_t ) \
+    m(uint32_t,     float,    float ) \
+    m(uint32_t,    double,   double ) \
+    m( int64_t,  uint64_t, uint64_t ) \
+    m( int64_t,     float,    float ) \
+    m( int64_t,    double,   double ) \
+    m(uint64_t,     float,    float ) \
+    m(uint64_t,    double,   double ) \
+    m(   float,    double,   double )
+
 #endif  /* H_HDQL_INTERNAL_API_H */

@@ -47,7 +47,7 @@
  * ____________________________________________________/ Value bound by query
  */
 
-/* NOTE: this is attribute definition data, not an iterator */
+/* NOTE: this is attribute definition data, not a dynamic data type! */
 struct BoundValueDefinitionData {
     /* query that should provide the value. Set upon construction */
     struct hdql_Query * q;
@@ -55,6 +55,7 @@ struct BoundValueDefinitionData {
     hdql_Datum_t * value;
 };
 
+/* external API (def data helper) */
 hdql_Datum_t
 hdql_bound_value_interface_definition_data_init(struct hdql_Query * q, hdql_Context_t ctx) {
     struct BoundValueDefinitionData * d = hdql_alloc(ctx, struct BoundValueDefinitionData);
@@ -68,11 +69,14 @@ hdql_bound_value_interface_definition_data_destroy(hdql_Datum_t d, hdql_Context_
     hdql_context_free(ctx, d);
 }
 
+/* internal API  */
+
 static hdql_Datum_t
-_bound_query_scalar_interface_dereference(
+_bound_query_scalar_interface_reset(
           hdql_Datum_t root
-        , hdql_Datum_t dd_
-        , const hdql_Datum_t definitionData
+        , hdql_Datum_t dynData
+        , const struct hdql_Datum *definitionData
+        , struct hdql_Key *key
         , hdql_Context_t ctx
         ) {
     assert(definitionData);  /* otherwise, bound to what query/value? */
@@ -80,21 +84,11 @@ _bound_query_scalar_interface_dereference(
     return *((const struct BoundValueDefinitionData *) (definitionData))->value;
 }
 
-static void
-_bound_query_scalar_interface_destroy(
-          hdql_Datum_t dd_
-        , const hdql_Datum_t definitionData
-        , hdql_Context_t ctx
-        ) {
-    /* do nothing */
-}
-
 const struct hdql_ScalarAttrInterface _hdql_gBoundQueryIFace = {
     .definitionData = NULL,  /* : changed in copies keep target forwarding query ptr */
-    .instantiate = NULL,  //_bound_query_scalar_interface_instantiate,
-    .dereference = _bound_query_scalar_interface_dereference,
-    .reset = NULL, // _bound_query_scalar_interface_reset,
-    .destroy = _bound_query_scalar_interface_destroy
+    .new_dyn_data = NULL,
+    .reset = _bound_query_scalar_interface_reset,
+    .destroy_dyn_data = NULL
 };
 
 /*                                               _____________________________
@@ -145,7 +139,7 @@ _bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrA
     if(!hdql_attr_def_is_bound(attrAD)) return 0;  /* continue */
     const struct hdql_ScalarAttrInterface * boundAttrIFace
             = hdql_attr_def_scalar_iface(attrAD);
-    assert(boundAttrIFace->dereference == _hdql_gBoundQueryIFace.dereference);
+    assert(boundAttrIFace->reset == _hdql_gBoundQueryIFace.reset);
     /* ^^^ otherwise, how come it became a "bound attribute"? */
     assert(boundAttrIFace->definitionData);
     /* ^^^ otherwise, how this iface was instantiated?
@@ -159,17 +153,14 @@ _bind_query(const char *attrName, size_t nAttr, const struct hdql_AttrDef *attrA
 }
 
 static hdql_It_t
-_hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
-                           , const hdql_Datum_t defData_
-                           , hdql_SelectionArgs_t selArgs_
-                           , hdql_Context_t ctx
-                           ) {
+_hdql_cartesian_product_as_collection_new_iterator( hdql_Datum_t owner
+        , const hdql_Datum_t defData_
+        , hdql_Context_t ctx
+        ) {
     struct hdql_BindingCompoundCollectionDefData * dd
             = hdql_cast(ctx, struct hdql_BindingCompoundCollectionDefData, defData_);
-    /* allocate definition data for transient interface */
     struct QueryProdIterator * it = hdql_alloc(ctx, struct QueryProdIterator);
     it->context = ctx;
-    /* set filtering query (or NULL) */
     if(!!(it->filterQuery = dd->filterQuery)) {
         const struct hdql_AttrDef * ad = hdql_query_top_attr(it->filterQuery);
         assert(ad);
@@ -217,22 +208,26 @@ _hdql_cartesian_product_as_collection_create( hdql_Datum_t owner
     return (hdql_It_t) it;
 }
 
+//static hdql_Datum_t
+//_hdql_cartesian_product_as_collection_dereference( hdql_It_t it_ ) {
+//    struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
+//    #ifndef NDEBUG
+//    if(it->owner) {
+//        for(size_t i = 0; i < it->nBindingQueries; ++i) {
+//            assert(it->values[i]);
+//        }
+//    }
+//    #endif
+//    return it->owner;
+//}
+
+
 static hdql_Datum_t
-_hdql_cartesian_product_as_collection_dereference( hdql_It_t it_ ) {
-    struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
-    #ifndef NDEBUG
-    if(it->owner) {
-        for(size_t i = 0; i < it->nBindingQueries; ++i) {
-            assert(it->values[i]);
-        }
-    }
-    #endif
-    return it->owner;
-}
-
-
-static hdql_It_t
-_hdql_cartesian_product_as_collection_advance( hdql_It_t it_, struct hdql_Key * key ) {
+_hdql_cartesian_product_as_collection_yield( hdql_It_t it_
+        , const struct hdql_Datum *defData_
+        , struct hdql_Key * key
+        , struct hdql_Context *context
+        ) {
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     do {
         int rc = hdql_query_product_advance( it->boundQueries
@@ -265,17 +260,17 @@ _hdql_cartesian_product_as_collection_advance( hdql_It_t it_, struct hdql_Key * 
             if(it->filterLogicResult) break;
         }
     } while(it->filterQuery);
-    return it_;
+    return it->owner;
 }
 
-static hdql_It_t
+static hdql_Datum_t
 _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
-                          , hdql_Datum_t newOwner
-                          , const hdql_Datum_t defData
-                          , hdql_SelectionArgs_t selArgs
-                          , struct hdql_Key * key
-                          , hdql_Context_t ctx
-                          ) {
+        , hdql_Datum_t newOwner
+        , const struct hdql_Datum *defData
+        , hdql_SelectionArgs_t selArgs
+        , struct hdql_Key *key
+        , hdql_Context_t ctx
+        ) {
     assert(it_);
     struct QueryProdIterator * it = (struct QueryProdIterator *) it_;
     int rc = hdql_query_product_reset( it->boundQueries
@@ -287,7 +282,7 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
         );
     if(rc == HDQL_ERR_EMPTY_SET) {
         it->owner = NULL;
-        return it_;
+        return NULL;
     }
     #ifndef NDEBUG
     for(size_t i = 0; i < it->nBindingQueries; ++i) {
@@ -319,13 +314,14 @@ _hdql_cartesian_product_as_collection_reset( hdql_It_t it_
             break;
         }
     };
-    return it_;
+    return it->owner;
 }
 
 static void
-_hdql_cartesian_product_destroy( hdql_It_t it_
-                            , hdql_Context_t ctx
-                            ) {
+_hdql_cartesian_product_destroy_iterator( hdql_It_t it_
+        , const struct hdql_Datum *defData_
+        , hdql_Context_t ctx
+        ) {
     struct QueryProdIterator * it = hdql_cast(ctx, struct QueryProdIterator, it_);
     for(size_t nq = 0; nq < it->nBindingQueries; ++nq) {
         hdql_query_destroy(it->boundQueries[nq], ctx);
@@ -355,7 +351,7 @@ _reserve_keys_list_for_binding_query( const char * attrName
     const struct hdql_ScalarAttrInterface * boundAttrIFace
             = hdql_attr_def_scalar_iface(ad);
 
-    assert(boundAttrIFace->dereference == _hdql_gBoundQueryIFace.dereference);
+    assert(boundAttrIFace->reset == _hdql_gBoundQueryIFace.reset);
     /* ^^^ otherwise, how come it became a "bound attribute"? */
     assert(boundAttrIFace->definitionData);
     /* ^^^ otherwise, how this iface was instantiated?
@@ -401,11 +397,10 @@ hdql_bound_compound_key_reserve( struct hdql_Key * key,
 
 const struct hdql_CollectionAttrInterface _hdql_gBindingCompoundCollectionIFace = {
     .definitionData = NULL,  /* set by caller to the instance of `hdql_BoundCompoundDefinitionData` struct */
-    .create = _hdql_cartesian_product_as_collection_create,
-    .dereference =_hdql_cartesian_product_as_collection_dereference,
-    .advance = _hdql_cartesian_product_as_collection_advance,
-    .reset = _hdql_cartesian_product_as_collection_reset,
-    .destroy = _hdql_cartesian_product_destroy,
+    .new_iterator = _hdql_cartesian_product_as_collection_new_iterator,
+    .yield = _hdql_cartesian_product_as_collection_yield,
+    .reset_iterator = _hdql_cartesian_product_as_collection_reset,
+    .destroy_iterator = _hdql_cartesian_product_destroy_iterator,
     .compile_selection = NULL,  /* TODO? */
     .free_selection = NULL  /*TODO?*/
 };

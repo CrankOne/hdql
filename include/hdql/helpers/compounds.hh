@@ -408,7 +408,7 @@ struct IFace< ptr
     static hdql_Datum_t
     reset( hdql_Datum_t root  // owning object
          , hdql_Datum_t dynData  // allocated with `instantiate()`
-         , const hdql_Datum_t  defData
+         , const hdql_Datum *defData
          , hdql_Key * key
          , hdql_Context_t context
          ) {
@@ -438,7 +438,7 @@ struct IFace< ptr
     static hdql_Datum_t
     reset( hdql_Datum_t root  // owning object
          , hdql_Datum_t dynData  // allocated with `instantiate()`
-         , const hdql_Datum_t defData // may be NULL
+         , const hdql_Datum *defData // may be NULL
          , hdql_Key_t key
          , hdql_Context_t context
          ) {

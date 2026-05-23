@@ -41,7 +41,7 @@ struct hdql_ScalarAttrInterface {
      * \todo Add "enable key retrieval" option.
      * */
     hdql_Datum_t (*new_dyn_data)( hdql_Datum_t newOwner
-                               , const hdql_Datum_t defData
+                               , const hdql_Datum_t defData  // TODO: const hdql_Datum *defData
                                , hdql_Context_t context
                                );
     /**\brief Called in case of owner change, shall return new data object or
@@ -53,14 +53,14 @@ struct hdql_ScalarAttrInterface {
      */
     hdql_Datum_t (*reset)( hdql_Datum_t newOwner
                  , hdql_Datum_t dynData
-                 , const hdql_Datum_t defData
+                 , const struct hdql_Datum *defData
                  , struct hdql_Key *key
                  , hdql_Context_t
                  );
     /**\brief Should destroy selection supplementary data for scalar
      *        attribute, can be NULL */
     void (*destroy_dyn_data)( hdql_Datum_t dynData
-                            , const hdql_Datum_t defData
+                            , const struct hdql_Datum *defData
                             , hdql_Context_t
                             );
 };

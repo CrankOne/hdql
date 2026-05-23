@@ -8,6 +8,8 @@
 
 #include "hdql/helpers/compounds.hh"
 
+#include "hdql/internal-api.h"
+
 #include <sstream>
 #include <stdexcept>
 #include <type_traits>
@@ -17,6 +19,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cmath>
+#include <cstdint>
 
 namespace hdql {
 
@@ -30,6 +33,7 @@ struct DynamicTraits {
 
 template<typename T> hdql_ValueTypeCode_t DynamicTraits<T>::tCode = 0x0;
 
+#if 0
 template<typename T1, typename T2, typename EnableT=void>
 struct ArithmeticOpTraits;
 
@@ -48,6 +52,19 @@ struct ArithmeticOpTraits< T1, T2
                              >::type > {
     typedef hdql_Int_t Result_t;
 };
+#else
+
+template<typename T1, typename T2> struct ArithmeticOpTraits;
+
+// this will implement all except eponymous and boolean
+#define _M_implem_arith_traits_spec(t1, t2, rt) template<> struct ArithmeticOpTraits<t1, t2> {typedef rt Result_t;};
+hdql_M_for_each_arith_types_pair(_M_implem_arith_traits_spec)
+#undef _M_implem_arith_traits_spec
+#define _M_implem_arith_traits_spec(t2, t1, rt) template<> struct ArithmeticOpTraits<t1, t2> {typedef rt Result_t;};
+hdql_M_for_each_arith_types_pair(_M_implem_arith_traits_spec)
+#undef _M_implem_arith_traits_spec
+
+#endif
 
 #define _M_for_each_integer_type(m, ...) \
     m( __VA_ARGS__, int8_t    ) \
@@ -85,6 +102,10 @@ struct ArithmeticOpTraits< T1, T2
 
 #define _M_for_each_type_() _M_for_each_type
 #define _M_for_each_type__(...) _M_for_each_type_ _M_EXPAND(()) (__VA_ARGS__)
+
+#define _M_implem_arith_traits_spec_eponymous(_, t) template<> struct ArithmeticOpTraits<t, t> {typedef t Result_t;};
+_M_for_each_type(_M_implem_arith_traits_spec_eponymous)
+#undef _M_implem_arith_traits_spec_eponymous
 
 // -- implement basic conversions ---------------------------------------------
 
@@ -221,7 +242,7 @@ hdql_converters_add_std(hdql_Converters *cnvs, hdql_ValueTypes * vts, hdql_Conte
 #define _M_implement_arith_ops(t1, t2) \
     _M_for_every_binary_arith_op(_M_implement_arith_op, t1, t2)
 
-_M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_implement_arith_ops))
+_M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_implement_arith_ops))
 #undef _M_implement_arith_ops
 #undef _M_implement_arith_op
 
@@ -444,7 +465,7 @@ hdql_op_define_std_arith( struct hdql_Operations * operations
     #define _M_impose_std_arith_ops_of_types(t1, t2) \
         _M_for_every_binary_arith_op(_M_impose_std_arith_op_of_types, t1, t2)
 
-    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_atomic_type__, _M_impose_std_arith_ops_of_types));
+    _M_EXPAND(_M_for_each_numerical_type(_M_for_each_numerical_type__, _M_impose_std_arith_ops_of_types));
     #undef _M_impose_std_arith_ops_of_types
     #undef _M_impose_std_arith_op_of_types
 

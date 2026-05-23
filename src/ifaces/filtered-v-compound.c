@@ -29,6 +29,8 @@ _filtered_compound_scalar_interface_instantiate(
     state->filterQuery = (struct hdql_Query *) defData_;
     const struct hdql_AttrDef * ad = hdql_query_top_attr(state->filterQuery);
     assert(ad);
+    assert(hdql_attr_def_is_atomic(ad));
+    assert(hdql_attr_def_is_scalar(ad));
     hdql_ValueTypeCode_t valueTCode = hdql_attr_def_get_atomic_value_type_code(ad);
     state->vi = hdql_types_get_type( hdql_context_get_types(ctx)
             , valueTCode);
@@ -54,15 +56,18 @@ _filtered_compound_scalar_interface_instantiate(
 }
 
 static hdql_Datum_t
-_filtered_compound_scalar_interface_dereference(
-          hdql_Datum_t root
+_filtered_compound_scalar_interface_reset(
+          hdql_Datum_t newOwner
         , hdql_Datum_t s_
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum *defData_
+        , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
-    struct FilteredVCompoundState * s = hdql_cast(ctx, struct FilteredVCompoundState, s_);
-    hdql_Datum_t r = hdql_query_get(s->filterQuery, NULL, ctx);
-    if(NULL == r) return NULL;
+    struct FilteredVCompoundState * s
+        = hdql_cast(ctx, struct FilteredVCompoundState, s_);
+    hdql_Datum_t r = hdql_query_reset(s->filterQuery, newOwner, NULL, ctx);
+    if(!r) return NULL;
+    
     //hdql_query_reset(s->filterQuery, root, key, ctx);  // TODO: check why do we need this
     assert(r);
     if(s->toLogicConverter) {
@@ -72,41 +77,25 @@ _filtered_compound_scalar_interface_dereference(
         s->logicResult = *((hdql_Bool_t *) r);
     }
     
-    if(s->logicResult) return root;
+    if(s->logicResult) {
+        return newOwner;
+    }
     return NULL;
-}
-
-static hdql_Datum_t
-_filtered_compound_scalar_interface_reset(
-          hdql_Datum_t newOwner
-        , hdql_Datum_t s_
-        , const hdql_Datum_t defData_
-        , struct hdql_Key * key
-        , hdql_Context_t ctx
-        ) {
-    struct FilteredVCompoundState * s
-        = hdql_cast(ctx, struct FilteredVCompoundState, s_);
-    hdql_query_reset(s->filterQuery, newOwner, key, ctx);
-    return s_;
 }
 
 static void
 _filtered_compound_scalar_interface_destroy(
           hdql_Datum_t s_
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum *defData_
         , hdql_Context_t ctx
         ) {
-    //struct FilteredVCompoundState * s
-    //    = hdql_cast(ctx, struct FilteredVCompoundState, s_);
-    //hdql_query_destroy(s->filterQuery, ctx);
     hdql_context_free(ctx, s_);
 }
 
 const struct hdql_ScalarAttrInterface _hdql_gFilteredCompoundIFace = {
     .definitionData = NULL,
-    .instantiate = _filtered_compound_scalar_interface_instantiate,
-    .dereference = _filtered_compound_scalar_interface_dereference,
+    .new_dyn_data = _filtered_compound_scalar_interface_instantiate,
     .reset = _filtered_compound_scalar_interface_reset,
-    .destroy = _filtered_compound_scalar_interface_destroy,
+    .destroy_dyn_data = _filtered_compound_scalar_interface_destroy,
 };
 

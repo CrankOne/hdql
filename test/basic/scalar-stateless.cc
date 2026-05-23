@@ -29,7 +29,7 @@ int toCheckStateless = 0x707;
 hdql_Datum_t 
 reset_a_stateless( hdql_Datum_t owner
        , hdql_Datum_t dynData
-       , const hdql_Datum_t defData
+       , const struct hdql_Datum *defData
        , struct hdql_Key * key
        , hdql_Context_t context
        ) {
@@ -38,7 +38,7 @@ reset_a_stateless( hdql_Datum_t owner
     if(!defData) throw std::runtime_error("def. data not set for stateless scalar");
     if(defData != reinterpret_cast<hdql_Datum_t>(&toCheckStateless))
         throw std::runtime_error("addr differs for def.data, stateless case");
-    if(*reinterpret_cast<int*>(defData) != toCheckStateless)
+    if(*reinterpret_cast<const int*>(defData) != toCheckStateless)
         throw std::runtime_error("def. data differs for def.data, stateless case");
     if(!context) throw std::runtime_error("no context");
 

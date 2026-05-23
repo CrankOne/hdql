@@ -15,7 +15,7 @@
  *
  * Definition data brings argument queries (are subject of changes, actually)
  * and arithmetic operation evaluator. Note, that both arguments are
- * considered to be "full scalar" objects meaning that they will yield a key.
+ * considered to be "full scalar" objects meaning that they will yield only at reset.
  */
 
 struct ArithOpScalarState {
@@ -37,39 +37,26 @@ _arith_op_scalar_interface_instantiate(
 }
 
 static hdql_Datum_t
-_arith_op_scalar_interface_dereference(
-          hdql_Datum_t root
-        , hdql_Datum_t s_
-        , const hdql_Datum_t defData_
-        , hdql_Context_t context
-        ) {
-    ((void) context);
-    assert(s_);
-    //printf("XXX dereference()\n");
-    // ^^^ TODO: set bp here to debug doubling dereference() -- it seems to be
-    // a Query state issue wasting CPU and indicating that dereference/advance
-    // sequence is generally invalid at this level...
-    return ((struct ArithOpScalarState *) s_)->result;
-}
-
-static hdql_Datum_t
 _arith_op_scalar_interface_reset(
           hdql_Datum_t newOwner
         , hdql_Datum_t state_
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum *defData_
         , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
     assert(state_);
     assert(defData_);
+    //assert(!key);
+    #warning "TODO: handle key argument for scalar-scalar arithmetics"
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpScalarState * state = (struct ArithOpScalarState *) state_;
-    hdql_query_reset(defData->args[0], newOwner, key, ctx);
+
+    hdql_query_reset(defData->args[0], newOwner, NULL, ctx);
     if(defData->args[1]) {
-        hdql_query_reset(defData->args[1], newOwner, key, ctx);
+        hdql_query_reset(defData->args[1], newOwner, NULL, ctx);
     }
-    hdql_Datum_t a =                    hdql_query_get(defData->args[0], NULL, ctx)
-               , b = defData->args[1] ? hdql_query_get(defData->args[1], NULL, ctx) : NULL
+    hdql_Datum_t a =                    hdql_query_reset(defData->args[0], newOwner, NULL, ctx)
+               , b = defData->args[1] ? hdql_query_reset(defData->args[1], newOwner, NULL, ctx) : NULL
                ;
     int rc = defData->evaluator->op(a, b, state->result);
     if(0 != rc) {
@@ -78,13 +65,13 @@ _arith_op_scalar_interface_reset(
                              , rc, defData->evaluator, defData->evaluator->op
                              );
     }
-    return state_;
+    return ((struct ArithOpScalarState *) state)->result;
 }
 
 static void
 _arith_op_scalar_interface_destroy(
           hdql_Datum_t state_
-        , const hdql_Datum_t defData_
+        , const struct hdql_Datum *defData_
         , hdql_Context_t ctx
         ) {
     if(NULL == state_) return;
@@ -94,25 +81,15 @@ _arith_op_scalar_interface_destroy(
     if(NULL != state->result) {
         hdql_destroy_value(defData->evaluator->returnType, state->result, ctx);
     }
-    /* TODO: deleting externally-allocated "definition data" does not seem to
-     * be a good solution */
-    //if(NULL != defData_) {
-    //    if(defData->args[0]) {
-    //        hdql_query_destroy(defData->args[0], ctx);
-    //    }
-    //    if(defData->args[1]) {
-    //        hdql_query_destroy(defData->args[1], ctx);
-    //    }
-    //    hdql_context_free(ctx, defData_);
-    //}
     hdql_context_free(ctx, state_);
 }
 
+/* TODO: reserve key callback exposed in public */
+
 const struct hdql_ScalarAttrInterface _hdql_gScalarArithOpIFace = {
     .definitionData = NULL,
-    .instantiate = _arith_op_scalar_interface_instantiate,
-    .dereference = _arith_op_scalar_interface_dereference,
+    .new_dyn_data = _arith_op_scalar_interface_instantiate,
     .reset = _arith_op_scalar_interface_reset,
-    .destroy = _arith_op_scalar_interface_destroy,
+    .destroy_dyn_data = _arith_op_scalar_interface_destroy,
 };
 

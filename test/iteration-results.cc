@@ -60,6 +60,16 @@ QueryIterationTest::IterateResultsOn(const Event &ev) {
         for(size_t lvl = 0; lvl < _flatKeyViewLen; ++lvl) {
             kk[lvl] = _flatKeyIfaces[lvl]->get_as_int(hdql_key_datum_get(_flatKeyView[lvl]));
         }
+        std::string keyStr;
+        {
+            std::ostringstream oss;
+            oss << "(";
+            for(size_t lvl = 0; lvl < _flatKeyViewLen; ++lvl) {
+                oss << (lvl ? ", " : "") << kk[lvl];
+            }
+            oss << ")";
+            keyStr = oss.str();
+        }
         // locate and mark as visited, assuring it was not visited before
         bool found = false;
         for(size_t i = 0; i < _entries.size(); ++i) {
@@ -72,21 +82,12 @@ QueryIterationTest::IterateResultsOn(const Event &ev) {
             if(!thisOne) continue;
             found = true;
             EXPECT_FALSE(_entries[i].isVisited);
-            EXPECT_NEAR(_resultVI->get_as_float(r), _entries[i].result, 1e-6);
+            EXPECT_NEAR(_resultVI->get_as_float(r), _entries[i].result, 1e-6)
+                << "item with key " << keyStr;
             _entries[i].isVisited = true;
             break;
         }
-        std::string keyStr;
-        if(!found) {
-            std::ostringstream oss;
-            oss << "(";
-            for(size_t lvl = 0; lvl < _flatKeyViewLen; ++lvl) {
-                oss << (lvl ? ", " : "") << kk[lvl];
-            }
-            oss << ")";
-            keyStr = oss.str();
-        }
-        EXPECT_TRUE(found) << " unexpected item " << keyStr << ", value is "
+        EXPECT_TRUE(found) << "unexpected item " << keyStr << " occured, value is "
             << _resultVI->get_as_float(r);
         AdvanceQuery(r);
     }

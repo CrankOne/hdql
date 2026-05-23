@@ -14,97 +14,55 @@
  * Implements collection interface for forwarding query
  */
 
-struct FwdQueryIterator {
-    struct hdql_Query * subQuery;
-    hdql_Datum_t result;
-    hdql_Context_t context;
-};
-
 static hdql_It_t
-_fwd_query_collection_interface_create(
+_fwd_query_collection_new_iterator(
           hdql_Datum_t ownerDatum
         , const hdql_Datum_t definitionData
-        , hdql_SelectionArgs_t selection
         , hdql_Context_t ctx
         ) {
-    struct FwdQueryIterator * it = hdql_alloc(ctx, struct FwdQueryIterator);
-    assert(NULL == selection);  /* selection is prohibited at this iface lvl */
     assert(definitionData);  /* required as should bring fwd query target */
-    it->subQuery = (struct hdql_Query *) definitionData;
-    assert(it->subQuery);
-    it->result = NULL;
-    it->context = ctx;
-    return (hdql_It_t) it;
+    return (hdql_It_t) definitionData;
 }
 
 static hdql_Datum_t
-_fwd_query_collection_interface_dereference(
+_fwd_query_collection_reset_iterator(
           hdql_It_t it_
-        ) {
-    struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
-    return it->result;
-}
-
-static hdql_It_t
-_fwd_query_collection_interface_advance(
-          hdql_It_t it_
-        , struct hdql_Key * key  /* NOTE: can be null */
-        ) {
-    struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
-    if(it->result) {
-        it->result = hdql_query_get(it->subQuery, key, it->context);
-    }
-    return it_;
-}
-
-static hdql_It_t
-_fwd_query_collection_interface_reset(
-          hdql_It_t it_
-        , hdql_Datum_t newOwner
-        , const hdql_Datum_t defData
+        , struct hdql_Datum *newOwner
+        , const struct hdql_Datum *defData
         , hdql_SelectionArgs_t sel
-        , struct hdql_Key * key
-        , hdql_Context_t ctx
+        , struct hdql_Key *key
+        , hdql_Context_t context
         ) {
     ((void) sel);
     assert(it_);
-    struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
-    assert(it->context == ctx);  /* fwd q had changed context between create() and reset() */
-    #ifndef NDEBUG
-    {
-        struct hdql_Query * fwdQ = (struct hdql_Query*) defData;
-        assert(fwdQ == it->subQuery);  /* fwd q had changed query between create() and reset() */
-    }
-    #endif
-    assert(newOwner);
-    hdql_query_reset(it->subQuery, newOwner, key, ctx);
-    it->result = NULL;
-    return it_;
+    return hdql_query_reset((struct hdql_Query *) it_, newOwner, key, context);
+}
+
+static hdql_Datum_t
+_fwd_query_collection_yield(
+          hdql_It_t it_
+        , const struct hdql_Datum *defData
+        , struct hdql_Key *key  /* NOTE: can be null */
+        , struct hdql_Context *context
+        ) {
+    return hdql_query_get((struct hdql_Query *) it_, key, context);
 }
 
 static void
 _fwd_query_collection_interface_destroy(
           hdql_It_t it_
+        , const struct hdql_Datum * defData
         , hdql_Context_t ctx
         ) {
-    struct FwdQueryIterator * it = (struct FwdQueryIterator *) it_;
-    // NOTE: sub-queries get destroyed within virtual compound dtrs
-    // no need to `if(it->subQuery) hdql_query_destroy(it->subQuery, ctx);`
-    // More strictly: scalar interface destroy must not deallocate definition
-    // data (it is logically not a runtime information managed by iface's
-    // create/destroy); iterator's reference to query is not "owned" by
-    // iterator.
-    //hdql_query_destroy((struct hdql_Query*) it->subQuery, ctx);  // TODO: doubtful, see scalar iface for counter-example
-    hdql_context_free(ctx, (hdql_Datum_t) it);
+    /* stub */
 }
 
 const struct hdql_CollectionAttrInterface _hdql_gCollectionFwdQueryIFace = {
     .definitionData = NULL,  /* changed in copies to keep target forwarding query ptr */
-    .create = _fwd_query_collection_interface_create,
-    .dereference = _fwd_query_collection_interface_dereference,
-    .advance = _fwd_query_collection_interface_advance,
-    .reset = _fwd_query_collection_interface_reset,
-    .destroy = _fwd_query_collection_interface_destroy,
+    .new_iterator = _fwd_query_collection_new_iterator,
+    .yield = _fwd_query_collection_yield,
+    .reset_iterator = _fwd_query_collection_reset_iterator,
+    .destroy_iterator = _fwd_query_collection_interface_destroy,
     .compile_selection = NULL,
     .free_selection = NULL,
 };

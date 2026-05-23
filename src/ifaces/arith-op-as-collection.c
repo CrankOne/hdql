@@ -24,9 +24,8 @@
  * here as a choice of two callbacks. */
 
 struct ArithOpCollectionState {
-    unsigned int nArgToAdvance:1;
-    unsigned int exhausted:1;
-    hdql_Datum_t other;
+    unsigned int collectionNArg:1;
+    hdql_Datum_t scalarDatum;
     hdql_Datum_t cResult;
 };
 
@@ -36,13 +35,20 @@ _arith_op_new_iterator( hdql_Datum_t owner
                       , hdql_Context_t ctx
                       ) {
     const struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
+    /* new state */
     struct ArithOpCollectionState * state
         = (struct ArithOpCollectionState *)
             hdql_context_alloc(ctx, sizeof(struct ArithOpCollectionState));
-    bool aIsFullyScalar = hdql_query_is_fully_scalar(defData->args[0]);
-    state->nArgToAdvance = aIsFullyScalar ? 1 : 0;
-    state->exhausted = 0x1;
+    /* allocate result value */
     state->cResult = hdql_create_value(defData->evaluator->returnType, ctx);
+
+    bool aIsFullyScalar = hdql_query_is_fully_scalar(defData->args[0]);
+    assert( ((!aIsFullyScalar) && (!defData->args[1]))  /* either our single argument is collection */
+         || aIsFullyScalar != hdql_query_is_fully_scalar(defData->args[1])
+         );
+    /* set argument number to iterate over */
+    state->collectionNArg = aIsFullyScalar ? 1 : 0;
+
     return (hdql_It_t) state;
 }
 
@@ -56,21 +62,22 @@ _arith_op_collection_iterator_reset( hdql_It_t it_
                           ) {
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    hdql_Datum_t cr = hdql_query_reset( defData->args[state->nArgToAdvance]
+
+    hdql_Datum_t cr = hdql_query_reset( defData->args[state->collectionNArg]
                                       , newOwner
-                                      , state->nArgToAdvance ? key : NULL
+                                      , key
                                       , context);
-    state->other = hdql_query_reset(defData->args[!state->nArgToAdvance]
-                    , newOwner, NULL, context);
-    if(!cr || (defData->args[1] && !state->other) ) {
-        state->exhausted = 0x1;
-        return NULL;
-    }
-    state->exhausted = 0x0;
-    if(state->nArgToAdvance) {
-        defData->evaluator->op(state->other, cr, state->cResult);
+    if(defData->args[1]) {
+        state->scalarDatum = hdql_query_reset(defData->args[state->collectionNArg ^ 0x1]
+                           , newOwner, NULL, context);
     } else {
-        defData->evaluator->op(cr, state->other, state->cResult);
+        state->scalarDatum = NULL;
+    }
+
+    if(state->collectionNArg) {
+        defData->evaluator->op(state->scalarDatum, cr, state->cResult);
+    } else {
+        defData->evaluator->op(cr, state->scalarDatum, state->cResult);
     }
     return state->cResult;
 }
@@ -84,9 +91,19 @@ _arith_op_collection_yield( hdql_It_t it_
     assert(it_);
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    if(state->exhausted) return it_;  /* exhausted, do nothing */
-    hdql_query_get(defData->args[0], key, context);
-    return it_;
+    
+    hdql_Datum_t cr;
+    if(state->collectionNArg) {
+        cr = hdql_query_get(defData->args[1], key, context);
+        if(!cr) return NULL;
+        defData->evaluator->op(state->scalarDatum, cr, state->cResult);
+    } else {
+        cr = hdql_query_get(defData->args[0], key, context);
+        if(!cr) return NULL;
+        defData->evaluator->op(cr, state->scalarDatum, state->cResult);
+    }
+
+    return state->cResult;
 }
 
 
@@ -96,25 +113,12 @@ _arith_op_collection_destroy_iterator( hdql_It_t it_
         , hdql_Context_t context
         ) {
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
-    /* TODO: perhaps, redundant checks to handle remergency delete situation... */
     if(NULL == it_) return;
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
-    if(NULL != state->cResult && defData->evaluator && defData->evaluator->returnType) {
+
+    if(NULL != state->cResult) {
         hdql_destroy_value(defData->evaluator->returnType, state->cResult, context);
     }
-    //if(NULL != state->defData) {
-    //    if(state->defData->args[0]) {
-    //        hdql_query_destroy(state->defData->args[0], ctx);
-    //    }
-    //    if(state->defData->args[1]) {
-    //        hdql_query_destroy(state->defData->args[1], ctx);
-    //    }
-    //}
-    /* TODO: deleting externally-allocated "definition data" does not seem to
-     * be a good solution */
-    //if(NULL != state->defData) {
-    //    hdql_context_free(ctx, (hdql_Datum_t) state->defData);
-    //}
     hdql_context_free(context, (hdql_Datum_t) it_);
 }
 
@@ -125,10 +129,6 @@ hdql_reserve_arith_op_collection_key(struct hdql_Key * key
         ) {
     struct hdql_ArithOpDefData * dd = (struct hdql_ArithOpDefData *) dd_;
     bool aIsFullyScalar = hdql_query_is_fully_scalar(dd->args[0]);
-    #ifndef NDEBUG
-    bool bIsFullyScalar = dd->args[1] ? hdql_query_is_fully_scalar(dd->args[1]) : true;
-    assert(aIsFullyScalar != bIsFullyScalar);  /* both scalars and both collections are prohibited */
-    #endif
     int rc;
     if(!aIsFullyScalar) {
         /* a is a collection */

@@ -239,7 +239,9 @@ static int _hdql_reserve_key_for_fwd_query(
         , hdql_Context_t context
         ) {
     struct hdql_Query * sq = (struct hdql_Query *) fwdQ_;
-    return hdql_key_reserve_for_query(sq, k, context);
+    int rc = hdql_key_reserve_for_query(sq, k, context);
+    assert(hdql_key_is_list(k));
+    return rc;
 }
 
 /* Destructor for attribute definition's static data when AD is forwarding
@@ -256,9 +258,6 @@ hdql_attr_def_create_fwd_query(
         , hdql_Context_t context
         , int * rc
         ) {
-    #if 1
-    assert(false);
-    #else
     assert(rc);
     struct hdql_AttrDef * ad = hdql_alloc(context, struct hdql_AttrDef);
     if(!ad) {
@@ -296,7 +295,6 @@ hdql_attr_def_create_fwd_query(
     ad->reserve_key = _hdql_reserve_key_for_fwd_query;
 
     return ad;
-    #endif
 }
 
 /* Static atomic scalar AD
@@ -305,7 +303,7 @@ hdql_attr_def_create_fwd_query(
 static hdql_Datum_t
 _static_atomic_scalar_reset( hdql_Datum_t root
         , hdql_Datum_t dynData
-        , const hdql_Datum_t defData
+        , const struct hdql_Datum *defData
         , struct hdql_Key * key
         , hdql_Context_t ctx
         ) {
@@ -360,11 +358,9 @@ hdql_attr_def_create_static_atomic_scalar_value(
     return ad;
 }
 
-#if 0
 static void _transient_dtr__binding_query(hdql_Datum_t d, hdql_Context_t ctx) {
     hdql_bound_value_interface_definition_data_destroy(d, ctx);
 }
-#endif
 
 struct hdql_AttrDef *
 hdql_attr_def_create_bound(
@@ -372,9 +368,6 @@ hdql_attr_def_create_bound(
         , hdql_Context_t context
         , int * rc
         ) {
-    #if 1
-    assert(false);
-    #else
     assert(!hdql_query_is_fully_scalar(subquery));
     *rc = 0;
     const struct hdql_AttrDef * qTopAD = hdql_query_top_attr(subquery);
@@ -410,7 +403,6 @@ hdql_attr_def_create_bound(
         = hdql_bound_value_interface_definition_data_init(subquery, context);
     
     return ad;
-    #endif
 }
 
 struct hdql_AttrDef *
@@ -457,20 +449,16 @@ bool hdql_attr_def_is_static_external_value(hdql_AttrDef_t ad) { return ad->stat
 bool hdql_attr_def_is_transient(hdql_AttrDef_t ad) { return ad->isTransient; }
 
 bool hdql_attr_def_is_bound(hdql_AttrDef_t ad) {
-    #if 1
-    assert(false);
-    #else
     if(!hdql_attr_def_is_scalar(ad)) return false;
     /* ^^^ we do not have such thing as collection of collections in HDQL */
     const struct hdql_ScalarAttrInterface * iface = hdql_attr_def_scalar_iface(ad);
     /* TODO: can we have something more elegant than this here? */
-    if( iface->destroy == _hdql_gBoundQueryIFace.destroy ) {
-        assert(iface->instantiate == _hdql_gBoundQueryIFace.instantiate );
-        assert(iface->reset       == _hdql_gBoundQueryIFace.reset       );
+    if( iface->reset == _hdql_gBoundQueryIFace.reset ) {
+        assert(iface->new_dyn_data == _hdql_gBoundQueryIFace.new_dyn_data );
+        assert(iface->destroy_dyn_data == _hdql_gBoundQueryIFace.destroy_dyn_data );
         return true;
     }
     return false;
-    #endif
 }
 
 hdql_ValueTypeCode_t

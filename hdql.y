@@ -803,11 +803,12 @@ _resolve_query_top_as_compound( struct hdql_Query * q
 }  // _resolve_query_top_as_compound()
 
 /* returns "owner" as result */
-static hdql_Datum_t _dereference_to_self( hdql_Datum_t d
+static hdql_Datum_t _dereference_to_self_on_reset( hdql_Datum_t ownerAsSelf
     , hdql_Datum_t dynData
-    , const hdql_Datum_t defData
+    , const struct hdql_Datum *defData
+    , struct hdql_Key *key
     , hdql_Context_t ctx
-    ) { return d; }
+    ) { return ownerAsSelf; }
 
 static void _transient_dtr__virtual_compound(hdql_Datum_t q_, hdql_Context_t ctx) {
     hdql_query_destroy((struct hdql_Query *) q_, ctx);
@@ -848,11 +849,9 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         struct hdql_ScalarAttrInterface iface;
         if(NULL == filterQuery) {
             bzero(&iface, sizeof(iface));
-            assert(false);  // TODO
-            //iface.dereference = _dereference_to_self;
+            iface.reset = _dereference_to_self_on_reset;
         } else {
-            assert(false);  // TODO
-            //iface = _hdql_gFilteredCompoundIFace;
+            iface = _hdql_gFilteredCompoundIFace;
             iface.definitionData = (hdql_Datum_t) filterQuery;
         }
         vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
@@ -875,7 +874,7 @@ _new_virtual_compound_query( YYLTYPE * yylloc
          * Re-setting or advancing query to bound v-compound shall cause
          * evaluation of the bound forwarding queries first, setting
          * corresponding attributes. */
-        struct hdql_CollectionAttrInterface iface; assert(false);  // TODO = _hdql_gBindingCompoundCollectionIFace;
+        struct hdql_CollectionAttrInterface iface = _hdql_gBindingCompoundCollectionIFace;
         /* filtering query and pointer to (not yet finalized) virtual compound
          * definition have to be transferred to the iterator instantiation
          * in order to compose (optionally filtered) sequence of Cartesian
@@ -1041,7 +1040,7 @@ _operation( struct hdql_Query * a
     defData->evaluator = evaluator;
     if(attrAIsFullScalar && attrBIsFullScalar) {
         /* operation results in scalar */
-        struct hdql_ScalarAttrInterface scalarIFace; assert(false);  // = _hdql_gScalarArithOpIFace;
+        struct hdql_ScalarAttrInterface scalarIFace = _hdql_gScalarArithOpIFace;
         scalarIFace.definitionData = (hdql_Datum_t) defData;
         rAD = hdql_attr_def_create_atomic_scalar(
                 &typeInfo, &scalarIFace, 0x0, NULL, ws->context );

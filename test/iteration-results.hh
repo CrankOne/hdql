@@ -13,7 +13,7 @@ class QueryIterationTest : public TestingEventStruct {
 protected:
     struct EntryWithVisitedMarker {
         int keys[6];
-        float result;
+        double result;
         bool isVisited;
     };
     std::vector<EntryWithVisitedMarker> _entries;
@@ -23,7 +23,7 @@ public:
         // list of integer keys, terminated by -1
         int keys[6];
         // expected result value
-        float result;
+        double result;
     };
 
     void SetExpectations(const ExpectedEntry *);

@@ -61,8 +61,8 @@ TEST_F(TestMonoidal, narbFromAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("narb(.a.bf)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -73,8 +73,8 @@ TEST_F(TestMonoidal, narbOfASingleElement) {
     item1->i32f = -123;
     root.a.push_back(item1);
     CompileQuery("narb(.a.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((int32_t *) r), -123);
 }
@@ -98,8 +98,8 @@ TEST_F(TestMonoidal, narbOfASequence) {
     std::unordered_map<uint16_t, size_t> counts;
     CompileQuery("narb(.a.u16f)");
     for(int i = 0; i < 100; ++i) {
-        hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-        hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+        hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
         ASSERT_TRUE(r);
         const uint16_t val = *((uint16_t *) r);
         if(counts.end() == counts.find(val)) {
@@ -136,8 +136,8 @@ TEST_F(TestMonoidal, narbOfTwoSequences) {
     CompileQuery("narb(.a.u16f, .b.i32f)");
     std::unordered_map<int32_t, size_t> counts;
     for(int i = 0; i < 100; ++i) {
-        hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-        hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+        hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
         ASSERT_TRUE(r);
         const int32_t val = *((int32_t *) r);
         if(counts.end() == counts.find(val)) {

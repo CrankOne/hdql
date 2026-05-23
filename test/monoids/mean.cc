@@ -181,8 +181,8 @@ TEST_F(TestMonoidal, meanOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("mean(.a.u32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -193,8 +193,8 @@ TEST_F(TestMonoidal, meanOfASingleElement) {
     item1->u32f = 123;
     root.a.push_back(item1);
     CompileQuery("mean(.a.u32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -212,8 +212,8 @@ TEST_F(TestMonoidal, meanOfASingleCollectionArgument) {
     item2->i32f = -122;
     root.a.push_back(item2);
     CompileQuery("mean(.a.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -225,8 +225,8 @@ TEST_F(TestMonoidal, meanOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("mean(.a.i32f, .b.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -243,8 +243,8 @@ TEST_F(TestMonoidal, meanOfCollections) {
     item3->i32f = -13;
     root.a.push_back(item3);
     CompileQuery("mean(.a.i32f, .b.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi

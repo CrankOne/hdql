@@ -63,8 +63,8 @@ TEST_F(TestMonoidal, countOfAnEmptyCollectionIsZero) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("count(.a.bf)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 0);
 }
@@ -76,8 +76,8 @@ TEST_F(TestMonoidal, countOfASingleTrueElement) {
     item1->i32f = -1;
     root.a.push_back(item1);
     CompileQuery("count(.a.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 1);
 }
@@ -89,8 +89,8 @@ TEST_F(TestMonoidal, countOfASingleFalseElement) {
     item1->u16f = 0x0;
     root.a.push_back(item1);
     CompileQuery("count(.a.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 0);
 }
@@ -103,8 +103,8 @@ TEST_F(TestMonoidal, countAccountsNAN) {
     item1->df = std::numeric_limits<double>::quiet_NaN();
     root.a.push_back(item1);
     CompileQuery("count(.a.df)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 1);
 }
@@ -126,8 +126,8 @@ TEST_F(TestMonoidal, countOfASequence) {
     root.a.push_back(item3);
 
     CompileQuery("count(.a.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 2);
 }
@@ -149,8 +149,8 @@ TEST_F(TestMonoidal, countOfTwoSequences) {
     root.b.push_back(item3);
 
     CompileQuery("count(.a.u16f, .b.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 2);
 }

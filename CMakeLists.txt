@@ -36,8 +36,8 @@ set (hdql_SOURCES src/types.cc
                   src/hash-table.c
                   src/allocator.c
                   src/random.c
-                  #src/funcs/monoids.c
-                  #src/funcs/len.c
+                  src/funcs/monoids.c
+                  src/funcs/len.c
                   src/util/pcg32.c
                   src/ifaces/fwd-query-as-collection.c
 	              src/ifaces/fwd-query-as-scalar.c
@@ -45,12 +45,15 @@ set (hdql_SOURCES src/types.cc
 	              src/ifaces/arith-op-as-collection.c
 	              src/ifaces/filtered-v-compound.c
                   src/ifaces/bound-value.c
-                  #src/helpers/query-results-handler.c
-                  #src/helpers/query-results-handler-csv.c
+                  # helpers
                   src/helpers/fancy-print-err.c
                   src/helpers/print-tree.c
                   src/helpers/print-tree-attr-def.c
                   src/helpers/print-tree-attr-def-w-data.c
+                  src/helpers/query.cc
+                  # C++ API
+                  #src/helpers/query-results-handler.c
+                  #src/helpers/query-results-handler-csv.c
                   )
 
 #add_compile_options(-Wall -Wextra -Wpedantic)  # for devs
@@ -145,29 +148,29 @@ if (BUILD_TESTS)
         test/iteration-tests/singular-query.cc
         test/iteration-tests/arithmetics.cc
         test/query-product.test.cc
-        # ...
         test/cross-type-operations.cc
         test/value.cc
         test/simple-arithmetics.cc
         test/iteration-tests/v-compound-fwd.cc
         test/iteration-tests/v-compound-bind.cc
-        #test/cpp-api.cc
+        # monoidal functions
+        test/monoids/monoids.cc
+        test/monoids/sum.cc
+        test/monoids/product.cc
+        test/monoids/b-and.cc
+        test/monoids/b-or.cc
+        test/monoids/b-xor.cc
+        test/monoids/all.cc
+        test/monoids/any.cc
+        test/monoids/count.cc
+        test/monoids/min.cc
+        test/monoids/max.cc
+        test/monoids/mean.cc
+        test/monoids/arb.cc
+        test/monoids/len.cc
+        test/monoids/empty.cc
+        test/cpp-api.cc
         #test/dsv.test.cc
-        #test/monoids/monoids.cc
-        #test/monoids/sum.cc
-        #test/monoids/product.cc
-        #test/monoids/b-and.cc
-        #test/monoids/b-or.cc
-        #test/monoids/b-xor.cc
-        #test/monoids/all.cc
-        #test/monoids/any.cc
-        #test/monoids/count.cc
-        #test/monoids/min.cc
-        #test/monoids/max.cc
-        #test/monoids/mean.cc
-        #test/monoids/arb.cc
-        #test/monoids/len.cc
-        #test/monoids/empty.cc
         )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

@@ -89,8 +89,8 @@ TEST_F(TestMonoidal, emptyOfAnEmptyCollectionIsTrue) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("empty(.a)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(*((bool*) r));
 }
 
@@ -101,8 +101,8 @@ TEST_F(TestMonoidal, emptyOfACollectionWithOneElementIsFalse) {
     item1->u32f = 123;
     root.a.push_back(item1);
     CompileQuery("empty(.a)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_FALSE(*((bool*) r));
 }
@@ -117,8 +117,8 @@ TEST_F(TestMonoidal, emptyOfANonEmptyCollectionIsFalse) {
     std::shared_ptr<Item> item3 = std::make_shared<Item>();
     root.a.push_back(item2);
     CompileQuery("empty(.a)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     EXPECT_FALSE(*((bool*) r));
 }

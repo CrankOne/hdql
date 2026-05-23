@@ -436,11 +436,11 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
 void
 Query::_reset_subject_instance(hdql_Datum_t item) {
     assert(item);
-    int rc = hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(item), _ownContext);
-    if(HDQL_ERR_CODE_OK != rc) {
+    _r = hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(item)
+            , _keys, _ownContext);
+    if(hdql_context_has_errors(_ownContext)) {
         throw std::runtime_error("hdql_query_reset() failed");
     }
-    _r = hdql_query_get(_query, _keys, _ownContext);
     _isSet = true;
 }
 

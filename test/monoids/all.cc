@@ -63,8 +63,8 @@ TEST_F(TestMonoidal, allOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("all(.a.bf)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -75,8 +75,8 @@ TEST_F(TestMonoidal, allOfASingleTrueElement) {
     item1->i32f = -1;
     root.a.push_back(item1);
     CompileQuery("all(.a.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -91,8 +91,8 @@ TEST_F(TestMonoidal, allOfASingleFalseElement) {
     item1->u16f = 0x0;
     root.a.push_back(item1);
     CompileQuery("all(.a.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -108,8 +108,8 @@ TEST_F(TestMonoidal, allOfANANIsTrue) {
     item1->df = std::numeric_limits<double>::quiet_NaN();
     root.a.push_back(item1);
     CompileQuery("all(.a.df)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -134,8 +134,8 @@ TEST_F(TestMonoidal, allOfASequence) {
     root.a.push_back(item3);
 
     CompileQuery("all(.a.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -160,8 +160,8 @@ TEST_F(TestMonoidal, allOfTwoSequences) {
     root.b.push_back(item3);
 
     CompileQuery("all(.a.u16f, .b.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi

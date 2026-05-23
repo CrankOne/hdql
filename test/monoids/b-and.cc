@@ -171,8 +171,8 @@ TEST_F(TestMonoidal, bANDOfAnEmptyCollectionIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bAND(.a.u32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -183,8 +183,8 @@ TEST_F(TestMonoidal, bANDOfASingleElement) {
     item1->u32f = 0xfffae;
     root.a.push_back(item1);
     CompileQuery("bAND(.a.u32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
@@ -203,8 +203,8 @@ TEST_F(TestMonoidal, bANDOfASingleCollectionArgument) {
     item2->i32f = 0x1e;
     root.a.push_back(item2);
     CompileQuery("bAND(.a.i32f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_EQ( hdql_attr_def_get_atomic_value_type_code(ad) 
@@ -217,8 +217,8 @@ TEST_F(TestMonoidal, bANDOfEmptyCollectionsIsNone) {
     using namespace hdql::test;
     RootItem root;
     CompileQuery("bAND(.a.i32f, .b.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_FALSE(r);
 }
 
@@ -235,8 +235,8 @@ TEST_F(TestMonoidal, bANDOfCollections) {
     item3->i32f = 0xfa;
     root.a.push_back(item3);
     CompileQuery("bAND(.a.i32f, .b.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -260,8 +260,8 @@ TEST_F(TestMonoidal, bANDOfCollectionsWithZeroes) {
     item3->i32f = 0xfa;
     root.a.push_back(item3);
     CompileQuery("bAND(.a.i32f, .b.u16f)");
-    hdql_query_reset(_query, reinterpret_cast<hdql_Datum_t>(&root), _ctx);
-    hdql_Datum_t r = hdql_query_get(_query, NULL, _compounds.context_ptr());
+    hdql_Datum_t r = hdql_query_reset(_query
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi

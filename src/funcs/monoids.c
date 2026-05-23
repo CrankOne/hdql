@@ -81,24 +81,21 @@ typedef struct {
     struct hdql_Datum ** convertedValues;
     /* result datum instance ptr; (not necessarily a single value!) */
     struct hdql_Datum * result;
-    /* flag denoting calculus (see note on scalar iface dereference method) */
-    uint8_t validFlags;  /* 0x1 is valid, 0x2 is non-empty, 0x4 if always result in a value */
 } SMADynamicData_t;
 
 /*
  * Implements Common monoid lifecycle
  */
 
-static hdql_Datum_t
-_monoid__instantiate
+hdql_Datum_t
+_monoid__new_dyn_data
             ( hdql_Datum_t newOwner
-            , const hdql_Datum_t defData_
+            , const struct hdql_Datum *defData_
             , hdql_Context_t context
             ) {
     ((void) newOwner);  /* owner unused here */
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_alloc(context, SMADynamicData_t);
-    dynData->validFlags = 0x0;
     /* allocate destinations */
     dynData->convertedValues
         = (struct hdql_Datum **) hdql_context_alloc(context, sizeof(struct hdql_Datum *)*defData->nQueries);
@@ -127,70 +124,55 @@ _monoid__instantiate
 static hdql_Datum_t
 _monoid__reset
             ( hdql_Datum_t newOwner
-            , hdql_Datum_t prevDynData_
-            , const hdql_Datum_t defData_
-            , struct hdql_Key * key
+            , hdql_Datum_t dynData_, const struct hdql_Datum *defData_
+            , struct hdql_Key *key
             , hdql_Context_t context
             ) {
-    /* Note: following lazy computation logic we do not immediately compute
-     * SMA when new owner is set for the sub-queries. SMA should be computed
-     * only when the value is requested, so we postpone actual calculus to
-     * a "dereference" call. Reset only causes recursive reset of argument
-     * queries
-     * */
-    const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
-    SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, prevDynData_);
-    dynData->validFlags = 0x0;
-    for(size_t i = 0; i < defData->nQueries; ++i) {
-        hdql_query_reset(defData->queries[i], newOwner, key, context);
-    }
-    /* set result to neutral element */
-    defData->monoidDef->set_neutral(dynData->result);
-    return prevDynData_;
-}
-
-static hdql_Datum_t
-_monoid__dereference
-            ( hdql_Datum_t root  /* owning object */
-            , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , const hdql_Datum_t defData_ /* may be NULL */
-            , hdql_Context_t context
-            ) {
-    assert(defData_);
-    assert(dynData_);
     const SMADefData_t *defData = hdql_cast(context, const SMADefData_t, defData_);
     SMADynamicData_t *dynData = hdql_cast(context, SMADynamicData_t, dynData_);
-    assert(dynData->result);
-    if(0x1 & dynData->validFlags) {
-        goto retResult;
-    }
+    
+    /* set result to neutral element */
+    defData->monoidDef->set_neutral(dynData->result);
 
-    hdql_Datum_t locRDatum;
+    /* compute */
+    hdql_Datum_t r;
     for(size_t i = 0; i < defData->nQueries; ++i) {
-        while(!!(locRDatum = hdql_query_get(defData->queries[i], NULL, context))) {
-            dynData->validFlags |= 0x2;
+        r = hdql_query_reset(defData->queries[i], newOwner, key, context);
+        if(!r) {
+            if(!defData->resultDefinedForEmptySet)
+                return NULL;  /* at least one query reset to NULL */
+            else
+                goto returnResult;
+        }
+        if(defData->converters && defData->converters[i]) {
+            /* apply operation with converted */
+            defData->converters[i](dynData->convertedValues[i], r);
+            defData->monoidDef->operation(dynData->result, dynData->convertedValues[i]);
+        } else {
+            /* apply operation without conversion */
+            defData->monoidDef->operation(dynData->result, r);
+        }
+    }
+    for(size_t i = 0; i < defData->nQueries; ++i) {
+        while(!!(r = hdql_query_get(defData->queries[i], NULL, context))) {
             if(defData->converters && defData->converters[i]) {
                 /* apply operation with converted */
-                defData->converters[i](dynData->convertedValues[i], locRDatum);
+                defData->converters[i](dynData->convertedValues[i], r);
                 defData->monoidDef->operation(dynData->result, dynData->convertedValues[i]);
             } else {
                 /* apply operation without conversion */
-                defData->monoidDef->operation(dynData->result, locRDatum);
+                defData->monoidDef->operation(dynData->result, r);
             }
         }
     }
-    dynData->validFlags |= 0x1;
-retResult:
-    if((dynData->validFlags & 0x2) || defData->resultDefinedForEmptySet)
-        return defData->retrieve_result(dynData->result, defData->rTypeCode, context);
-    else
-        return NULL;
+returnResult:
+    return defData->retrieve_result(dynData->result, defData->rTypeCode, context);
 }
 
 static void
 _monoid__destroy
             ( hdql_Datum_t dynData_
-            , const hdql_Datum_t defData_
+            , const struct hdql_Datum *defData_
             , hdql_Context_t context
             ) {
     if(!defData_) return;
@@ -601,10 +583,9 @@ hdql_func_helper__try_monoid(
     /* form interface */
     struct hdql_ScalarAttrInterface iface;
     iface.definitionData = (hdql_Datum_t) dd;
-    iface.instantiate = _monoid__instantiate;
-    iface.dereference = _monoid__dereference;
-    iface.reset       = _monoid__reset;
-    iface.destroy     = _monoid__destroy;
+    iface.new_dyn_data      = _monoid__new_dyn_data;
+    iface.reset             = _monoid__reset;
+    iface.destroy_dyn_data  = _monoid__destroy;
 
     /* create (transient) attribute definition */
     struct hdql_AtomicTypeFeatures typeInfo;

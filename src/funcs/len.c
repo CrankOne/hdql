@@ -17,15 +17,14 @@ typedef struct {
 
 typedef struct {
     uint64_t counter;
-    bool isValid;
     hdql_Bool_t isEmpty;
 } LenEmptyFuncDynData_t;
 
 
 static hdql_Datum_t
-_len_empty__instantiate
+_len_empty__new_dyn_data
             ( hdql_Datum_t newOwner
-            , const hdql_Datum_t defData_
+            , const struct hdql_Datum *defData_
             , hdql_Context_t context
             ) {
     ((void) newOwner);  /* owner unused here */
@@ -34,70 +33,43 @@ _len_empty__instantiate
 }
 
 static hdql_Datum_t
-_len_empty__reset ( hdql_Datum_t newOwner
-            , hdql_Datum_t prevDynData_
-            , const hdql_Datum_t defData_
+_len__reset ( hdql_Datum_t newOwner
+            , hdql_Datum_t dynData_
+            , const struct hdql_Datum *defData_
             , struct hdql_Key * key
             , hdql_Context_t context
             ) {
     assert(defData_);
-    /* Note: following lazy computation logic we do not immediately compute
-     * the length */
-    const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
-    LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, prevDynData_);
-    hdql_query_reset(defData->query, newOwner, key, context);
-    dynData->counter = 0;
-    dynData->isValid = false;
-    dynData->isEmpty = true;
-    return prevDynData_;
-}
-
-static hdql_Datum_t
-_len__dereference
-            ( hdql_Datum_t root  /* owning object */
-            , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , const hdql_Datum_t defData_ /* may be NULL */
-            , hdql_Context_t context
-            ) {
-    assert(defData_);
-    assert(dynData_);
     const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
     LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, dynData_);
-    if(!dynData->isValid) {
-        hdql_Datum_t locRDatum;
-        while(!!(locRDatum = hdql_query_get(defData->query, NULL, context))) {
-            ++(dynData->counter);
-        }
-        dynData->isValid = true;
-    }
+    dynData->counter = 0;
+    for( hdql_Datum_t r = hdql_query_reset(defData->query, newOwner, key, context)
+       ; r
+       ; r = hdql_query_get(defData->query, NULL, context), ++(dynData->counter)) {}
     return (hdql_Datum_t) &dynData->counter;
 }
 
 static hdql_Datum_t
-_empty__dereference
-            ( hdql_Datum_t root  /* owning object */
-            , hdql_Datum_t dynData_  /* allocated with `instantiate()` */
-            , const hdql_Datum_t defData_ /* may be NULL */
+_empty__reset ( hdql_Datum_t newOwner
+            , hdql_Datum_t dynData_
+            , const struct hdql_Datum *defData_
+            , struct hdql_Key * key
             , hdql_Context_t context
             ) {
     assert(defData_);
-    assert(dynData_);
     const LenEmptyFuncDefData_t *defData = hdql_cast(context, const LenEmptyFuncDefData_t, defData_);
     LenEmptyFuncDynData_t *dynData = hdql_cast(context, LenEmptyFuncDynData_t, dynData_);
-    if(!dynData->isValid) {
-        hdql_Datum_t locRDatum;
-        if(!!(locRDatum = hdql_query_get(defData->query, NULL, context))) {
-            dynData->isEmpty = false;
-        }
-        dynData->isValid = true;
-    }
+    dynData->counter = 0;
+    dynData->isEmpty = true;
+    if(hdql_query_reset(defData->query, newOwner, key, context))
+        dynData->isEmpty = false;
     return (hdql_Datum_t) &dynData->isEmpty;
 }
 
 static void
 _len_empty__destroy
             ( hdql_Datum_t dynData_
-            , const hdql_Datum_t defData_
+            , const struct hdql_Datum *defData_
             , hdql_Context_t context
             ) {
     if(!defData_) return;
@@ -150,13 +122,12 @@ hdql_func_helper__try_len_empty(
     /* form interface */
     struct hdql_ScalarAttrInterface iface;
     iface.definitionData = (hdql_Datum_t) dd;
-    iface.instantiate = _len_empty__instantiate;
-    iface.dereference = nm == 'l'
-                      ? _len__dereference
-                      : _empty__dereference
-                      ;
-    iface.reset       = _len_empty__reset;
-    iface.destroy     = _len_empty__destroy;
+    iface.new_dyn_data = _len_empty__new_dyn_data;
+    iface.reset = nm == 'l'
+                ? _len__reset
+                : _empty__reset
+                ;
+    iface.destroy_dyn_data = _len_empty__destroy;
 
     /* create (transient) attribute definition */
     struct hdql_AtomicTypeFeatures typeInfo;

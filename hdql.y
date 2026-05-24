@@ -853,6 +853,14 @@ _new_virtual_compound_query( YYLTYPE * yylloc
         } else {
             iface = _hdql_gFilteredCompoundIFace;
             iface.definitionData = (hdql_Datum_t) filterQuery;
+            const struct hdql_AttrDef *ad = hdql_query_top_attr(filterQuery);
+            if(!hdql_attr_def_is_scalar(ad)) {
+                hdql_error(yylloc, ws, NULL
+                    , "filtering expression result is not a scalar value"
+                    );
+                /*return HDQL_ERR_OPERATION_NOT_SUPPORTED;*/
+                return NULL;
+            }
         }
         vCompoundAttrDef = hdql_attr_def_create_compound_scalar(
                   vCompoundPtr  /* ... compound ptr */

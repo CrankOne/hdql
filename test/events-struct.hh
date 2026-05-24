@@ -122,15 +122,16 @@ struct SelectionTraits< test::SimpleRangeSelection, std::unordered_map<KeyT, Val
     static iterator advance( Container & owner
             , const test::SimpleRangeSelection * sel
             , iterator it) {
+        if(it == owner.end()) return it;
+
         if(!sel) {
-            if(it != owner.end()) ++it;
+            ++it;
             return it;
         }
         do {
             ++it;
         } while( it != owner.end()
-            && (it->first < sel->first || it->first >= sel->second)
-            );
+             && (it->first < sel->first || it->first >= sel->second));
         return it;
     }
 
@@ -170,16 +171,19 @@ template<typename ValueT>
 struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
     using Container = std::vector<ValueT>;
     using iterator = typename Container::iterator;
+
     static iterator advance( Container & owner
             , const test::SimpleRangeSelection * sel
             , iterator it
             ) {
-        if(!sel) {
-            if(it != owner.end()) ++it;
-            return it;
-        }
-        if(owner.end() == it) return it;
-        if(static_cast<size_t>(std::distance(owner.begin(), it)) < sel->second) ++it;
+        if(it == owner.end()) return it;
+        if(!sel) return ++it;
+
+        ++it;
+
+        const size_t d = static_cast<size_t>(std::distance(owner.begin(), it));
+        if(d == sel->second) return owner.end();
+
         return it;
     }
 
@@ -188,7 +192,8 @@ struct SelectionTraits< test::SimpleRangeSelection, std::vector<ValueT> > {
                        , iterator current) {
         if(NULL == sel)
             return owner.begin();
-        if(owner.size() < sel->first) return owner.end();  // sleection range left boundary exceeds vec's size
+        if(owner.size() < sel->first)
+            return owner.end();  // selection range left boundary exceeds vec's size
         auto it = owner.begin();
         std::advance(it, sel->first);
         return it;

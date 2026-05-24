@@ -258,7 +258,11 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
                 , (hdql_Datum_t) &ev, 3, _ctx));
     // check that all combinations passed
     for(const auto & item : check) {
-        EXPECT_TRUE(std::get<0>(item));
+        EXPECT_TRUE(std::get<0>(item)) << "missing item ("
+            << std::get<1>(item) << ", "
+            << std::get<2>(item) << ", "
+            << std::get<3>(item) << ", "
+            << std::get<4>(item);
     }
     hdql_query_destroy(queries[0], _ctx);
     hdql_query_destroy(queries[1], _ctx);

@@ -2,6 +2,7 @@
 #define H_HDQL_CONTEXT_H
 
 #include "hdql/types.h"
+#include "hdql/util/allocator.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,7 +66,8 @@ struct hdql_RandGen;
  *       so one should anticipate copying of the types table to have some sort
  *       of reentrant constant types table.
  * */
-HDQL_API hdql_Context_t hdql_context_create(uint32_t flags);
+HDQL_API hdql_Context_t hdql_context_create(uint32_t flags
+        , const struct hdql_Allocator *allocator);
 
 /**\brief Used for C-types allocations */
 HDQL_API hdql_Datum_t hdql_context_alloc(hdql_Context_t, size_t);
@@ -97,14 +99,32 @@ HDQL_API struct hdql_Constants * hdql_context_get_constants(hdql_Context_t ctx);
 /**\brief Returns context random generator instance*/
 HDQL_API struct hdql_RandGen * hdql_context_get_randgen(hdql_Context_t ctx);
 
-/**\brief Used by parser routines to create virtual compound types */
-HDQL_API void hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );
+/**\brief Used by parser routines to create virtual compound types
+ *
+ * \return HDQL_ERR_CODE_OK on success, HDQL_ERR_MEMORY on failure.
+ * */
+HDQL_API int hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );
 
-/**\brief Used to keep error details in case of unwidning errors */
-HDQL_API void hdql_context_err_push(hdql_Context_t, hdql_Err_t, const char * format, ...);
+/**\brief Used to keep error details in case of unwidning errors
+ *
+ * \return HDQL_ERR_MEMORY on memory failure, otherwise HDQL_ERR_CODE_OK.
+ * */
+HDQL_API int hdql_context_err_push(hdql_Context_t, hdql_Err_t, const char * format, ...);
 
 /**\brief Retrurns true if error stack is not empty */
 HDQL_API bool hdql_context_has_errors(hdql_Context_t);
+
+/**\brief Iterates callback over errors starting from the most recent one 
+ *
+ * Callback returning non-zero will terminate the iteration loop.
+ * \returns code returned by last callback or zero.
+ * */
+HDQL_API int hdql_context_for_every_error(hdql_Context_t
+        , int (*callback)(int rc, const char *msg, void *userdata)
+        , void *userdata );
+
+/**\brief Removes errors associated with the given context instance */
+HDQL_API int hdql_context_wipe_errors(hdql_Context_t);
 
 /**\brief Destroys HDQL expression evaluation context */
 HDQL_API void hdql_context_destroy(hdql_Context_t);
@@ -123,6 +143,22 @@ HDQL_API void hdql_context_destroy(hdql_Context_t);
  * */
 HDQL_API hdql_Context_t hdql_context_create_descendant(hdql_Context_t, uint32_t flags);
 
+/**\brief Registers data by name in the context
+ *
+ * \return
+ * - HDQL_ERR_CODE_OK when new entry is added normally;
+ * - HDQL_ERR_MEMORY when adding failed due to no memory;
+ * - HDQL_ERR_NAME_COLLISION when added entry overwrote existing and \p
+ *   overwrite was not set;
+ * - HDQL_ERR_CODE_OVERRIDDEN when added entry overwrote existing and \p
+ *   overwrite was set;
+ * - HDQL_ERR_GENERIC otherwise (undefined code returned from container
+ *  operation).
+ * */
+HDQL_API int
+hdql_context_custom_data_add(hdql_Context_t context
+        , const char * name, void * ptr, bool overwrite);
+
 /**\brief Creates new function operational instance using known definition
  *
  * \note Implemented in `function.cc` */
@@ -133,56 +169,28 @@ hdql_context_new_function( struct hdql_Context * ctx
         , struct hdql_Func ** dest
         );
 
-/*                                                              ______________
- * ___________________________________________________________/ Variadic data
- */
+/**\brief Returns custom data by name or `NULL`*/
+void *
+hdql_context_custom_data_get( hdql_Context_t context
+                            , const char * name
+                            );
 
-/**\brief Allocates "variadic datum"
+/**\brief Removes custom data entry from context by name
  *
- * \returns NULL on allocation failure.
+ * \p unwind makes the function to recursively unwind contexts if none found
+ * in current.
+ *
+ * \returns 
+ *  - HDQL_ERR_CODE_OK on success
+ *  - HDQL_ERR_UNKNOWN_ATTRIBUTE when no attribute with such name found
+ *  - HDQL_ERR_GENERIC otherwise (undefined code returned from container
+ *    operation)
  * */
-HDQL_API hdql_Datum_t hdql_context_variadic_datum_alloc(hdql_Context_t, uint32_t usedSize, uint32_t preallocSize);
-
-/**\brief Returns used size of "variadic datum" in bytes
- *
- * \returns `UINT32_MAX` on error
- * */
-HDQL_API uint32_t hdql_context_variadic_datum_size(hdql_Context_t, hdql_Datum_t datumPtr);
-
-/**\brief Re-allocates variadic datum ptr
- *
- * \returns null pointer on error pushing error description in the context
- * */
-HDQL_API hdql_Datum_t hdql_context_variadic_datum_realloc(hdql_Context_t, hdql_Datum_t, uint32_t);
-
-/**\brief Deletes variadic datum */
-HDQL_API void hdql_context_variadic_datum_free(hdql_Context_t, hdql_Datum_t);
-
-/*                                               _____________________________
- * ____________________________________________/ Custom arbitrary user's data
- */
-
-/**\brief Binds pointer with context instance
- *
- * Adds custom data pointer to context instance to be further retrieved in
- * user functions by name. Returns `-1` on name collision, `0` on success.
- * Ownership is NOT delegated. */
-HDQL_API int hdql_context_custom_data_add(hdql_Context_t, const char *, void *);
-
-/**\brief Returns user data pointer by name 
- *
- * Returns NULL if name not found. */
-HDQL_API void * hdql_context_custom_data_get(hdql_Context_t, const char *);
-
-/**\brief Erases custom data entry from context
- *
- * Caveat: erasing is performed only within current context ancestry level. If
- * custom data item was added to parent context, this function will not erase
- * it (and returns -1).
- *
- * Return 0 on success, -1 if no custom data found for such name.
- * */
-HDQL_API int hdql_context_custom_data_erase(hdql_Context_t, const char *);
+int
+hdql_context_custom_data_erase( hdql_Context_t context
+                              , const char * name
+                              , bool unwind
+                              );
 
 #ifdef __cplusplus
 }  // extern "C"

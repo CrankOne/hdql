@@ -21,8 +21,11 @@ option (COVERAGE "Enables special compiler flags for coverage tests" OFF)
 option (FORCE_FPIC "Enables -fPIC for compiled code" ON)
 
 set (hdql_LIB hdql )
-set (hdql_SOURCES src/types.cc
-                  src/context.cc
+set (hdql_SOURCES src/util/pcg32.c
+                  src/util/ht.c
+                  src/util/allocator.c
+                  src/types.cc
+                  src/context.c
 	              src/errors.c
 	              src/attr-def.c
 	              src/compound.cc
@@ -33,12 +36,9 @@ set (hdql_SOURCES src/types.cc
                   src/function.cc
                   src/converters.c
                   src/type-promotion-table.c
-                  src/hash-table.c
-                  src/allocator.c
                   src/random.c
                   src/funcs/monoids.c
                   src/funcs/len.c
-                  src/util/pcg32.c
                   src/ifaces/fwd-query-as-collection.c
 	              src/ifaces/fwd-query-as-scalar.c
 	              src/ifaces/arith-op-as-scalar.c
@@ -211,8 +211,8 @@ if(CMAKE_VERSION VERSION_GREATER "3.23")
               include/hdql/query.h
               include/hdql/types.h
               include/hdql/value.h
-              include/hdql/hash-table.h
-              include/hdql/allocator.h
+              include/hdql/util/ht.h
+              include/hdql/util/allocator.h
               include/hdql/helpers/query-results-handler.h
               include/hdql/helpers/compounds.hh
               include/hdql/helpers/functions.hh

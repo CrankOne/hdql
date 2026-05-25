@@ -21,38 +21,68 @@ struct hdql_AttrDef;  /* fwd */
  * */
 struct hdql_Compound;
 
-/**\brief Creates new "static" compound type */
-HDQL_API struct hdql_Compound * hdql_compound_new(const char * name, struct hdql_Context * ctx);
+/**\brief Creates new "static" compound type
+ *
+ * Creates compound defined by user's schema. \p name gets copied using context
+ * allocation.
+ *
+ * \returns New named account instance or NULL if name is empty or memory error
+ *          occured.
+ *
+ * \todo Check, what's the point of postponing context ownership.
+ * */
+HDQL_API struct hdql_Compound *
+hdql_compound_new(const char * name, struct hdql_Context * context);
 
-/**\brief Creates new "virtual" compound type */
-HDQL_API struct hdql_Compound * hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * ctx);
+/**\brief Creates virtual compound type
+ *
+ * Creates nameless compound living in current context. Usually
+ * defined by queries representing group of attributes based on forwarding
+ * queries to non-virtual compounds.
+ *
+ * \returns New named account instance or NULL if memory error
+ *          occured.
+ *
+ * \todo Check, what's the point of postponing context ownership.
+ * */
+HDQL_API struct hdql_Compound *
+hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * context);
 
-/**\breif Destroys virtual compound instance*/
-HDQL_API void hdql_virtual_compound_destroy(struct hdql_Compound *, struct hdql_Context * ctx);
+/**\breif Destroys virtual compound instance
+ *
+ * Destroys transient attributes defined within a virtual compound.
+ *
+ * \returns HDQL_ERR_CODE_OK on proper cleanup, HDQL_ERR_CODE_OK on failure.
+ *
+ * \todo Handle allocator failures.
+ * */
+HDQL_API int hdql_virtual_compound_destroy(struct hdql_Compound *, struct hdql_Context * ctx);
 
 /**\breif Returns parent type of virtual compound */
 HDQL_API const struct hdql_Compound * hdql_virtual_compound_get_parent(const struct hdql_Compound * self);
 
 /**\brief Returns true if compound is virtual */
-HDQL_API int hdql_compound_is_virtual(const struct hdql_Compound * compound);
+HDQL_API bool hdql_compound_is_virtual(const struct hdql_Compound * compound);
 
 /**\brief Returns true if virtual compound is bound */
 HDQL_API bool hdql_virtual_compound_is_bound(const struct hdql_Compound * compound);
 
-/**\brief Returns true if both compounds are of the same type */
+/**\brief Returns true if both compounds are of the same type
+ *
+ * \todo Reserved for possible elaboration in the future.
+ * */
 HDQL_API bool hdql_compound_is_same(const struct hdql_Compound * compoundA, const struct hdql_Compound * compoundB);
 
 /**\brief Adds attribute to compound type definition
  *
  * Attribute name and attribute definition struct instance are copied.
  *
- * \returns   0 on sucess
- * \returns  -1 "name collision"
- * \returns  -2 "index collision"
- * \returns -11 if name NULL or empty
- * \returns -21 "coll. interface definition is not full"
- * \returns -22 "coll. attrs with key retrieval interface must provide key type"
- * \returns -23 "coll. attrs with(out) selectors must provide both ctr and dtr"
+ * \returns
+ * - HDQL_ERR_CODE_OK on sucess;
+ * - HDQL_ERR_NAME_COLLISION "name collision";
+ * - HDQL_ERR_BAD_ARGUMENT if name NULL or empty;
+ * - HDQL_ERR_MEMORY on memory errors;
+ * - HDQL_ERR_GENERIC on unspecified error with hash table.
  * */
 HDQL_API int hdql_compound_add_attr( struct hdql_Compound * instance
                           , const char * attrName
@@ -66,7 +96,10 @@ HDQL_API int hdql_compound_add_attr( struct hdql_Compound * instance
 HDQL_API const struct hdql_AttrDef *
 hdql_compound_get_attr( const struct hdql_Compound *, const char * name );
 
-/**\brief Returns (type) name of the compound object */
+/**\brief Returns (type) name of the compound object
+ *
+ * \note for virtual compounds always returns NULL
+ * */
 HDQL_API const char * hdql_compound_get_name(const struct hdql_Compound *);
 
 /**\brief Prints full compound type string
@@ -87,7 +120,7 @@ hdql_compound_get_full_type_str( const struct hdql_Compound * c
         , char * buf, size_t bufSize
         );
 /**\brief Deletes compound type */
-HDQL_API void hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
+HDQL_API int hdql_compound_destroy(struct hdql_Compound *, hdql_Context_t context);
 
 /**\brief Returns number of compound attributes
  *

@@ -7,6 +7,7 @@
 // Attribute definitions used in these queries are defined in testing event
 // struct compounds.
 
+#include "basic/basic-query.hh"
 #include "events-struct.hh"
 
 #include "hdql/attr-def.h"
@@ -26,35 +27,42 @@
 
 #include "hdql/helpers/compounds.hh"
 #include "hdql/operations.h"
+#include "basic-context.hh"
+
+namespace hdql {
+namespace test {
+
+class CppTemplatedInterfaces : public TestingContext {
+public:
+    void SetUp() override {
+        TestingContext::SetUp();
+        hdql_value_types_table_add_std_types(_valueTypes);
+    }
+};
 
 //                                          __________________________________
 // _______________________________________/ Tests for C++ templated interfaces
 
 //
 // Scalar attribute
-TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
+TEST_F(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", context);
+    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
     compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
     // Add attribute to a compound
     {  // RawData::time
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::RawData::time>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::RawData::time>::type_info(_valueTypes, compounds);
         struct hdql_ScalarAttrInterface iface = hdql::helpers::IFace<&hdql::test::RawData::time>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
                   &typeInfo
                 , &iface
                 , 0x0  // key type code
                 , NULL  // key iface
-                , context
+                , _context
                 );
         hdql_compound_add_attr( rawDataCompound
                               , "time"
@@ -89,7 +97,7 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
             , NULL  // no dynamic data for simple scalar attribute
             , iface->definitionData
             , NULL  // key to (reserved) pointer, optional
-            , context
+            , _context
             );
 
     ASSERT_TRUE(result);
@@ -97,55 +105,46 @@ TEST(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
              , rawDataInstance.time );
 
     // dereference 2nd time with a key (won't be set)
-    hdql_Key_t key = hdql_key_new(context);
+    hdql_Key_t key = hdql_key_new(_context);
     result = iface->reset( reinterpret_cast<hdql_Datum_t>(&rawDataInstance)
             , NULL  // no dynamic data for simple scalar attribute
             , iface->definitionData
             , NULL  // key to (reserved) pointer, optional
-            , context
+            , _context
             );
     EXPECT_TRUE(hdql_key_is_empty(key));
     ASSERT_TRUE(result);
     ASSERT_EQ( *reinterpret_cast<decltype(hdql::test::RawData::time) *>(result)
              , rawDataInstance.time );
 
-    hdql_compound_destroy(rawDataCompound, context);
+    hdql_compound_destroy(rawDataCompound, _context);
 
-    hdql_key_destroy(key, context);
-
-    // delete context
-    hdql_context_destroy(context);
+    hdql_key_destroy(key, _context);
 }  // }}}
 
 //
 // Array of atomic values attribute, no selection
-TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
-    
+TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", context);
+    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
     compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
     // Add attribute to a compound
     {  // RawData::samples[4]
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::RawData::samples>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::RawData::samples>::type_info(_valueTypes, compounds);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::RawData::samples>::iface();
         hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "size_t");
+            = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_NE(0x0, keyTypeCode);
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_collection(
                   &typeInfo
                 , &iface
                 , keyTypeCode
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( rawDataCompound
                               , "samples"
                               , ad);
@@ -181,14 +180,14 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
     ASSERT_NE(0x0, keyTypeCode);
-    const hdql_ValueInterface * keyIFace = hdql_types_get_type(valTypes, keyTypeCode);
+    const hdql_ValueInterface * keyIFace = hdql_types_get_type(_valueTypes, keyTypeCode);
     ASSERT_TRUE(keyIFace);
     ASSERT_GT(keyIFace->size, 0);
 
-    hdql_Key_t key = hdql_key_new(context);
-    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(context, keyIFace->size));
+    hdql_Key_t key = hdql_key_new(_context);
+    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(_context, keyIFace->size));
     {  // assure key is of size_t
-        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(valTypes, "size_t");
+        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_EQ(kCode, hdql_key_datum_get_type_code(key));
     }
 
@@ -199,7 +198,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
         if(0 == i) {
             it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>( &root )
                               , iface->definitionData
-                              , context );
+                              , _context );
         }
         size_t j = 0;
         hdql_Datum_t value = iface->reset_iterator( it
@@ -207,7 +206,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
                 , iface->definitionData
                 , NULL
                 , (i >> 1) ? key : NULL
-                , context );
+                , _context );
         ASSERT_TRUE(value);
         for(; j < nSamples; ++j) {
             EXPECT_EQ(*reinterpret_cast<std::remove_reference<decltype(*hdql::test::RawData::samples)>::type *>(value)
@@ -217,52 +216,43 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
             }
             value = iface->yield(it, iface->definitionData
                     , (i >> 1) ? key : NULL
-                    , context
+                    , _context
                     );
         }
     }
-    iface->destroy_iterator(it, iface->definitionData, context);
-    hdql_key_destroy(key, context);
+    iface->destroy_iterator(it, iface->definitionData, _context);
+    hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(rawDataCompound, context);
-
-    // delete context
-    hdql_context_destroy(context);
-}  // }}} TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection)
+    hdql_compound_destroy(rawDataCompound, _context);
+}  // }}} TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection)
 
 //
 // Array of atomic values attribute, no selection
-TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
-    
+TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", context);
+    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
     compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
     // Add attribute to a compound
     {  // RawData::samples[4]
         struct hdql_AtomicTypeFeatures typeInfo
             = hdql::helpers::IFace< &hdql::test::RawData::samples
                                   , hdql::test::SimpleRangeSelection
-                                  >::type_info(valTypes, compounds);
+                                  >::type_info(_valueTypes, compounds);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace< &hdql::test::RawData::samples
                                   , hdql::test::SimpleRangeSelection
                                   >::iface();
         hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "size_t");
+            = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_NE(0x0, keyTypeCode);
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_collection(
                   &typeInfo
                 , &iface
                 , keyTypeCode
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( rawDataCompound
                               , "samples"
                               , ad);
@@ -298,18 +288,18 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
     ASSERT_NE(0x0, keyTypeCode);
-    const hdql_ValueInterface * keyIFace = hdql_types_get_type(valTypes, keyTypeCode);
+    const hdql_ValueInterface * keyIFace = hdql_types_get_type(_valueTypes, keyTypeCode);
     ASSERT_TRUE(keyIFace);
     ASSERT_GT(keyIFace->size, 0);
 
-    hdql_Key * key = hdql_key_new(context);
-    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(context, keyIFace->size));
+    hdql_Key * key = hdql_key_new(_context);
+    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(_context, keyIFace->size));
     {  // assure key is of size_t
-        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(valTypes, "size_t");
+        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_EQ(kCode, hdql_key_datum_get_type_code(key));
     }
 
-    hdql_SelectionArgs_t selArgs = iface->compile_selection("2:4", iface->definitionData, context);
+    hdql_SelectionArgs_t selArgs = iface->compile_selection("2:4", iface->definitionData, _context);
     ASSERT_TRUE(selArgs);
 
     hdql_It_t it;
@@ -318,7 +308,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
         if(0 == i) {
             it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>( &root )
                               , iface->definitionData
-                              , context );
+                              , _context );
         }
         ASSERT_TRUE(it);
         size_t j = 2;
@@ -327,7 +317,7 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
                 , iface->definitionData
                 , selArgs
                 , (i >> 1) ? key : NULL
-                , context );
+                , _context );
         ASSERT_TRUE(it);
         for(; j < 4; ++j) {
             EXPECT_EQ(*reinterpret_cast<std::remove_reference<decltype(*hdql::test::RawData::samples)>::type *>(value)
@@ -337,39 +327,30 @@ TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
             }
             value = iface->yield(it, iface->definitionData
                     , (i >> 1) ? key : NULL
-                    , context
+                    , _context
                     );
         }
     }
-    iface->destroy_iterator(it, iface->definitionData, context);
-    hdql_key_destroy(key, context);
+    iface->destroy_iterator(it, iface->definitionData, _context);
+    hdql_key_destroy(key, _context);
 
-    iface->free_selection(iface->definitionData, selArgs, context);
-    hdql_compound_destroy(rawDataCompound, context);
-
-    // delete context
-    hdql_context_destroy(context);
-}  // }}} TEST(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection)
+    iface->free_selection(iface->definitionData, selArgs, _context);
+    hdql_compound_destroy(rawDataCompound, _context);
+}  // }}} TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection)
 
 
 //
 // Map of compound values attribute
-TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
-    
+TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compounds
-    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", context);
+    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", _context);
     compounds.emplace(typeid(hdql::test::Hit), hitCompound);
     // Add some attribute to hit compound to distinguish hits
     {  // Hit::energyDeposition
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes, compounds);
         struct hdql_ScalarAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
@@ -377,29 +358,29 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
                 , &iface
                 , 0x0
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( hitCompound
                               , "energyDeposition"
                               , ad);
     }
 
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", context);
+    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
     compounds.emplace(typeid(hdql::test::Track), trackCompound);
     {  // Track::hits
         struct hdql_Compound * typeInfo
-            = hdql::helpers::IFace<&hdql::test::Track::hits>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Track::hits>::type_info(_valueTypes, compounds);
         assert(typeInfo == hitCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Track::hits>::iface();
         hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "uint32_t");  // TODO: DetID_t
+            = hdql_types_get_type_code(_valueTypes, "uint32_t");  // TODO: DetID_t
         ASSERT_NE(0x0, keyTypeCode);
         struct hdql_AttrDef * ad = hdql_attr_def_create_compound_collection(
                   typeInfo
                 , &iface
                 , keyTypeCode
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( trackCompound
                               , "hits"
                               , ad);
@@ -443,23 +424,23 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
     ASSERT_NE(0x0, keyTypeCode);
-    const hdql_ValueInterface * keyIFace = hdql_types_get_type(valTypes, keyTypeCode);
+    const hdql_ValueInterface * keyIFace = hdql_types_get_type(_valueTypes, keyTypeCode);
     ASSERT_TRUE(keyIFace);
     ASSERT_GT(keyIFace->size, 0);
 
-    hdql_Key * key = hdql_key_new(context);
-    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(context, keyIFace->size));
+    hdql_Key * key = hdql_key_new(_context);
+    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(_context, keyIFace->size));
     {  // assure key is of size_t
-        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(valTypes, "unsigned int");
+        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(_valueTypes, "unsigned int");
         ASSERT_EQ(kCode, hdql_key_datum_get_type_code(key));
     }
 
     std::set<hdql::test::DetID_t> hitOccurencies;
-    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, context );
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, _context );
     for( hdql_Datum_t hit_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&track)
-                    , iface->definitionData, NULL, key, context)
+                    , iface->definitionData, NULL, key, _context)
        ; hit_
-       ; hit_ = iface->yield(it, iface->definitionData, key, context) ) {
+       ; hit_ = iface->yield(it, iface->definitionData, key, _context) ) {
         // add key to counts
         hdql::test::DetID_t hitID = *reinterpret_cast<hdql::test::DetID_t*>(hdql_key_datum_get(key));
         if(hitID == 101 || hitID == 102) {
@@ -480,33 +461,24 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
     iit = hitOccurencies.find(301);
     EXPECT_NE(hitOccurencies.end(), iit);
 
-    iface->destroy_iterator(it, iface->definitionData, context);
+    iface->destroy_iterator(it, iface->definitionData, _context);
 
-    hdql_key_destroy(key, context);
+    hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(trackCompound, context);
-    hdql_compound_destroy(hitCompound, context);
+    hdql_compound_destroy(trackCompound, _context);
+    hdql_compound_destroy(hitCompound, _context);
+}  // }}} TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection)
 
-    // delete context
-    hdql_context_destroy(context);
-}  // }}} TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection)
-
-TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
-    
+TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compounds
-    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", context);
+    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", _context);
     compounds.emplace(typeid(hdql::test::Hit), hitCompound);
     // Add some attribute to hit compound to distinguish hits
     {  // Hit::energyDeposition
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes, compounds);
         struct hdql_ScalarAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
@@ -514,33 +486,33 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
                 , &iface
                 , 0x0
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( hitCompound
                               , "energyDeposition"
                               , ad);
     }
 
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", context);
+    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
     compounds.emplace(typeid(hdql::test::Track), trackCompound);
     {  // Track::hits
         struct hdql_Compound * typeInfo
             = hdql::helpers::IFace< &hdql::test::Track::hits
                                   , hdql::test::SimpleRangeSelection  // < note sel type
-                                  >::type_info(valTypes, compounds);
+                                  >::type_info(_valueTypes, compounds);
         assert(typeInfo == hitCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace< &hdql::test::Track::hits
                                   , hdql::test::SimpleRangeSelection  // < note sel type
                                   >::iface();
         hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "uint32_t");  // TODO: DetID_t
+            = hdql_types_get_type_code(_valueTypes, "uint32_t");  // TODO: DetID_t
         ASSERT_NE(0x0, keyTypeCode);
         struct hdql_AttrDef * ad = hdql_attr_def_create_compound_collection(
                   typeInfo
                 , &iface
                 , keyTypeCode
                 , NULL  // key type iface 
-                , context );
+                , _context );
         hdql_compound_add_attr( trackCompound
                               , "hits"
                               , ad);
@@ -584,27 +556,27 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
     ASSERT_NE(0x0, keyTypeCode);
-    const hdql_ValueInterface * keyIFace = hdql_types_get_type(valTypes, keyTypeCode);
+    const hdql_ValueInterface * keyIFace = hdql_types_get_type(_valueTypes, keyTypeCode);
     ASSERT_TRUE(keyIFace);
     ASSERT_GT(keyIFace->size, 0);
 
-    hdql_Key * key = hdql_key_new(context);
-    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(context, keyIFace->size));
+    hdql_Key * key = hdql_key_new(_context);
+    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(_context, keyIFace->size));
     {  // assure key is of size_t
-        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(valTypes, "unsigned int");
+        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(_valueTypes, "unsigned int");
         ASSERT_EQ(kCode, hdql_key_datum_get_type_code(key));
     }
 
     // create selection
-    hdql_SelectionArgs_t selArgs = iface->compile_selection("102:250", iface->definitionData, context);
+    hdql_SelectionArgs_t selArgs = iface->compile_selection("102:250", iface->definitionData, _context);
     ASSERT_TRUE(selArgs);
 
     std::set<hdql::test::DetID_t> hitOccurencies;
-    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, context );
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&track), iface->definitionData, _context );
     for( hdql_Datum_t hit_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&track)
-                , iface->definitionData, selArgs, key, context)
+                , iface->definitionData, selArgs, key, _context)
        ; hit_
-       ; hit_ = iface->yield(it, iface->definitionData, key, context) ) {
+       ; hit_ = iface->yield(it, iface->definitionData, key, _context) ) {
         // try to dereference iterator (may fail)
         if(!hit_) break;  // if dereference failed, sequence is depleted
         // add key to counts
@@ -624,51 +596,42 @@ TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
     iit = hitOccurencies.find(301);
     EXPECT_EQ(hitOccurencies.end(), iit) << "Hit #301 passed the selection, while it must not";
 
-    iface->free_selection(iface->definitionData, selArgs, context);
+    iface->free_selection(iface->definitionData, selArgs, _context);
 
-    iface->destroy_iterator(it, iface->definitionData, context);
+    iface->destroy_iterator(it, iface->definitionData, _context);
 
-    hdql_key_destroy(key, context);
+    hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(trackCompound, context);
-    hdql_compound_destroy(hitCompound, context);
-
-    // delete context
-    hdql_context_destroy(context);
-}  // }}} TEST(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection)
+    hdql_compound_destroy(trackCompound, _context);
+    hdql_compound_destroy(hitCompound, _context);
+}  // }}} TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection)
 
 //
 // Vector of compound values attribute
-TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
-    // Instantiate context
-    hdql_Context_t context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_ValueTypes * valTypes = hdql_context_get_types(context);
-    assert(valTypes);
-    hdql_value_types_table_add_std_types(valTypes);
-    
+TEST_F(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     // Create compounds index helper
     hdql::helpers::Compounds compounds;
     // Create new compounds
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", context);
+    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
     compounds.emplace(typeid(hdql::test::Track), trackCompound);
 
-    struct hdql_Compound * eventCompound = hdql_compound_new("Event", context);
+    struct hdql_Compound * eventCompound = hdql_compound_new("Event", _context);
     compounds.emplace(typeid(hdql::test::Event), eventCompound);
     {  // Track::hits
         struct hdql_Compound * typeInfo
-            = hdql::helpers::IFace<&hdql::test::Event::tracks>::type_info(valTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Event::tracks>::type_info(_valueTypes, compounds);
         assert(typeInfo == trackCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Event::tracks>::iface();
         hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "size_t");
+            = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_NE(0x0, keyTypeCode);
         struct hdql_AttrDef * ad = hdql_attr_def_create_compound_collection(
                   typeInfo
                 , &iface
                 , keyTypeCode
                 , NULL  // key type iface
-                , context );
+                , _context );
         hdql_compound_add_attr( trackCompound
                               , "tracks"
                               , ad);
@@ -712,23 +675,23 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     // Reserve key
     hdql_ValueTypeCode_t keyTypeCode = hdql_attr_def_get_key_type_code(ad);
     ASSERT_NE(0x0, keyTypeCode);
-    const hdql_ValueInterface * keyIFace = hdql_types_get_type(valTypes, keyTypeCode);
+    const hdql_ValueInterface * keyIFace = hdql_types_get_type(_valueTypes, keyTypeCode);
     ASSERT_TRUE(keyIFace);
     ASSERT_GT(keyIFace->size, 0);
 
-    hdql_Key * key = hdql_key_new(context);
-    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(context, keyIFace->size));
+    hdql_Key * key = hdql_key_new(_context);
+    hdql_key_set_datum(key, keyTypeCode, hdql_context_alloc(_context, keyIFace->size));
     {  // assure key is of size_t
-        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(valTypes, "size_t");
+        hdql_ValueTypeCode_t kCode = hdql_types_get_type_code(_valueTypes, "size_t");
         ASSERT_EQ(kCode, hdql_key_datum_get_type_code(key));
     }
 
     std::set<size_t> trackOccurences;
-    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&event), iface->definitionData, context );
+    hdql_It_t it = iface->new_iterator( reinterpret_cast<hdql_Datum_t>(&event), iface->definitionData, _context );
     for( hdql_Datum_t track_ = iface->reset_iterator(it, reinterpret_cast<hdql_Datum_t>(&event)
-                , iface->definitionData, NULL, key, context)
+                , iface->definitionData, NULL, key, _context)
        ; track_
-       ; track_ = iface->yield(it, iface->definitionData, key, context) ) {
+       ; track_ = iface->yield(it, iface->definitionData, key, _context) ) {
         if(!track_) break;  // if dereference failed, sequence is depleted
         // add key to counts
         size_t trackNo = *reinterpret_cast<size_t*>(hdql_key_datum_get(key));
@@ -745,13 +708,13 @@ TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
     }
     EXPECT_EQ(trackOccurences.size(), 4);
 
-    iface->destroy_iterator(it, iface->definitionData, context);
-    hdql_key_destroy(key, context);
+    iface->destroy_iterator(it, iface->definitionData, _context);
+    hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(trackCompound, context);
-    hdql_compound_destroy(eventCompound, context);
+    hdql_compound_destroy(trackCompound, _context);
+    hdql_compound_destroy(eventCompound, _context);
+}  // }}} TEST_F(CppTemplatedInterfaces, VectorCompoundAttributeAccess)
 
-    // delete context
-    hdql_context_destroy(context);
-}  // }}} TEST(CppTemplatedInterfaces, VectorCompoundAttributeAccess)
+}  // namespace ::hdql::test
+}  // namespace test
 

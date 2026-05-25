@@ -192,7 +192,7 @@ protected:
         int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first line, first column, last line, last column
         hdql_Query * q = hdql_compile_query( queryExpr
                               , _rootCompound
-                              , _ctx
+                              , _context
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -204,9 +204,8 @@ protected:
         // instantiate DSV workspace
         struct hdql_QueryResultsWorkspace * ws = hdql_query_results_init(
                   q
-                , NULL  // const char ** attrs
                 , &_iqr  // struct hdql_iQueryResultsHandler * iqr
-                , _ctx  // struct hdql_Context * ctx
+                , _context  // struct hdql_Context * ctx
                 );
         ASSERT_TRUE(ws != NULL)
             << "failed to initialize results handler workspace";
@@ -222,7 +221,7 @@ protected:
         // NOTE: query has to be destroyed AFTER the resuls handler since
         //       handler's composition depends on the query. (TODO: destroy in processing?)
         hdql_query_results_handler_csv_cleanup(&_iqr);
-        hdql_query_destroy(q, _ctx);
+        hdql_query_destroy(q, _context);
 
         check_csv_match_unordered(expectedOutput, _buf);  // check results
     }
@@ -250,7 +249,7 @@ protected:
             , .unlabeledKeyColumnFormat = "key%zu"
         };
 
-        rc = hdql_query_results_handler_csv_init(&_iqr, _ss, &fmt, _ctx);
+        rc = hdql_query_results_handler_csv_init(&_iqr, _ss, &fmt, _context);
         ASSERT_EQ(0, rc);
     }
 

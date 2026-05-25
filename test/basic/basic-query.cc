@@ -8,12 +8,10 @@ namespace hdql {
 namespace test {
 
 void BasicQuery::SetUp() {
-    _context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    ASSERT_TRUE(_context);
+    TestingContext::SetUp();
 }
 
 void BasicQuery::TearDown() {
-    if(!_context) return;
     if(_q)
         hdql_query_destroy(_q, _context);
     if(_ad)

@@ -8,6 +8,7 @@
     /* ... */
 
 /* General codes */
+#define HDQL_ERR_CODE_OVERRIDDEN            1   /* record has been overridden */
 #define HDQL_ERR_CODE_OK                    0   /* not an error, ok return code */
 #define HDQL_ERR_GENERIC                   -1   /* unspecified common error */
 #define HDQL_ERR_MEMORY                    -2   /* memory allocation error */

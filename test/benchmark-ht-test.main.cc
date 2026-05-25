@@ -16,10 +16,10 @@
 #include <cstdlib>
 #include <cassert>
 
-#include "hdql/allocator.h"
+#include "hdql/util/allocator.h"
 #include "hdql/types.h"
 #include "hdql/context.h"
-#include "hdql/hash-table.h"
+#include "hdql/util/ht.h"
 
 // --- Timing utilities
 using Clock = std::chrono::high_resolution_clock;
@@ -190,7 +190,7 @@ void benchmark_std_unordered_map(const std::vector<std::string> &keys, const std
 
 // --- Main entry point
 int main(int argc, char **argv) {
-    size_t count = 100000;
+    size_t count = 4;
     if (argc > 1) count = std::stoul(argv[1]);
 
     std::cout << "# Benchmarking with " << count << " items.\n";

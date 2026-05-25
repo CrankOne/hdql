@@ -111,7 +111,7 @@ namespace test {
 
 helpers::CompoundTypes
 TestingEventStruct::_define_compounds(struct hdql_Context * ctx, hdql_Compound *& eventCompound) {
-    helpers::CompoundTypes compounds = ::hdql::test::define_test_event_compound(_ctx);
+    helpers::CompoundTypes compounds = ::hdql::test::define_test_event_compound(_context);
     if(compounds.empty()) throw std::runtime_error("failed to initialize type tables");
     {
         auto it = compounds.find(typeid(hdql::test::Event));

@@ -6,21 +6,21 @@ namespace test {
 
 void
 TestingContext::SetUp() {
-    _ctx = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR);
-    hdql_rand_seed(hdql_context_get_randgen(_ctx), 0xdeadbeef, 0 );
+    _context = hdql_context_create(HDQL_CTX_PRINT_PUSH_ERROR, &hdql_gHeapAllocator);
+    hdql_rand_seed(hdql_context_get_randgen(_context), 0xdeadbeef, 0 );
 
     // reentrant table with type interfaces
-    _valueTypes = hdql_context_get_types(_ctx);
+    _valueTypes = hdql_context_get_types(_context);
     // add standard (int, float, etc) types
     hdql_value_types_table_add_std_types(_valueTypes);
     // reentrant table with operations
-    _operations = hdql_context_get_operations(_ctx);
+    _operations = hdql_context_get_operations(_context);
     hdql_op_define_std_arith(_operations, _valueTypes);
 }
 
 void
 TestingContext::TearDown() {
-    hdql_context_destroy(_ctx);
+    hdql_context_destroy(_context);
 }
 
 }  // namespace ::hdql::test

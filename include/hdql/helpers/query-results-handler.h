@@ -16,7 +16,7 @@ struct hdql_QueryResultsWorkspace;  /* opaque */
  *
  * This helper interface is meant to simplify integration with query object
  * defining a rule to populate table with query results. The query always
- * evaluates to scalar instance, producing a series
+ * evaluates to a scalar instance, producing a series
  * of ((key1, key22, ...), value) pair every time it is advanced. In the
  * simplest case the value is atomic scalar value (of arithmetic or string
  * type). More elaborated and very important scenario is when the value is
@@ -32,16 +32,16 @@ struct hdql_iQueryResultsHandler {
 
     /**\brief Handles query result's type (attr.definition)
      *
-     * Interface implementation uses it to prepare streaming schema as
-     * provided "attribute definition" brings all the introspeciton information
-     * about query result types.
+     * Interface implementation should use it to prepare streaming schema since
+     * attribute definition brings all the introspeciton information about
+     * query result types.
      *
-     * Called in `hdql_query_result_table_init()`. */
+     * Called in `hdql_query_results_init()`. */
     int (*handle_result_type)(const struct hdql_AttrDef *, void *);
 
     /**\brief Callback to handle keys definition
      *
-     * Called in `hdql_query_result_table_init()`.
+     * Called in `hdql_query_results_init()`.
      * */
     int (*handle_keys)(struct hdql_Key * keys
             , struct hdql_Key ** flatKeyViews
@@ -54,7 +54,7 @@ struct hdql_iQueryResultsHandler {
      * May be used by implementing object to finalize caches related to
      * attributes and keys definition.
      *
-     * Called in `hdql_query_result_table_init()` when not null. */
+     * Called in `hdql_query_results_init()` when not null. */
     int (*finalize_schema)(void * userdata);
 
     int (*handle_record)(hdql_Datum_t, void *);
@@ -63,7 +63,6 @@ struct hdql_iQueryResultsHandler {
 struct hdql_QueryResultsWorkspace *
 hdql_query_results_init(
           struct hdql_Query * q
-        , const char ** attrs
         , struct hdql_iQueryResultsHandler * iqr
         , struct hdql_Context * ctx
         );

@@ -2,8 +2,8 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
-#include "hdql/allocator.h"
-#include "hdql/hash-table.h"
+#include "hdql/util/allocator.h"
+#include "hdql/util/ht.h"
 #include "hdql/context.h"
 #include "hdql/types.h"
 

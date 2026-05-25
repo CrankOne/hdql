@@ -28,7 +28,7 @@
 
 static int
 test_query_on_data( int nSample, const char * expression ) {
-    hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
+    hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR, &hdql_gHeapAllocator );
     hdql_rand_seed(hdql_context_get_randgen(ctx), 0xdeadbeef, 0 );
 
     // reentrant table with type interfaces

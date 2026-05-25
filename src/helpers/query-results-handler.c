@@ -53,7 +53,6 @@ _query_result_table_init_keys( struct hdql_QueryResultsWorkspace * ws ) {
 struct hdql_QueryResultsWorkspace *
 hdql_query_results_init(
           struct hdql_Query * q
-        , const char ** attrs
         , struct hdql_iQueryResultsHandler * iqr
         , struct hdql_Context * ctx
         ) {

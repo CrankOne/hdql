@@ -71,7 +71,7 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
     ASSERT_TRUE(vi2 != NULL);
 
     // re-set the product, getting first item in a list
-    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 2, _ctx);
+    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 2, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
     
     // build test set: a vector of items that must be found in the cartesian
@@ -100,15 +100,15 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
             << "product yielded combination ("
             << v1 << ", " << v2 << ") which is not anticipated";
     } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, NULL, values
-                , (hdql_Datum_t) &ev, 2, _ctx));
+                , (hdql_Datum_t) &ev, 2, _context));
     // check that all combinations passed
     for(const auto & item : check) {
         EXPECT_TRUE(std::get<0>(item)) << " item ("
             << std::get<1>(item) << ", " << std::get<2>(item)
             << ") was not produced by product";
     }
-    hdql_query_destroy(queries[0], _ctx);
-    hdql_query_destroy(queries[1], _ctx);
+    hdql_query_destroy(queries[0], _context);
+    hdql_query_destroy(queries[1], _context);
 }  // worksOnTwoSeriesWithoutKeys
 
 TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
@@ -217,7 +217,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     };
     
     // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 3, _ctx);
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 3, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
 
     do {
@@ -255,7 +255,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
             << ", k31=" << k31 << ", k32=" << k32 << ", k33=" << k33 << ", "
             << v1 << ", " << v2 << ", " << v3 << ") which is not anticipated";
     } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, key, values
-                , (hdql_Datum_t) &ev, 3, _ctx));
+                , (hdql_Datum_t) &ev, 3, _context));
     // check that all combinations passed
     for(const auto & item : check) {
         EXPECT_TRUE(std::get<0>(item)) << "missing item ("
@@ -264,9 +264,9 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
             << std::get<3>(item) << ", "
             << std::get<4>(item);
     }
-    hdql_query_destroy(queries[0], _ctx);
-    hdql_query_destroy(queries[1], _ctx);
-    hdql_query_destroy(queries[2], _ctx);
+    hdql_query_destroy(queries[0], _context);
+    hdql_query_destroy(queries[1], _context);
+    hdql_query_destroy(queries[2], _context);
 
     hdql_key_destroy(key, _compounds.context_ptr());
 }  // worksOnThreeSeriesWithKeys
@@ -301,7 +301,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithoutKeys) {
     ASSERT_TRUE(vi1 != NULL);
 
     // re-set the product, getting first item in a list
-    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 1, _ctx);
+    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 1, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
     
     // build test set: a vector of items that must be found in the cartesian
@@ -328,14 +328,14 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithoutKeys) {
             << "product yielded ("
             << v1 << ") which is not anticipated";
     } while(HDQL_ERR_CODE_OK == hdql_query_product_advance(queries, NULL, values
-                , (hdql_Datum_t) &ev, 1, _ctx));
+                , (hdql_Datum_t) &ev, 1, _context));
     // check that all combinations passed
     for(const auto & item : check) {
         EXPECT_TRUE(std::get<0>(item)) << " item ("
             << std::get<1>(item)
             << ") was not produced by product";
     }
-    hdql_query_destroy(queries[0], _ctx);
+    hdql_query_destroy(queries[0], _context);
 }  // worksOnSingleQueryWithoutKeys
 
 TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
@@ -390,7 +390,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
                 , hdql_key_datum_get_type_code(flkvs_[0]));
 
     // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _ctx);
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK) << "error creating query product";
     do {
         int k11 = kvif->get_as_int(hdql_key_datum_get(flkvs_[0]));
@@ -409,7 +409,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
             << "product yielded ("
             << v1 << ") which is not anticipated";
     } while(HDQL_ERR_CODE_OK == (rc = hdql_query_product_advance(queries, key, values
-                , (hdql_Datum_t) &ev, 1, _ctx)));
+                , (hdql_Datum_t) &ev, 1, _context)));
     EXPECT_EQ(rc, HDQL_ERR_EMPTY_SET);
     // check that all combinations passed
     for(const auto & item : check) {
@@ -417,8 +417,8 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
             << std::get<1>(item)
             << ") was not produced by product";
     }
-    hdql_query_destroy(queries[0], _ctx);
-    hdql_key_destroy(key, _ctx);
+    hdql_query_destroy(queries[0], _context);
+    hdql_key_destroy(key, _context);
 }  // worksOnSingleQueryWithKeys
 
 
@@ -452,19 +452,19 @@ TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
 
     // allocate keys storage and their flat views
     hdql_Key * key = hdql_key_new(_compounds.context_ptr());
-    int rc = hdql_query_product_reserve_key(queries, key, 1, _ctx);
+    int rc = hdql_query_product_reserve_key(queries, key, 1, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
-    size_t flkl1 = hdql_key_flat_view_size(key, _ctx);
+    size_t flkl1 = hdql_key_flat_view_size(key, _context);
     ASSERT_GT(flkl1, 0);
     ASSERT_EQ(flkl1, 1);
     std::vector<hdql_Key*> kv1(flkl1, NULL);
     hdql_key_flat_view_populate(key, kv1.data());
 
     // re-set the product, getting first item in a list
-    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _ctx);
+    rc = hdql_query_product_reset(queries, key, values, (hdql_Datum_t) &ev, 1, _context);
     ASSERT_EQ(rc, HDQL_ERR_EMPTY_SET);
-    hdql_key_destroy(key, _ctx);
-    hdql_query_destroy(queries[0], _ctx);
+    hdql_key_destroy(key, _context);
+    hdql_query_destroy(queries[0], _context);
 }  // singleEmptyQueryYieldsEmptySet
 
 TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
@@ -513,10 +513,10 @@ TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
     ASSERT_TRUE(vi2 != NULL);
 
     // re-set the product, getting first item in a list
-    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 2, _ctx);
+    int rc = hdql_query_product_reset(queries, NULL, values, (hdql_Datum_t) &ev, 2, _context);
     EXPECT_EQ(rc, HDQL_ERR_EMPTY_SET);
-    hdql_query_destroy(queries[0], _ctx);
-    hdql_query_destroy(queries[1], _ctx);
+    hdql_query_destroy(queries[0], _context);
+    hdql_query_destroy(queries[1], _context);
 }  // twoQueryYieldsEmptySet
 
 }  // namespace ::hdql::test

@@ -26,7 +26,7 @@
 
 static int
 test_query_on_data( int nSample, const char * expression ) {
-    hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR );
+    hdql_Context_t ctx = hdql_context_create( HDQL_CTX_PRINT_PUSH_ERROR, &hdql_gHeapAllocator );
 
     // reentrant table with type interfaces
     hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
@@ -105,7 +105,6 @@ test_query_on_data( int nSample, const char * expression ) {
         /* common: instantiate workspace, relying on specified results handler */
         struct hdql_QueryResultsWorkspace * ws = hdql_query_results_init(
                   q
-                , NULL  // const char ** attrs
                 , &iqr  // struct hdql_iQueryResultsHandler * iqr
                 , ctx  // struct hdql_Context * ctx
                 );

@@ -23,7 +23,8 @@ void
 TestCompiledQuery::SetUp() {
     TestingContext::SetUp();
     // this is the compound types definitions
-    _compounds = _define_compounds(_ctx, _rootCompound);
+    _compounds = _define_compounds(_context, _rootCompound);
+    //ASSERT_NE(_compounds.context_ptr(), _context);
 }
 
 void
@@ -95,12 +96,12 @@ TestCompiledQuery::TearDown() {
     if(_query)
         hdql_query_destroy(_query, _compounds.context_ptr());
     // sic! in this order: non-virtual compounds get destroyed AFTER context as
-    // they are used to resolve attribute definitions in queries while cleaning
-    // up queries
-    TestingContext::TearDown();
+    // they are used to resolve attribute definitions in forwarding queries
+    // while virtual compounds get deleted
     for(auto & ce : _compounds) {
         hdql_compound_destroy(ce.second, _compounds.context_ptr());
     }
+    TestingContext::TearDown();
 }
 
 }  // namespace ::hdql::test

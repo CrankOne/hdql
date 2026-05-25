@@ -341,6 +341,9 @@ HDQL_API int hdql_attr_def_reserve_key(const struct hdql_AttrDef *, struct hdql_
  * Similar to `hdql_query_top_attr()`. */
 HDQL_API hdql_AttrDef_t hdql_attr_def_top_attr(const struct hdql_AttrDef *);
 
+/**\brief Destroys attribute definition
+ *
+ * \todo Handle allocator failures. */
 HDQL_API void hdql_attr_def_destroy(hdql_AttrDef_t, hdql_Context_t);
 
 /**\brief Puts short one-line string describing attribute definition into strbuf

@@ -49,6 +49,9 @@ struct hdql_Key * hdql__keys_next(struct hdql_Key * k);
 struct hdql_Key * hdql__keys_prev(struct hdql_Key * k);
 bool hdql__key_is_terminal(const struct hdql_Key * k);
 
+/* from src/compound.c */
+struct hdql_Allocator *hdql__context_get_allocator(struct hdql_Context *);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

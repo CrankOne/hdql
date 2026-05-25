@@ -5,6 +5,8 @@ hdql_err_str(hdql_Err_t code) {
     switch(code) {
         case HDQL_ERR_CODE_OK:
             return "not an error, ok return code";
+        case HDQL_ERR_CODE_OVERRIDDEN:
+            return "record has been overridden";
         case HDQL_ERR_GENERIC:
             return "unspecified common error";
         case HDQL_ERR_MEMORY:

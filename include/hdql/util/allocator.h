@@ -8,9 +8,12 @@ extern "C" {
 #endif
 
 struct hdql_Allocator {
+    /** User payload for allocator of type */
     void * userdata;
+    /**\return ptr to mem block on success, NULL on failure */
     void * (*alloc)(size_t size, void * userdata);
-    void (*free)(void * data, void * userdata);
+    /**\return 0 on success, 1 on failure */
+    int (*free)(void * data, void * userdata);
 };
 
 HDQL_API extern const struct hdql_Allocator hdql_gHeapAllocator;

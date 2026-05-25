@@ -1,10 +1,8 @@
-#include "hdql/hash-table.h"
+#include "hdql/util/ht.h"
 
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
-
-#include <stdio.h>  // XXX
 
 typedef struct hdql_htEntry {
     /* Item key, as is */
@@ -29,17 +27,7 @@ struct hdql_ht {
     size_t hashSeed;
 };
 
-#if 0
-// A little slower than murmur (!)
-static uint32_t djb2_hash(const char *str) {
-    uint32_t hash = 5381;
-    int c;
-    while ((c = *str++)) hash = ((hash << 5) + hash) + (uint32_t)c;
-    return hash;
-}
-
-#define murmur3_32(s, l, ss) djb2_hash((const char*) s)
-#else
+size_t hdql_ht_size(const struct hdql_ht *ht) { return ht->size; }
 
 /*
  * Murmur32 hash func assets
@@ -81,11 +69,10 @@ static uint32_t murmur3_32(const uint8_t *key, size_t len, uint32_t seed) {
 
     return h;
 }
-#endif
 
-hdql_ht *
-hdql_ht_create(const struct hdql_Allocator * a, size_t dftCap, size_t hashSeed) {
-    hdql_ht * ht = (hdql_ht *) a->alloc(sizeof(hdql_ht), a->userdata);
+struct hdql_ht *
+hdql_ht_create(const struct hdql_Allocator *a, size_t dftCap, size_t hashSeed) {
+    struct hdql_ht *ht = (struct hdql_ht *) a->alloc(sizeof(struct hdql_ht), a->userdata);
     if (!ht) return NULL;  /* Error: can't allocate ht instance */
     ht->buckets = (hdql_ht_entry **) a->alloc(
                   (1u << dftCap) * sizeof(hdql_ht_entry *)
@@ -105,10 +92,10 @@ hdql_ht_create(const struct hdql_Allocator * a, size_t dftCap, size_t hashSeed) 
 }
 
 struct hdql_htEntry *
-hdql_ht_lookup( const hdql_ht * ht
-        , const unsigned char * key
+hdql_ht_lookup( const struct hdql_ht *ht
+        , const unsigned char *key
         , size_t keyLen
-        , size_t * nb
+        , size_t *nb
         ) {
     assert(nb);
     const uint32_t h  = murmur3_32(key, keyLen, ht->hashSeed);
@@ -127,7 +114,39 @@ hdql_ht_lookup( const hdql_ht * ht
 }
 
 int
-hdql_ht_ins( hdql_ht * ht
+hdql_ht_ins_cached(
+             struct hdql_ht *ht
+           , const unsigned char *key, size_t keyLen
+           , void * value
+           , struct hdql_htEntry *entry_
+           , const size_t nb
+           ) {
+    hdql_ht_entry *entry = (hdql_ht_entry *) entry_;
+    unsigned char * keyCopy
+        = (unsigned char *) ht->allocator.alloc(keyLen, ht->allocator.userdata);
+    if(!keyCopy) {
+        return HDQL_HT_ERR_MEM;  /* Error: failed to allocate key copy */
+    }
+    memcpy(keyCopy, key, keyLen);
+
+    entry = (hdql_ht_entry *) ht->allocator.alloc(sizeof(hdql_ht_entry)
+            , ht->allocator.userdata);
+    if(!entry) {
+        ht->allocator.free(keyCopy, ht->allocator.userdata);
+        return HDQL_HT_ERR_MEM;  /* Error: failed to allocate new entry */
+    }
+
+    entry->key = keyCopy;
+    entry->keySize = keyLen;
+    entry->value = value;
+    entry->next = ht->buckets[nb];
+    ht->buckets[nb] = entry;
+    ++ht->size;
+    return HDQL_HT_RC_INSERTED;  /* inserted new item */
+}
+
+int
+hdql_ht_ins( struct hdql_ht * ht
            , const unsigned char * key, size_t keyLen
            , void * value
            ) {
@@ -147,31 +166,11 @@ hdql_ht_ins( hdql_ht * ht
         return HDQL_HT_RC_UPDATED;  /* updated */
     }
     /* otherwise, insert new entry */
-    unsigned char * keyCopy
-        = (unsigned char *) ht->allocator.alloc(keyLen, ht->allocator.userdata);
-    if(!keyCopy) {
-        return HDQL_HT_ERR_MEM;  /* Error: failed to allocate key copy */
-    }
-    memcpy(keyCopy, key, keyLen);
-
-    entry = (hdql_ht_entry *) ht->allocator.alloc(sizeof(hdql_ht_entry)
-            , ht->allocator.userdata);
-    if(!entry) {
-        ht->allocator.free(keyCopy, ht->allocator.userdata);
-        return -3;  /* Error: failed to allocate new entry */
-    }
-
-    entry->key = keyCopy;
-    entry->keySize = keyLen;
-    entry->value = value;
-    entry->next = ht->buckets[nb];
-    ht->buckets[nb] = entry;
-    ++ht->size;
-    return HDQL_HT_RC_INSERTED;  /* inserted new item */
+    return hdql_ht_ins_cached(ht, key, keyLen, value, (struct hdql_htEntry *) entry, nb);
 }
 
 void *
-hdql_ht_get(const hdql_ht *ht, const unsigned char * key, size_t keyLen) {
+hdql_ht_get(const struct hdql_ht *ht, const unsigned char * key, size_t keyLen) {
     /* Benchmarks show visible constant slowdown because of additional
      * arguments and redirections for few (1-30) entries. */
     #if 1
@@ -196,7 +195,7 @@ hdql_ht_get(const hdql_ht *ht, const unsigned char * key, size_t keyLen) {
 }
 
 int
-hdql_ht_remove( hdql_ht * ht, const unsigned char * key, size_t keyLen ) {
+hdql_ht_remove(struct hdql_ht * ht, const unsigned char * key, size_t keyLen ) {
     size_t nb;
     hdql_ht_entry * entry = hdql_ht_lookup(ht, key, keyLen, &nb);
     if(NULL == entry) return HDQL_HT_RC_ERR_NOENT;
@@ -204,7 +203,7 @@ hdql_ht_remove( hdql_ht * ht, const unsigned char * key, size_t keyLen ) {
 }
 
 int
-hdql_ht_erase( hdql_ht * ht, hdql_ht_entry * entry, size_t nb ) {
+hdql_ht_erase(struct hdql_ht * ht, hdql_ht_entry * entry, size_t nb ) {
     assert(entry);
     assert(nb < (1u << ht->capacity));
     hdql_ht_entry  * cur   = ht->buckets[nb]
@@ -224,7 +223,7 @@ hdql_ht_erase( hdql_ht * ht, hdql_ht_entry * entry, size_t nb ) {
 }
 
 int
-hdql_ht_iter( const hdql_ht * ht
+hdql_ht_iter(const struct hdql_ht * ht
         , int (* callback)(const unsigned char * key, size_t keyLen, void ** value, void * userdata)
         , void * userdata
         ) {
@@ -241,7 +240,7 @@ hdql_ht_iter( const hdql_ht * ht
 }
 
 int
-hdql_ht_rebuild( hdql_ht * ht ) {
+hdql_ht_rebuild(struct hdql_ht * ht ) {
     size_t newCap = ht->capacity ? ht->capacity + 1 : 5;
     hdql_ht_entry ** newBuckets =
         (hdql_ht_entry **) ht->allocator.alloc(
@@ -273,7 +272,7 @@ hdql_ht_rebuild( hdql_ht * ht ) {
     return HDQL_HT_RC_OK;
 }
 
-void hdql_ht_destroy(hdql_ht * ht) {
+void hdql_ht_destroy(struct hdql_ht * ht) {
     const size_t cap = (1u << ht->capacity);
     /* iterate over all entries and free key */
     for(size_t i = 0; i < cap; ++i) {
@@ -295,14 +294,14 @@ void hdql_ht_destroy(hdql_ht * ht) {
  */
 
 int
-hdql_ht_s_ins( hdql_ht * ht
+hdql_ht_s_ins(struct hdql_ht * ht
             , const char * key
             , void * value ) {
     return hdql_ht_ins(ht, (unsigned char *) key, strlen(key), value);
 }
 
 void *
-hdql_ht_s_get(const hdql_ht * ht, const char * key) {
+hdql_ht_s_get(const struct hdql_ht * ht, const char * key) {
     /* Benchmarks show visible constant slowdown because of additional
      * arguments and redirections for few (1-30) entries. */
     #if 1
@@ -325,7 +324,7 @@ hdql_ht_s_get(const hdql_ht * ht, const char * key) {
 }
 
 int
-hdql_ht_s_rm(hdql_ht * ht, const char * key) {
+hdql_ht_s_rm(struct hdql_ht * ht, const char * key) {
     return hdql_ht_remove(ht, (const unsigned char *) key, strlen(key) );
 }
 

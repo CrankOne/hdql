@@ -1,4 +1,4 @@
-#include "hdql/allocator.h"
+#include "hdql/util/allocator.h"
 
 #include <memory.h>
 #include <assert.h>
@@ -19,8 +19,9 @@ static void * _hdql_std_malloc(size_t sz, void * unused) {
     return malloc(sz);
 }
 
-static void _hdql_std_free(void * ptr, void * unused) {
+static int _hdql_std_free(void * ptr, void * unused) {
     free(ptr);
+    return 0;
 }
 
 const struct hdql_Allocator hdql_gHeapAllocator = {
@@ -81,10 +82,11 @@ static void *arena_alloc(size_t size, void *userdata) {
     return mem;
 }
 
-static void arena_free(void *data, void *userdata) {
+static int arena_free(void *data, void *userdata) {
     // No-op: individual free not supported
     (void)data;
     (void)userdata;
+    return 0;
 }
 
 void

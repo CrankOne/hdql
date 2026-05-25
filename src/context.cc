@@ -44,7 +44,7 @@ struct hdql_Context {
 };
 
 extern "C" hdql_Context_t
-hdql_context_create(uint32_t flags) {
+hdql_context_create(uint32_t flags, const struct hdql_Allocator *allocator) {
     // ...
     auto ctx = new hdql_Context;
     ctx->flags = flags;

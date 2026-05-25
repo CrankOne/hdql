@@ -11,7 +11,7 @@ namespace test {
 
 class TestingContext : public ::testing::Test {
 protected:
-    hdql_Context_t _ctx;
+    hdql_Context_t _context;
     hdql_ValueTypes * _valueTypes;
     hdql_Operations * _operations;
 public:

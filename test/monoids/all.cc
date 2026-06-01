@@ -21,8 +21,8 @@ TEST_F(TestMonoidal, allTypeInQueryResultsInAKeylessBooleanScalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
-    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compoundsContext);
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compoundsContext));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -37,21 +37,21 @@ TEST_F(TestMonoidal, allTypeInQueryResultsInAKeylessBooleanScalar) {
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     // ...of logic type
-    struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    struct hdql_ValueTypes * types = hdql_context_get_types(_compoundsContext);
     ASSERT_TRUE(types);
     hdql_ValueTypeCode_t booltc = hdql_types_get_type_code(types, "bool");
     ASSERT_NE(booltc, 0x0);
 
     EXPECT_EQ(booltc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compoundsContext));
 }
 
 TEST_F(TestMonoidal, allRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("all(.a)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("all(.a)", _rootCompound, _compoundsContext
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     ASSERT_EQ( errDetails[0]
@@ -64,7 +64,7 @@ TEST_F(TestMonoidal, allOfAnEmptyCollectionIsNone) {
     RootItem root;
     CompileQuery("all(.a.bf)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_FALSE(r);
 }
 
@@ -76,7 +76,7 @@ TEST_F(TestMonoidal, allOfASingleTrueElement) {
     root.a.push_back(item1);
     CompileQuery("all(.a.i32f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -92,7 +92,7 @@ TEST_F(TestMonoidal, allOfASingleFalseElement) {
     root.a.push_back(item1);
     CompileQuery("all(.a.u16f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -109,7 +109,7 @@ TEST_F(TestMonoidal, allOfANANIsTrue) {
     root.a.push_back(item1);
     CompileQuery("all(.a.df)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -135,7 +135,7 @@ TEST_F(TestMonoidal, allOfASequence) {
 
     CompileQuery("all(.a.u16f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi
@@ -161,7 +161,7 @@ TEST_F(TestMonoidal, allOfTwoSequences) {
 
     CompileQuery("all(.a.u16f, .b.i32f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     const hdql_ValueInterface * vi

@@ -21,8 +21,8 @@ TEST_F(TestMonoidal, countTypeInQueryResultsInAKeylessUInt64Scalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
-    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compoundsContext);
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compoundsContext));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -37,21 +37,21 @@ TEST_F(TestMonoidal, countTypeInQueryResultsInAKeylessUInt64Scalar) {
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
     // ...of logic type
-    struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    struct hdql_ValueTypes * types = hdql_context_get_types(_compoundsContext);
     ASSERT_TRUE(types);
     hdql_ValueTypeCode_t ui64tc = hdql_types_get_type_code(types, "uint64_t");
     ASSERT_NE(ui64tc, 0x0);
 
     EXPECT_EQ(ui64tc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compoundsContext));
 }
 
 TEST_F(TestMonoidal, countRefusesCompoundType) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("count(.a)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("count(.a)", _rootCompound, _compoundsContext
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     ASSERT_EQ( errDetails[0]
@@ -64,7 +64,7 @@ TEST_F(TestMonoidal, countOfAnEmptyCollectionIsZero) {
     RootItem root;
     CompileQuery("count(.a.bf)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 0);
 }
@@ -77,7 +77,7 @@ TEST_F(TestMonoidal, countOfASingleTrueElement) {
     root.a.push_back(item1);
     CompileQuery("count(.a.i32f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 1);
 }
@@ -90,7 +90,7 @@ TEST_F(TestMonoidal, countOfASingleFalseElement) {
     root.a.push_back(item1);
     CompileQuery("count(.a.u16f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 0);
 }
@@ -104,7 +104,7 @@ TEST_F(TestMonoidal, countAccountsNAN) {
     root.a.push_back(item1);
     CompileQuery("count(.a.df)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 1);
 }
@@ -127,7 +127,7 @@ TEST_F(TestMonoidal, countOfASequence) {
 
     CompileQuery("count(.a.u16f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 2);
 }
@@ -150,7 +150,7 @@ TEST_F(TestMonoidal, countOfTwoSequences) {
 
     CompileQuery("count(.a.u16f, .b.i32f)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_EQ(*((uint64_t *) r), 2);
 }

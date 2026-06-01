@@ -192,7 +192,7 @@ protected:
         int errDetails[5] = {0, -1, -1, -1, -1};  // error code, first line, first column, last line, last column
         hdql_Query * q = hdql_compile_query( queryExpr
                               , _rootCompound
-                              , _context
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -205,7 +205,7 @@ protected:
         struct hdql_QueryResultsWorkspace * ws = hdql_query_results_init(
                   q
                 , &_iqr  // struct hdql_iQueryResultsHandler * iqr
-                , _context  // struct hdql_Context * ctx
+                , _compoundsContext  // struct hdql_Context * ctx
                 );
         ASSERT_TRUE(ws != NULL)
             << "failed to initialize results handler workspace";
@@ -249,7 +249,7 @@ protected:
             , .unlabeledKeyColumnFormat = "key%zu"
         };
 
-        rc = hdql_query_results_handler_csv_init(&_iqr, _ss, &fmt, _context);
+        rc = hdql_query_results_handler_csv_init(&_iqr, _ss, &fmt, _compoundsContext);
         ASSERT_EQ(0, rc);
     }
 

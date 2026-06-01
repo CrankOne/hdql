@@ -51,7 +51,7 @@ hdql_functions_resolve( struct hdql_Functions * funcDict
     auto eqRange = funcDict->equal_range(name);
     if(eqRange.first == eqRange.second) {
         if(!funcDict->parent) return HDQL_ERR_FUNC_UNKNOWN;
-        return hdql_functions_resolve(funcDict, name, argsQueries, r, context);
+        return hdql_functions_resolve(funcDict->parent, name, argsQueries, r, context);
     }
     *r = NULL;
     for(auto it = eqRange.first; it != eqRange.second; ++it) {

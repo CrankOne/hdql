@@ -20,8 +20,8 @@ TEST_F(TestMonoidal, emptyTypeInQueryResultsInAKeylessBooleanScalar) {
     EXPECT_EQ(1, keysDepth);
 
     // no keys
-    hdql_Key * keys = hdql_key_new(_compounds.context_ptr());
-    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compounds.context_ptr()));
+    hdql_Key * keys = hdql_key_new(_compoundsContext);
+    ASSERT_EQ(0, hdql_key_reserve_for_query(_query, keys, _compoundsContext));
 
     const hdql_AttrDef * ad = hdql_query_top_attr(_query);
     ASSERT_TRUE(ad);
@@ -36,14 +36,14 @@ TEST_F(TestMonoidal, emptyTypeInQueryResultsInAKeylessBooleanScalar) {
         = hdql_types_get_type(_valueTypes, hdql_attr_def_get_atomic_value_type_code(ad));
     ASSERT_TRUE(vi);
 
-    struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+    struct hdql_ValueTypes * types = hdql_context_get_types(_compoundsContext);
     ASSERT_TRUE(types);
     hdql_ValueTypeCode_t booltc = hdql_types_get_type_code(types, "bool");
     ASSERT_NE(booltc, 0x0);
 
     EXPECT_EQ(booltc, hdql_attr_def_get_atomic_value_type_code(ad));
 
-    EXPECT_EQ(0, hdql_key_destroy(keys, _compounds.context_ptr()));
+    EXPECT_EQ(0, hdql_key_destroy(keys, _compoundsContext));
 }
 
 // TODO this UT is ok, but the parser failure leaves `.a` query un-deleted
@@ -52,7 +52,7 @@ TEST_F(TestMonoidal, emptyTypeInQueryResultsInAKeylessBooleanScalar) {
 //    using namespace hdql::test;
 //    RootItem root;
 //    char errBuf[128]; int errDetails[5];
-//    _query = hdql_compile_query(".a{l:=empty(.bf)}.l", _rootCompound, _compounds.context_ptr()
+//    _query = hdql_compile_query(".a{l:=empty(.bf)}.l", _rootCompound, _compoundsContext
 //            , errBuf, sizeof(errBuf), errDetails );
 //    EXPECT_FALSE(_query);
 //    EXPECT_EQ( errDetails[0]
@@ -64,7 +64,7 @@ TEST_F(TestMonoidal, emptyApplicableToScalarAttrOfACollection) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("empty(.a.bf)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("empty(.a.bf)", _rootCompound, _compoundsContext
             , errBuf, sizeof(errBuf), errDetails );
     ASSERT_TRUE(_query);
     ASSERT_EQ( errDetails[0], HDQL_ERR_CODE_OK);
@@ -74,7 +74,7 @@ TEST_F(TestMonoidal, emptyRefusesMultipleArguments) {
     using namespace hdql::test;
     RootItem root;
     char errBuf[128]; int errDetails[5];
-    _query = hdql_compile_query("empty(.a, .b)", _rootCompound, _compounds.context_ptr()
+    _query = hdql_compile_query("empty(.a, .b)", _rootCompound, _compoundsContext
             , errBuf, sizeof(errBuf), errDetails );
     EXPECT_FALSE(_query);
     ASSERT_EQ( errDetails[0]
@@ -90,7 +90,7 @@ TEST_F(TestMonoidal, emptyOfAnEmptyCollectionIsTrue) {
     RootItem root;
     CompileQuery("empty(.a)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(*((bool*) r));
 }
 
@@ -102,7 +102,7 @@ TEST_F(TestMonoidal, emptyOfACollectionWithOneElementIsFalse) {
     root.a.push_back(item1);
     CompileQuery("empty(.a)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_FALSE(*((bool*) r));
 }
@@ -118,7 +118,7 @@ TEST_F(TestMonoidal, emptyOfANonEmptyCollectionIsFalse) {
     root.a.push_back(item2);
     CompileQuery("empty(.a)");
     hdql_Datum_t r = hdql_query_reset(_query
-            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compounds.context_ptr());
+            , reinterpret_cast<hdql_Datum_t>(&root), NULL, _compoundsContext);
     ASSERT_TRUE(r);
     EXPECT_FALSE(*((bool*) r));
 }

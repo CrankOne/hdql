@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
+#include <typeindex>
 
 //
 // Example of event structs
@@ -38,16 +39,12 @@ test_query_on_data( int nSample, const char * expression ) {
     // add std types arithmetics
     hdql_op_define_std_arith(operations, valTypes);
     // emit testing compound types definitions
-    hdql::helpers::Compounds compounds = hdql::test::define_test_event_compound(ctx);
-    if(compounds.empty()) return -1;
-    hdql_Compound * eventCompound;
-    {
-        auto it = compounds.find(typeid(hdql::test::Event));
-        if(compounds.end() == it) {
-            return -1;
-        }
-        eventCompound = it->second;
-    }
+    hdql::test::define_test_event_compound(ctx);
+    std::type_index ti = typeid(hdql::test::Event);
+    const hdql_Compound *eventCompound = hdql_compounds_get_by_type_id(hdql_context_get_compounds(ctx)
+            , &ti, sizeof(std::type_index));
+    if(!eventCompound)
+        return -1;
     // add standard functions
     hdql_functions_add_standard_math(hdql_context_get_functions(ctx));
     // add standard type conversions
@@ -124,11 +121,6 @@ test_query_on_data( int nSample, const char * expression ) {
 
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
-
-    for(auto & ce : compounds) {
-        hdql_compound_destroy(ce.second, ctx);
-    }
-
     return rc;
 }
 

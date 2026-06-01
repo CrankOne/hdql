@@ -155,22 +155,22 @@ if (BUILD_TESTS)
         test/iteration-tests/v-compound-bind.cc
         # monoidal functions
         test/monoids/monoids.cc
-        #test/monoids/sum.cc
-        #test/monoids/product.cc
-        #test/monoids/b-and.cc
-        #test/monoids/b-or.cc
-        #test/monoids/b-xor.cc
-        #test/monoids/all.cc
-        #test/monoids/any.cc
-        #test/monoids/count.cc
-        #test/monoids/min.cc
-        #test/monoids/max.cc
-        #test/monoids/mean.cc
-        #test/monoids/arb.cc
-        #test/monoids/len.cc
-        #test/monoids/empty.cc
-        #test/cpp-api.cc
-        #test/dsv.test.cc
+        test/monoids/sum.cc
+        test/monoids/product.cc
+        test/monoids/b-and.cc
+        test/monoids/b-or.cc
+        test/monoids/b-xor.cc
+        test/monoids/all.cc
+        test/monoids/any.cc
+        test/monoids/count.cc
+        test/monoids/min.cc
+        test/monoids/max.cc
+        test/monoids/mean.cc
+        test/monoids/arb.cc
+        test/monoids/len.cc
+        test/monoids/empty.cc
+        test/cpp-api.cc
+        test/dsv.test.cc
         # entry point
         test/main.cc
         )

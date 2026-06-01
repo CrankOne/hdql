@@ -221,14 +221,14 @@ Query::~Query() {
     if(_query && _ownContext) {
         hdql_query_destroy(_query, _ownContext);
     }
-    if(_ownContext) {
-        hdql_context_destroy(_ownContext);
-    }
     for(auto & p : _converters()) {
         if(p.second.second)
             hdql_context_free(_ownContext
                     , reinterpret_cast<hdql_Datum_t>(p.second.second)  // LABEL:CONVERSION-DEST_BUF:FREE
                     );
+    }
+    if(_ownContext) {
+        hdql_context_destroy(_ownContext);
     }
 }
 

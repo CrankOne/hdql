@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
+#include <typeindex>
 
 #include "events-struct.hh"
 #include "hdql/compound.h"
@@ -25,16 +26,16 @@ public:
         TestingEventStruct::SetUp();
         // create child context
         _thisContext
-            = hdql_context_create_descendant(_compounds.context_ptr(), HDQL_CTX_PRINT_PUSH_ERROR);
+            = hdql_context_create_descendant(_compoundsContext, HDQL_CTX_PRINT_PUSH_ERROR);
 
         // create and fill event to operate
         fill_data_sample_1(_ev);
 
         // get event's compound definition
         {
-            auto it = _compounds.find(typeid(hdql::test::Event));
-            ASSERT_FALSE(_compounds.end() == it); //?
-            _rootCompound = it->second;
+            std::type_index ti = typeid(hdql::test::Event);
+            _rootCompound = hdql_compounds_get_by_type_id(hdql_context_get_compounds(_thisContext), &ti, sizeof(std::type_index));
+            ASSERT_TRUE(_rootCompound);
         }
     }
     void TearDown() override {
@@ -56,7 +57,7 @@ public:
 TEST_F(TestCppHelpers, UseGenericQueryResultOnAtomicScalarCppWrappers) {
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
-    Query q(".tracks.hits.x", _rootCompound, _thisContext, _compounds, true);
+    Query q(".tracks.hits.x", _rootCompound, _thisContext, true);
     
     // make sure the query has been result deduced properly
     // - is of atomic type
@@ -130,7 +131,7 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarInlineCppWrappers) {
 
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
-    Query q(".tracks.hits.x", _rootCompound, _thisContext, _compounds, true);
+    Query q(".tracks.hits.x", _rootCompound, _thisContext, true);
     
     // make sure the query has been result deduced properly
     // - is of atomic type
@@ -209,7 +210,8 @@ TEST_F(TestCppHelpers, UseStaticQueryResultOnAtomicScalarCppWrappers) {
     // instantiate C++ query helper
     // -> query all set of the hits within tracks instances associated with an event
     //   (this time using thin template method to instantiate the query)
-    Query q = _compounds.query<hdql::test::Event>(".tracks.hits.x");
+    //Query q = _compounds.query<hdql::test::Event>(".tracks.hits.x");  // TODO: restore this API
+    Query q(".tracks.hits.x", _rootCompound, _thisContext, true);
     
     // make sure the query has been result deduced properly
     // - is of atomic type

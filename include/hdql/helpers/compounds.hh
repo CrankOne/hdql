@@ -1,10 +1,12 @@
 #pragma once
 
 /**\file
- * \brief C++ helpers for fast creation of compound definitions based on
- *        structure definitions
+ * \brief C++ helpers for automated deduction of compound type definitions
+ *        based on C++ type info.
  * */
 
+#include "hdql/compound.h"
+#include "hdql/context.h"
 #include "hdql/types.h"
 #include "hdql/attr-def.h"
 #include "hdql/query-key.h"
@@ -27,7 +29,7 @@
 namespace hdql {
 namespace helpers {
 
-typedef std::unordered_map<std::type_index, hdql_Compound *> Compounds;
+//typedef std::unordered_map<std::type_index, hdql_Compound *> Compounds;
 
 namespace detail {
 
@@ -340,8 +342,9 @@ template< typename T
 template< typename T>
 struct TypeInfoMixin<T, typename std::enable_if<std::is_arithmetic<T>::value>::type> {
     static constexpr bool isCompound = false;
+
     static hdql_AtomicTypeFeatures
-    type_info(const hdql_ValueTypes * valTypes, Compounds & compounds) {
+    type_info(const hdql_ValueTypes * valTypes, const hdql_Compounds &) {
         auto r = hdql_AtomicTypeFeatures {
               .isReadOnly = 0x0
             , .arithTypeCode = hdql_types_get_type_code(valTypes, detail::ArithTypeNames<T>::name )
@@ -361,22 +364,31 @@ struct TypeInfoMixin<T, typename std::enable_if< /*std::is_standard_layout<T>::v
                                               && */(!detail::is_shared_ptr<T>::value)
                                               && !std::is_arithmetic<T>::value>::type> {
     static constexpr bool isCompound = true;
-    static hdql_Compound *
-    type_info(const hdql_ValueTypes * valTypes, Compounds & compounds) {
+
+    static const hdql_Compound *
+    type_info(const hdql_ValueTypes * valTypes, const hdql_Compounds &compounds) {
         assert(valTypes);
-        auto it = compounds.find(typeid(T));
-        assert(compounds.end() != it);
-        return it->second;
+        std::type_index ti = std::type_index(typeid(T));
+        const auto *c = hdql_compounds_get_by_type_id(&compounds, &ti, sizeof(std::type_index));
+        assert(NULL != c);
+        return c;
+    }
+
+    static hdql_Compound *
+    type_info(const hdql_ValueTypes * valTypes, hdql_Compounds &compounds) {
+        return const_cast<hdql_Compound *>(type_info(valTypes, const_cast<const hdql_Compounds&>(compounds)));
     }
 };  // type info mixin for compounds
 
 template< typename T>
 struct TypeInfoMixin<T, typename std::enable_if<detail::IndirectAccessTraits<T>::provides>::type> {
     static constexpr bool isCompound = true;
-    static hdql_Compound *
-    type_info(const hdql_ValueTypes * valTypes, Compounds & compounds) {
-        auto it = compounds.find(typeid(typename detail::IndirectAccessTraits<T>::ReferencedType));
-        if(compounds.end() == it) {
+
+    static const hdql_Compound *
+    type_info(const hdql_ValueTypes *valTypes, const hdql_Compounds &compounds) {
+        std::type_index ti = std::type_index(typeid(typename detail::IndirectAccessTraits<T>::ReferencedType));
+        const auto *c = hdql_compounds_get_by_type_id(&compounds, &ti, sizeof(std::type_index));
+        if(NULL == c) {
             char errbf[256], bf[128];
             snprintf( errbf, sizeof(errbf)
                     , "No compound of C++ type `%s' had been defined yet"
@@ -384,7 +396,12 @@ struct TypeInfoMixin<T, typename std::enable_if<detail::IndirectAccessTraits<T>:
                         , bf, sizeof(bf)) );
             throw std::runtime_error(errbf);
         }
-        return it->second;
+        return c;
+    }
+
+    static hdql_Compound *
+    type_info(const hdql_ValueTypes * valTypes, hdql_Compounds &compounds) {
+        return const_cast<hdql_Compound *>(type_info(valTypes, const_cast<const hdql_Compounds&>(compounds)));
     }
 };  // type info mixin for compounds
 
@@ -910,16 +927,23 @@ struct IFace< ptr
  * `hdql::Compounds` class benefits from C++ RTTI, it has to be logically
  * associated with context instance provided by C API. This class represents
  * an integration layer by combining `hdql::Compounds` and corresponding
- * context instance. It laso exposes a query-creation method assuring type
+ * context instance. It also exposes a query-creation method assuring type
  * compatibility.
+ *
+ * Does not own created compounds (they become the subject of the corresponding
+ * context instance).
  * */
-class CompoundTypes : public Compounds {
+class CompoundTypes {
+
     template<typename CompoundT>
     class AttributeInsertionProxy {
     private:
+        /// Current compound
         hdql_Compound & _compound;
+        /// Owning instance of compound types table wrapper
         CompoundTypes & _compounds;
-        hdql_Context & _context;
+        /// Current context
+        hdql_Context & _context;  // XXX, redundant
         //hdql_ValueTypes & _valTypes;
     protected:
         AttributeInsertionProxy( hdql_Compound & compound_
@@ -1032,7 +1056,7 @@ class CompoundTypes : public Compounds {
         }
 
         friend class CompoundTypes;
-    };
+    };  // class CompoundTypes::AttributeInsertionProxy
 private:
     /// Pointer to context specified in ctr (not owned)
     hdql_Context_t _contextPtr;
@@ -1044,34 +1068,45 @@ public:
 
     template<typename T> AttributeInsertionProxy<T>
     new_compound(const char * name) {
-        hdql_Compound * newCompound = hdql_compound_new(name, _contextPtr);
+        int rc;
+        std::type_index ti = std::type_index(typeid(T));
+        hdql_Compound * newCompound = hdql_compound_create(name, _contextPtr, &rc, &ti, sizeof(std::type_index));
+        if(HDQL_ERR_CODE_OK != rc) {
+            throw std::runtime_error("failed to register new compound");  // TODO: dedic exc, parse ErrCode
+        }
         assert(newCompound);
-        this->emplace(typeid(T), newCompound);
         return AttributeInsertionProxy<T>(*newCompound, *this, *_contextPtr);
     }
 
     template<typename T> hdql_Compound *
     get_compound_ptr() {
-        auto it = this->find(typeid(T));
-        if(this->end() == it) {
-            throw std::runtime_error("Type is not registered as compound");  // TODO: dedicated exception
+        std::type_index ti = std::type_index(typeid(T));
+        const hdql_Compound *c = hdql_compounds_get_by_type_id(hdql_context_get_compounds(_contextPtr)
+                , &ti, sizeof(std::type_index));
+        if(!c) {
+            throw std::runtime_error("type is not registered as compound");  // TODO: dedicated exception
         }
-        return it->second;
+        return const_cast<hdql_Compound *>(c);
     }
 
     template<typename RootT> Query
     query(const char * expression, bool keysNeeded=true) {
-        auto rootCompoundIt = find(typeid(RootT));
-        if(end() == rootCompoundIt) {
+        std::type_index ti = std::type_index(typeid(RootT));
+        const hdql_Compound *c = hdql_compounds_get_by_type_id(hdql_context_get_compounds(_contextPtr)
+                , &ti, sizeof(std::type_index));
+        if(!c) {
             throw std::runtime_error("Type is not registered as compound");  // TODO: dedicated exception
         }
         return Query( expression
-            , rootCompoundIt->second
+            , const_cast<hdql_Compound *>(c)
             , _contextPtr
-            , *this
             , keysNeeded
             //, const std::vector<std::string> & attrsOrder={}
             );
+    }
+
+    operator hdql_Compounds&() {
+        return *hdql_context_get_compounds(_contextPtr);
     }
 };  // class CompoundTypes
 

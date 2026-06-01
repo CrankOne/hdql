@@ -1,7 +1,5 @@
 #include "events-struct.hh"
 #include "hdql/attr-def.h"
-#include "hdql/errors.h"
-#include "hdql/helpers/compounds.hh"
 #include "hdql/helpers/fancy-print-err.h"
 #include "hdql/helpers/print-tree.h"
 #include "hdql/query-key.h"
@@ -41,15 +39,11 @@ test_query_on_data( int nSample, const char * expression ) {
     // add std types arithmetics
     hdql_op_define_std_arith(operations, valTypes);
     // emit testing compound types definitions
-    hdql::helpers::Compounds compounds = hdql::test::define_test_event_compound(ctx);
-    if(compounds.empty()) return -1;
-    hdql_Compound * eventCompound;
-    {
-        auto it = compounds.find(typeid(hdql::test::Event));
-        if(compounds.end() == it) {
-            return -1;
-        }
-        eventCompound = it->second;
+    hdql::test::define_test_event_compound(ctx);
+    const hdql_Compound *eventCompound =
+        hdql_compounds_get_by_name(hdql_context_get_compounds(ctx), "Event");
+    if(!eventCompound) {
+        return -1;
     }
     // add standard functions
     hdql_functions_add_standard_math(hdql_context_get_functions(ctx));
@@ -164,9 +158,6 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql_key_destroy(key, ctx);
     hdql_query_destroy(q, ctx);
     hdql_context_destroy(ctx);
-    for(auto & ce : compounds) {
-        hdql_compound_destroy(ce.second, ctx);
-    }
 
     if(!hadResult) {
         fputs("Query resulted in empty set.\n", stdout);

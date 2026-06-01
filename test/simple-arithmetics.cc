@@ -22,7 +22,7 @@ public:
         ASSERT_TRUE(hdql_attr_def_is_atomic(ad));
         hdql_ValueTypeCode_t rTC = hdql_attr_def_get_atomic_value_type_code(ad);
         ASSERT_NE(rTC, 0x0);
-        struct hdql_ValueTypes * types = hdql_context_get_types(_compounds.context_ptr());
+        struct hdql_ValueTypes * types = hdql_context_get_types(_compoundsContext);
         _rIFace = hdql_types_get_type(types, rTC);
         ASSERT_TRUE(rTC);
     }

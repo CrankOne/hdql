@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hdql/compound.h"
+#include "hdql/context.h"
 #include <cstdint>
 #include <stdexcept>
 #include <type_traits>
@@ -279,8 +281,6 @@ protected:
     const hdql_AttrDef * _topAttrDef;
     /// Flat key view; can be NULL if keys disabled by ctr
     hdql_Key ** _kv;
-    /// Reference to compounds dictionary
-    const std::unordered_map<std::type_index, hdql_Compound *> & _compounds;
 private:
     /// Current query result pointer
     hdql_Datum * _r;
@@ -340,7 +340,6 @@ public:
     Query( const char * expression
          , const hdql_Compound * rootCompound
          , hdql_Context * rootContext
-         , const std::unordered_map<std::type_index, hdql_Compound *> & compounds
          , bool keysNeeded=true
          //, const std::vector<std::string> & attrsOrder={}
          );
@@ -406,17 +405,19 @@ public:
 template<typename RootT> hdql_Datum *
 Query::_verify_root_compound_type(RootT & rootObject) {
     // find root compound type in the known ones
-    auto it = _compounds.find(typeid(RootT));
-    if(_compounds.end() == it) {
+    std::type_index ti = typeid(RootT);
+    const hdql_Compound *rootCompound = hdql_compounds_get_by_type_id(
+            hdql_context_get_compounds(_ownContext), &ti, sizeof(std::type_index));
+    if(!rootCompound) {
         throw errors::HDQLError("Unknown root compound type.");
     }
     // if compound type matches, do nothing
-    if(_is_same_as_root_compound_type(it->second)) {
+    if(_is_same_as_root_compound_type(rootCompound)) {
         return reinterpret_cast<hdql_Datum *>(&rootObject);
     }
     // otherwise, try to find compound conversion functions
     // TODO: from/to types printout
-    throw errors::HDQLError("Compound conversion is not yet supported.");
+    throw errors::HDQLError("Compound conversion is not supported.");
 }
 
 template<typename RootT> GenericQueryCursor

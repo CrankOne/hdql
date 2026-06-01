@@ -297,7 +297,7 @@ int
 hdql_ht_s_ins(struct hdql_ht * ht
             , const char * key
             , void * value ) {
-    return hdql_ht_ins(ht, (unsigned char *) key, strlen(key), value);
+    return hdql_ht_ins(ht, (unsigned char *) key, strlen(key) + 1, value);
 }
 
 void *
@@ -305,7 +305,7 @@ hdql_ht_s_get(const struct hdql_ht * ht, const char * key) {
     /* Benchmarks show visible constant slowdown because of additional
      * arguments and redirections for few (1-30) entries. */
     #if 1
-    return hdql_ht_get(ht, (unsigned char *) key, strlen(key) );
+    return hdql_ht_get(ht, (unsigned char *) key, strlen(key) + 1 );
     #else
     const uint32_t keyLen = strlen(key);
     const uint32_t h  = murmur3_32((const unsigned char *) key, keyLen, ht->hashSeed);
@@ -325,6 +325,6 @@ hdql_ht_s_get(const struct hdql_ht * ht, const char * key) {
 
 int
 hdql_ht_s_rm(struct hdql_ht * ht, const char * key) {
-    return hdql_ht_remove(ht, (const unsigned char *) key, strlen(key) );
+    return hdql_ht_remove(ht, (const unsigned char *) key, strlen(key) + 1 );
 }
 

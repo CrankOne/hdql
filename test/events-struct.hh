@@ -42,13 +42,13 @@ struct Event {
 };
 
 // Register testing types
-helpers::CompoundTypes define_test_event_compound(hdql_Context_t);
+void define_test_event_compound(hdql_Context_t);
 
 //
 // G-Test testing fixture
 class TestingEventStruct : public TestCompiledQuery {
 protected:
-    helpers::CompoundTypes _define_compounds(hdql_Context *, hdql_Compound *&) override;
+    void _define_compounds(hdql_Context *, const hdql_Compound *&) override;
 
     TestingEventStruct() {}
 };  // class TestingEventStruct

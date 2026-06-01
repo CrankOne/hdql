@@ -12,15 +12,16 @@ namespace test {
 
 class TestCompiledQuery : public TestingContext {
 protected:
-    hdql::helpers::CompoundTypes _compounds;
-    hdql_Compound *_rootCompound;
+    // dedicated context instance for compounds and other user-spaced definitions
+    hdql_Context *_compoundsContext;
+    const hdql_Compound *_rootCompound;
     hdql_Query *_query;
     hdql_Key *_queryKey;
     size_t _flatKeyViewLen;
     hdql_Key **_flatKeyView;
     const hdql_ValueInterface **_flatKeyIfaces;
 
-    virtual helpers::CompoundTypes _define_compounds(hdql_Context *, hdql_Compound *&) = 0;
+    virtual void _define_compounds(hdql_Context *, const hdql_Compound *&) = 0;
 public:
     TestCompiledQuery();
 

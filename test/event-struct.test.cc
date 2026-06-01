@@ -13,6 +13,7 @@
 #include "hdql/attr-def.h"
 #include "hdql/compound.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/query-key.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
@@ -23,6 +24,7 @@
 #include <type_traits>
 #include <cstring>
 #include <set>
+#include <typeindex>
 #include <unordered_map>
 
 #include "hdql/helpers/compounds.hh"
@@ -47,15 +49,15 @@ public:
 // Scalar attribute
 TEST_F(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     
-    // Create compounds index helper
-    hdql::helpers::Compounds compounds;
     // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
-    compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::RawData);
+    struct hdql_Compound * rawDataCompound = hdql_compound_create("RawData", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     // Add attribute to a compound
     {  // RawData::time
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::RawData::time>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::RawData::time>::type_info(_valueTypes, *hdql_context_get_compounds(_context));
         struct hdql_ScalarAttrInterface iface = hdql::helpers::IFace<&hdql::test::RawData::time>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
                   &typeInfo
@@ -117,23 +119,21 @@ TEST_F(CppTemplatedInterfaces, ScalarAttributeAccess) {  // {{{
     ASSERT_EQ( *reinterpret_cast<decltype(hdql::test::RawData::time) *>(result)
              , rawDataInstance.time );
 
-    hdql_compound_destroy(rawDataCompound, _context);
-
     hdql_key_destroy(key, _context);
 }  // }}}
 
 //
 // Array of atomic values attribute, no selection
 TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
-    // Create compounds index helper
-    hdql::helpers::Compounds compounds;
     // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
-    compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::RawData);
+    struct hdql_Compound * rawDataCompound = hdql_compound_create("RawData", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     // Add attribute to a compound
     {  // RawData::samples[4]
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::RawData::samples>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::RawData::samples>::type_info(_valueTypes, *hdql_context_get_compounds(_context));
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::RawData::samples>::iface();
         hdql_ValueTypeCode_t keyTypeCode
@@ -223,23 +223,22 @@ TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection) {  // {{{
     iface->destroy_iterator(it, iface->definitionData, _context);
     hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(rawDataCompound, _context);
 }  // }}} TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessNoSelection)
 
 //
 // Array of atomic values attribute, no selection
 TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{{
     // Create compounds index helper
-    hdql::helpers::Compounds compounds;
-    // Create new compound
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", _context);
-    compounds.emplace(typeid(hdql::test::RawData), rawDataCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::RawData);
+    struct hdql_Compound * rawDataCompound = hdql_compound_create("RawData", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     // Add attribute to a compound
     {  // RawData::samples[4]
         struct hdql_AtomicTypeFeatures typeInfo
             = hdql::helpers::IFace< &hdql::test::RawData::samples
                                   , hdql::test::SimpleRangeSelection
-                                  >::type_info(_valueTypes, compounds);
+                                  >::type_info(_valueTypes, *hdql_context_get_compounds(_context));
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace< &hdql::test::RawData::samples
                                   , hdql::test::SimpleRangeSelection
@@ -335,22 +334,21 @@ TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection) {  // {{
     hdql_key_destroy(key, _context);
 
     iface->free_selection(iface->definitionData, selArgs, _context);
-    hdql_compound_destroy(rawDataCompound, _context);
 }  // }}} TEST_F(CppTemplatedInterfaces, AtomicArrayAttributeAccessWithSelection)
 
 
 //
 // Map of compound values attribute
 TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
-    // Create compounds index helper
-    hdql::helpers::Compounds compounds;
-    // Create new compounds
-    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", _context);
-    compounds.emplace(typeid(hdql::test::Hit), hitCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::Hit);
+    struct hdql_Compound * hitCompound = hdql_compound_create("Hit", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     // Add some attribute to hit compound to distinguish hits
     {  // Hit::energyDeposition
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes
+                    , *hdql_context_get_compounds(_context));
         struct hdql_ScalarAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
@@ -364,11 +362,13 @@ TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
                               , ad);
     }
 
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
-    compounds.emplace(typeid(hdql::test::Track), trackCompound);
+    ti = typeid(hdql::test::Track);
+    struct hdql_Compound * trackCompound = hdql_compound_create("Track", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     {  // Track::hits
         struct hdql_Compound * typeInfo
-            = hdql::helpers::IFace<&hdql::test::Track::hits>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Track::hits>::type_info(_valueTypes
+                    , *hdql_context_get_compounds(_context));
         assert(typeInfo == hitCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Track::hits>::iface();
@@ -465,20 +465,18 @@ TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection) {  // {{{
 
     hdql_key_destroy(key, _context);
 
-    hdql_compound_destroy(trackCompound, _context);
-    hdql_compound_destroy(hitCompound, _context);
 }  // }}} TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessNoSelection)
 
 TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{{
-    // Create compounds index helper
-    hdql::helpers::Compounds compounds;
-    // Create new compounds
-    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", _context);
-    compounds.emplace(typeid(hdql::test::Hit), hitCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::Hit);
+    struct hdql_Compound * hitCompound = hdql_compound_create("Hit", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     // Add some attribute to hit compound to distinguish hits
     {  // Hit::energyDeposition
         struct hdql_AtomicTypeFeatures typeInfo
-            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::type_info(_valueTypes
+                    , *hdql_context_get_compounds(_context));
         struct hdql_ScalarAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Hit::energyDeposition>::iface();
         struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
@@ -492,13 +490,14 @@ TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{
                               , ad);
     }
 
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
-    compounds.emplace(typeid(hdql::test::Track), trackCompound);
+    ti = typeid(hdql::test::Track);
+    struct hdql_Compound * trackCompound = hdql_compound_create("Track", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     {  // Track::hits
         struct hdql_Compound * typeInfo
             = hdql::helpers::IFace< &hdql::test::Track::hits
                                   , hdql::test::SimpleRangeSelection  // < note sel type
-                                  >::type_info(_valueTypes, compounds);
+                                  >::type_info(_valueTypes, *hdql_context_get_compounds(_context));
         assert(typeInfo == hitCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace< &hdql::test::Track::hits
@@ -601,25 +600,20 @@ TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection) {  // {{
     iface->destroy_iterator(it, iface->definitionData, _context);
 
     hdql_key_destroy(key, _context);
-
-    hdql_compound_destroy(trackCompound, _context);
-    hdql_compound_destroy(hitCompound, _context);
 }  // }}} TEST_F(CppTemplatedInterfaces, MapCompoundAttributeAccessWithSelection)
 
 //
 // Vector of compound values attribute
 TEST_F(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
-    // Create compounds index helper
-    hdql::helpers::Compounds compounds;
-    // Create new compounds
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", _context);
-    compounds.emplace(typeid(hdql::test::Track), trackCompound);
+    int rc;
+    std::type_index ti = typeid(hdql::test::Track);
+    struct hdql_Compound * trackCompound = hdql_compound_create("Track", _context, &rc, &ti, sizeof(ti));
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
 
-    struct hdql_Compound * eventCompound = hdql_compound_new("Event", _context);
-    compounds.emplace(typeid(hdql::test::Event), eventCompound);
     {  // Track::hits
         struct hdql_Compound * typeInfo
-            = hdql::helpers::IFace<&hdql::test::Event::tracks>::type_info(_valueTypes, compounds);
+            = hdql::helpers::IFace<&hdql::test::Event::tracks>::type_info(_valueTypes
+                    , *hdql_context_get_compounds(_context));
         assert(typeInfo == trackCompound);
         struct hdql_CollectionAttrInterface iface
             = hdql::helpers::IFace<&hdql::test::Event::tracks>::iface();
@@ -710,9 +704,6 @@ TEST_F(CppTemplatedInterfaces, VectorCompoundAttributeAccess) {  // {{{
 
     iface->destroy_iterator(it, iface->definitionData, _context);
     hdql_key_destroy(key, _context);
-
-    hdql_compound_destroy(trackCompound, _context);
-    hdql_compound_destroy(eventCompound, _context);
 }  // }}} TEST_F(CppTemplatedInterfaces, VectorCompoundAttributeAccess)
 
 }  // namespace ::hdql::test

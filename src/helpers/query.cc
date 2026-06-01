@@ -12,6 +12,7 @@
 #include <cassert>
 #include <cstddef>
 #include <stdexcept>
+#include <typeindex>
 #include <typeinfo>
 #include <utility>
 
@@ -116,7 +117,6 @@ GenericQueryCursor::get() {
 Query::Query( const char * expression
          , const hdql_Compound * rootCompound
          , hdql_Context * rootContext
-         , const std::unordered_map<std::type_index, hdql_Compound *> & compounds
          , bool keysNeeded )
                 : _isSet(false)
                 , _ownContext(hdql_context_create_descendant(rootContext, HDQL_CTX_PRINT_PUSH_ERROR))
@@ -125,7 +125,6 @@ Query::Query( const char * expression
                 , _keys(nullptr)
                 , _topAttrDef(nullptr)
                 , _kv(nullptr)
-                , _compounds(compounds)
                 , _r(nullptr)
                 {
     assert(expression);
@@ -339,8 +338,11 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
         const hdql_Compound * srcCompoundType = hdql_attr_def_compound_type_info(_topAttrDef);
         assert(srcCompoundType);
         // compound type expected, try to find dest compound type
-        auto it = _compounds.find(destTypeInfo);
-        if(_compounds.end() == it) {
+        hdql_Compounds * compounds = hdql_context_get_compounds(_ownContext);
+        const std::type_index destTI = destTypeInfo;
+        const hdql_Compound *destCompound = hdql_compounds_get_by_type_id(compounds
+                , &destTI, sizeof(destTI));
+        if(!destCompound) {
             char errbf[128];
             snprintf(errbf, sizeof(errbf), "Conversion from compound %s to an"
                     " unknown type requested."
@@ -350,7 +352,7 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
         // TODO: this if-clause only suceeds if compound type match for the
         //       query result and requested type.
         if( hdql_compound_is_virtual(srcCompoundType)
-         || hdql_compound_is_virtual(it->second)
+         || hdql_compound_is_virtual(destCompound)
           ) {
             // TODO: from/to virtual compound conversion
             char errbf[128];
@@ -359,24 +361,24 @@ Query::_get_converter_to(const std::type_info & destTypeInfo) const {
                     " type (%s -> %s) is not supported by HDQLang"
                     " C++ wrapper yet."
                     , hdql_compound_get_name(srcCompoundType)
-                    , hdql_compound_get_name(it->second)
+                    , hdql_compound_get_name(destCompound)
                     );
             throw std::runtime_error(errbf);
         }
 
-        if(srcCompoundType != it->second) {
+        if(srcCompoundType != destCompound) {
             // TODO: conversion between compound types
             char errbf[128];
             snprintf( errbf, sizeof(errbf)
                     , "Conversion between compound"
                     " types (%s -> %s) is not supported by HDQLang yet."
                     , hdql_compound_get_name(srcCompoundType)
-                    , hdql_compound_get_name(it->second)
+                    , hdql_compound_get_name(destCompound)
                     );
             throw std::runtime_error(errbf);
         }
 
-        assert(srcCompoundType == it->second);
+        assert(srcCompoundType == destCompound);
         cnvIt = _converters().emplace(destTypeInfo, cnvFAndBuf).first;
     } else {  // create atomic type conversion
         hdql_Converters * cnvs = hdql_context_get_conversions(_ownContext);

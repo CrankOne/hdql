@@ -12,18 +12,17 @@
 #include <stdarg.h>
 #include <stdio.h>  /* vsnprintf() */
 
-#ifndef HDQL_DEFAULT_CONTEXT_LOCALDATA
-#   define HDQL_DEFAULT_CONTEXT_LOCALDATA 128
+/* Init HT size of the context's local data */
+#ifndef HDQL_HT_DEFAULT_CONTEXT_LOCALDATA
+#   define HDQL_HT_DEFAULT_CONTEXT_LOCALDATA 128
 #endif
 
-#ifndef HDQL_DEFAULT_CONTEXT_NTYPES
-#   define HDQL_DEFAULT_CONTEXT_NTYPES 256
+/* Init HT size of the context's type names dictionary */
+#ifndef HDQL_HT_DEFAULT_CONTEXT_NTYPES
+#   define HDQL_HT_DEFAULT_CONTEXT_NTYPES 256
 #endif
 
-#ifndef HDQL_DEFAULT_CONTEXT_NVARIADIC
-#   define HDQL_DEFAULT_CONTEXT_NVARIADIC 256
-#endif
-
+/* Max length of the error message kept in context's stack */
 #ifndef HDQL_ERR_MAX_MSG_LEN
 #   define HDQL_ERR_MAX_MSG_LEN 1024
 #endif
@@ -39,7 +38,7 @@
  * */
 struct hdql_ContextLocalData {
     struct hdql_ContextLocalData *parent;
-    hdql_ht * byName;
+    struct hdql_ht * byName;
 };
 
 struct hdql__VCmpd {
@@ -69,6 +68,7 @@ struct hdql_Context {
     struct hdql_Converters       *converters;
     struct hdql_Constants        *constants;
     struct hdql_RandGen          *randgen;
+    struct hdql_Compounds        *compounds;
 
     struct hdql__VCmpd *virtualCompounds;
     struct hdql__Error *errors;
@@ -95,7 +95,7 @@ hdql_context_create(uint32_t flags, const struct hdql_Allocator *allocator) {
 
 #ifdef HDQL_TYPES_DEBUG
     if(!(r->typesByPtr = hdql_ht_create(r->allocator
-            , HDQL_DEFAULT_CONTEXT_NTYPES
+            , HDQL_HT_DEFAULT_CONTEXT_NTYPES
             , HDQL_MURMUR3_32_DEFAULT_SEED
             ))) goto onFailure;
 #endif
@@ -111,6 +111,7 @@ hdql_context_create(uint32_t flags, const struct hdql_Allocator *allocator) {
     if(!(r->functions  = _hdql_functions_create(NULL, r))) goto onFailure;
     if(!(r->constants  = _hdql_constants_create(NULL, r))) goto onFailure;
     if(!(r->randgen    = _hdql_randgen_create(NULL, r))) goto onFailure;
+    if(!(r->compounds  = hdql__compounds_create(NULL, r))) goto onFailure;
 
     return r;
 onFailure:
@@ -131,7 +132,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
 
 #ifdef HDQL_TYPES_DEBUG
     if(!(r->typesByPtr = hdql_ht_create(r->allocator
-            , HDQL_DEFAULT_CONTEXT_NTYPES
+            , HDQL_HT_DEFAULT_CONTEXT_NTYPES
             , HDQL_MURMUR3_32_DEFAULT_SEED
             ))) goto onFailure;
 #endif
@@ -148,6 +149,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
     if(!(r->randgen    = _hdql_randgen_create( flags & HDQL_CTX_LOCAL_RANDGEN
                                           ? NULL : pCtx->randgen
                                           , r))) goto onFailure;
+    if(!(r->compounds  = hdql__compounds_create(pCtx->compounds, r))) goto onFailure;
 
     return r;
 onFailure:
@@ -209,6 +211,11 @@ hdql_context_destroy(hdql_Context_t context) {
         _hdql_constants_destroy(context->constants, context);
     if(context->randgen)
         _hdql_randgen_destroy(context->randgen, context);
+    /* sic! compounds destroyed in this order: non-virtual compounds get destroyed
+     * AFTER context as they are used to resolve attribute definitions in forwarding
+     * queries while virtual compounds get deleted */
+    if(context->compounds)
+        hdql__compounds_destroy(context->compounds, context);
     hdql_context_wipe_errors(context);
     if(context->localData) {
         context->allocator->free(context->localData, context->allocator->userdata);
@@ -253,6 +260,11 @@ hdql_context_get_constants(hdql_Context_t context) {
 struct hdql_RandGen *
 hdql_context_get_randgen(hdql_Context_t context) {
     return context->randgen;
+}
+
+struct hdql_Compounds *
+hdql_context_get_compounds(hdql_Context_t context) {
+    return context->compounds;
 }
 
 hdql_Datum_t
@@ -304,8 +316,9 @@ hdql_context_free(hdql_Context_t context, hdql_Datum_t ptr) {
     return 0;
 }
 
+/* internal API */
 int
-hdql_context_add_virtual_compound(hdql_Context_t context, struct hdql_Compound * compoundPtr) {
+hdql__context_add_virtual_compound(hdql_Context_t context, struct hdql_Compound * compoundPtr) {
     struct hdql__VCmpd *n
         = (struct hdql__VCmpd *) context->allocator->alloc(sizeof(struct hdql__VCmpd)
                 , context->allocator->userdata);
@@ -411,7 +424,7 @@ hdql_context_custom_data_add(
         ) {
     if(!context->localData) {
         if(!(context->localData->byName = hdql_ht_create(context->allocator
-                , HDQL_DEFAULT_CONTEXT_LOCALDATA
+                , HDQL_HT_DEFAULT_CONTEXT_LOCALDATA
                 , HDQL_MURMUR3_32_DEFAULT_SEED ))) return HDQL_ERR_MEMORY;
     }
     int rc = hdql_ht_s_ins(context->localData->byName, name, ptr);
@@ -465,6 +478,11 @@ hdql__context_custom_data_erase( struct hdql_ContextLocalData *ld
         return HDQL_ERR_UNKNOWN_ATTRIBUTE;
 }
 
+const struct hdql_Allocator *
+hdql__context_get_allocator(struct hdql_Context *context) {
+    return context->allocator;
+}
+
 int
 hdql_context_custom_data_erase( hdql_Context_t context
                               , const char * name
@@ -473,5 +491,6 @@ hdql_context_custom_data_erase( hdql_Context_t context
     if(!context->localData) return HDQL_ERR_UNKNOWN_ATTRIBUTE;
     return hdql__context_custom_data_erase(context->localData, name, unwind);
 }
+
 
 

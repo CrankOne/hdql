@@ -50,7 +50,14 @@ struct hdql_Key * hdql__keys_prev(struct hdql_Key * k);
 bool hdql__key_is_terminal(const struct hdql_Key * k);
 
 /* from src/compound.c */
-struct hdql_Allocator *hdql__context_get_allocator(struct hdql_Context *);
+const struct hdql_Allocator *hdql__context_get_allocator(struct hdql_Context *);
+struct hdql_Compounds *hdql__compounds_create(struct hdql_Compounds *, struct hdql_Context *);
+void hdql__compounds_destroy(struct hdql_Compounds *c, struct hdql_Context *);
+struct hdql_Compound *hdql__compound_new(const char * name, struct hdql_Context * context);
+struct hdql_Compound *hdql__virtual_compound_new(const struct hdql_Compound *parent, struct hdql_Context * context);
+
+/* from src/context.c */
+int hdql__context_add_virtual_compound(struct hdql_Context *context, struct hdql_Compound *);
 
 #ifdef __cplusplus
 }  // extern "C"

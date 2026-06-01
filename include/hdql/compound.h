@@ -2,7 +2,6 @@
 #define H_HDQL_COMPOUND_H
 
 #include "hdql/types.h"
-#include "hdql/value.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,16 +22,19 @@ struct hdql_Compound;
 
 /**\brief Creates new "static" compound type
  *
- * Creates compound defined by user's schema. \p name gets copied using context
- * allocation.
+ * Creates compound defined by user's schema and adds it to the context's
+ * compounds index. \p name and \p typeID gets copied using context allocation.
+ * \p typeID can be null.
  *
- * \returns New named account instance or NULL if name is empty or memory error
- *          occured.
+ * \p rc can't be null and used to communicate error code.
  *
- * \todo Check, what's the point of postponing context ownership.
+ * \returns New named account instance or NULL if error occured.
+ *
  * */
 HDQL_API struct hdql_Compound *
-hdql_compound_new(const char * name, struct hdql_Context * context);
+hdql_compound_create(const char * name, struct hdql_Context * context
+        , int *rc
+        , void *typeID, size_t typeIDSize);
 
 /**\brief Creates virtual compound type
  *
@@ -46,7 +48,7 @@ hdql_compound_new(const char * name, struct hdql_Context * context);
  * \todo Check, what's the point of postponing context ownership.
  * */
 HDQL_API struct hdql_Compound *
-hdql_virtual_compound_new(const struct hdql_Compound * parent, struct hdql_Context * context);
+hdql_virtual_compound_create(const struct hdql_Compound * parent, struct hdql_Context * context);
 
 /**\breif Destroys virtual compound instance
  *
@@ -91,8 +93,7 @@ HDQL_API int hdql_compound_add_attr( struct hdql_Compound * instance
 
 /**\brief Retrieves attribute definition by name
  *
- * Recursive by default -- i.e. it will look in parent's attributes if not
- * found in current. */
+ * Recursive -- looks in parent's attributes if not found in current. */
 HDQL_API const struct hdql_AttrDef *
 hdql_compound_get_attr( const struct hdql_Compound *, const char * name );
 
@@ -158,6 +159,53 @@ HDQL_API size_t
 hdql_compound_for_each_own_attribute(const struct hdql_Compound * C
         , int (*cllb)(const char *, size_t, const struct hdql_AttrDef *, void *)
         , void * userdata);
+
+
+/**\brief Lists of context-bound non-virtual compound type definitions
+ *
+ * Maintains two indexes: by-name and by-type-id to provide fast lookup
+ * for compound type. Note, that by-type-id index is auxiliary one,
+ * defined to cope with C++ helper.
+ *
+ * Instance is bound to context, see `struct hdql_Context`.
+ * */
+struct hdql_Compounds;
+
+/**\brief Registers new compound by name
+ *
+ * Appends compounds table with new named entry, optionally annotated
+ * with "type id" information.
+ *
+ * \return
+ * - HDQL_ERR_NAME_COLLISION if eponymous compound was already
+ *   registered in the current context.
+ * - HDQL_ERR_MEMORY in case of memory error
+ * - HDQL_ERR_CODE_OVERRIDDEN when the compound was added, but has
+ *   overridden entry with same type ID.
+ * - HDQL_ERR_GENERIC in case of unspecified error of hash table.
+ * - HDQL_ERR_CODE_OK when done.
+ * */
+HDQL_API int
+hdql_compounds_add(struct hdql_Compounds *compounds
+        , const char *name, struct hdql_Compound *c
+        , void *typeID, size_t typeIDSize
+        );
+
+/**\brief Finds and returns compound by name
+ *
+ * \returns NULL if not found.
+ * */
+HDQL_API const struct hdql_Compound *
+hdql_compounds_get_by_name(const struct hdql_Compounds *compounds
+        , const char *name );
+
+/**\brief Finds and returns compound by type ID
+ *
+ * \returns NULL if not found.
+ * */
+HDQL_API const struct hdql_Compound *
+hdql_compounds_get_by_type_id(const struct hdql_Compounds *compounds
+        , const void *typeID, size_t typeIDLen );
 
 #ifdef __cplusplus
 }  // extern "C"

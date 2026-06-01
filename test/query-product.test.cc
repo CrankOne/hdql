@@ -40,7 +40,7 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -56,7 +56,7 @@ TEST_F(QueryProductTest, worksOnTwoSeriesWithoutKeys) {
 
     queries[1] = hdql_compile_query( q2Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -134,7 +134,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -150,7 +150,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
 
     queries[1] = hdql_compile_query( q2Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -166,7 +166,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
 
     queries[2] = hdql_compile_query( q3Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -179,10 +179,10 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     const struct hdql_ValueInterface * vi3 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi3 != NULL);
 
-    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
-    rc = hdql_query_product_reserve_key(queries, key, 3, _compounds.context_ptr());
+    hdql_Key * key = hdql_key_new(_compoundsContext);
+    rc = hdql_query_product_reserve_key(queries, key, 3, _compoundsContext);
     ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
-    size_t flvLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
+    size_t flvLen = hdql_key_flat_view_size(key, _compoundsContext);
     ASSERT_EQ(flvLen, 5);
     hdql_Key **flvks = reinterpret_cast<hdql_Key **>(alloca(flvLen*sizeof(hdql_Key *)));
     rc = hdql_key_flat_view_populate(key, flvks);
@@ -268,7 +268,7 @@ TEST_F(QueryProductTest, worksOnThreeSeriesWithKeys) {
     hdql_query_destroy(queries[1], _context);
     hdql_query_destroy(queries[2], _context);
 
-    hdql_key_destroy(key, _compounds.context_ptr());
+    hdql_key_destroy(key, _compoundsContext);
 }  // worksOnThreeSeriesWithKeys
 
 
@@ -286,7 +286,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithoutKeys) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -352,7 +352,7 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -366,10 +366,10 @@ TEST_F(QueryProductTest, worksOnSingleQueryWithKeys) {
     const struct hdql_ValueInterface * vi1 = hdql_types_get_type(_valueTypes, tc);
     ASSERT_TRUE(vi1 != NULL);
     // allocate keys storage and their flat views
-    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
-    int rc = hdql_query_product_reserve_key(queries, key, 1, _compounds.context_ptr());
+    hdql_Key * key = hdql_key_new(_compoundsContext);
+    int rc = hdql_query_product_reserve_key(queries, key, 1, _compoundsContext);
     ASSERT_EQ(HDQL_ERR_CODE_OK, rc);
-    size_t flvLen = hdql_key_flat_view_size(key, _compounds.context_ptr());
+    size_t flvLen = hdql_key_flat_view_size(key, _compoundsContext);
     ASSERT_EQ(flvLen, 1);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
 
@@ -436,7 +436,7 @@ TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -451,7 +451,7 @@ TEST_F(QueryProductTest, singleEmptyQueryYieldsEmptySet) {
     ASSERT_TRUE(vi1 != NULL);
 
     // allocate keys storage and their flat views
-    hdql_Key * key = hdql_key_new(_compounds.context_ptr());
+    hdql_Key * key = hdql_key_new(_compoundsContext);
     int rc = hdql_query_product_reserve_key(queries, key, 1, _context);
     ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
     size_t flkl1 = hdql_key_flat_view_size(key, _context);
@@ -482,7 +482,7 @@ TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
     char errBuf[128]; int errDetails[5];
     queries[0] = hdql_compile_query( q1Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );
@@ -498,7 +498,7 @@ TEST_F(QueryProductTest, twoQueryYieldsEmptySet) {
 
     queries[1] = hdql_compile_query( q2Expr
                               , _rootCompound
-                              , _compounds.context_ptr()
+                              , _compoundsContext
                               , errBuf, sizeof(errBuf)
                               , errDetails
                               );

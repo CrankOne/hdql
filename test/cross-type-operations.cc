@@ -1,11 +1,13 @@
 #include "cross-type-operations.hh"
 #include "events-struct.hh"  // for SingleRangeSelection
+#include "hdql/compound.h"
+#include "hdql/context.h"
 
 namespace hdql {
 namespace test {
 
 namespace {
-helpers::CompoundTypes
+void
 define_compound_types(hdql_Context_t context) {
     helpers::CompoundTypes types(context);
     types.new_compound<Item>("Item")
@@ -26,23 +28,14 @@ define_compound_types(hdql_Context_t context) {
         .attr<&RootItem::b, SimpleRangeSelection>("b")
         .attr<&RootItem::u16f>("u16f")
     .end_compound();
-    return types;
 }
 }
 
-helpers::CompoundTypes
+void
 TestCrossTypeOperations::_define_compounds(hdql_Context * context
-        , hdql_Compound *& rootCompound) {
-helpers::CompoundTypes compounds = define_compound_types(context);
-    if(compounds.empty()) throw std::runtime_error("failed to initialize type tables");
-    {
-        auto it = compounds.find(typeid(hdql::test::RootItem));
-        if(compounds.end() == it) {
-            throw std::runtime_error("No root compound");
-        }
-        rootCompound = it->second;
-    }
-    return compounds;
+        , const hdql_Compound *&rootCompound) {
+    define_compound_types(context);
+    rootCompound = hdql_compounds_get_by_name(hdql_context_get_compounds(context), "Root");
 }
 
 }  // namespace ::hdql::test

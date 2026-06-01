@@ -17,7 +17,7 @@ _hdql_test_alloc(size_t sz, void * chunks_) {
     return newData;
 }
 
-static void
+static int
 _hdql_test_free(void * ptr, void * chunks_) {
     auto & chunks = *reinterpret_cast<std::unordered_set<void *>*>(chunks_);
     assert(ptr);
@@ -27,6 +27,7 @@ _hdql_test_free(void * ptr, void * chunks_) {
     }
     chunks.erase(it);
     free(ptr);
+    return 0;
 }
 
 class HDQLHashTable : public ::testing::Test {
@@ -119,7 +120,7 @@ TEST_F(HDQLHashTable, Iteration) {
 
     auto visit = [](const unsigned char * key, size_t keyLen, void ** value, void * userdata) {
         VisitData* vd = static_cast<VisitData*>(userdata);
-        vd->keysVisited.insert(std::string(key, key + keyLen));
+        vd->keysVisited.insert(std::string(key, key + keyLen - 1));
         return 0;
     };
 
@@ -217,7 +218,7 @@ TEST_F(HDQLHashTableStressTest, InsertsLookupsDeletionsAndIteration) {
     std::set<std::string> iteratedKeys;
     auto visit = [](const unsigned char * key, size_t keyLen, void ** value, void * userdata) {
         auto *keySet = static_cast<std::set<std::string> *>(userdata);
-        keySet->insert(std::string(key, key + keyLen));
+        keySet->insert(std::string(key, key + keyLen - 1));
         return 0;
     };
     hdql_ht_iter(ht, visit, &iteratedKeys);

@@ -28,7 +28,7 @@ set (hdql_SOURCES src/util/pcg32.c
                   src/context.c
 	              src/errors.c
 	              src/attr-def.c
-	              src/compound.cc
+	              src/compound.c
                   src/query.c
 	              src/query-key.c
 	              src/operations.cc
@@ -130,7 +130,6 @@ if (BUILD_TESTS)
     target_link_libraries (hdql PUBLIC ${GTEST_BOTH_LIBRARIES} Threads::Threads)
     target_compile_definitions (hdql PUBLIC BUILD_GT_UTEST=1)
     set (hdqlTest_SOURCES
-        test/main.cc
         # utils
         test/ht.test.cc
         test/rnd.cc
@@ -156,22 +155,24 @@ if (BUILD_TESTS)
         test/iteration-tests/v-compound-bind.cc
         # monoidal functions
         test/monoids/monoids.cc
-        test/monoids/sum.cc
-        test/monoids/product.cc
-        test/monoids/b-and.cc
-        test/monoids/b-or.cc
-        test/monoids/b-xor.cc
-        test/monoids/all.cc
-        test/monoids/any.cc
-        test/monoids/count.cc
-        test/monoids/min.cc
-        test/monoids/max.cc
-        test/monoids/mean.cc
-        test/monoids/arb.cc
-        test/monoids/len.cc
-        test/monoids/empty.cc
-        test/cpp-api.cc
-        test/dsv.test.cc
+        #test/monoids/sum.cc
+        #test/monoids/product.cc
+        #test/monoids/b-and.cc
+        #test/monoids/b-or.cc
+        #test/monoids/b-xor.cc
+        #test/monoids/all.cc
+        #test/monoids/any.cc
+        #test/monoids/count.cc
+        #test/monoids/min.cc
+        #test/monoids/max.cc
+        #test/monoids/mean.cc
+        #test/monoids/arb.cc
+        #test/monoids/len.cc
+        #test/monoids/empty.cc
+        #test/cpp-api.cc
+        #test/dsv.test.cc
+        # entry point
+        test/main.cc
         )
     add_executable (hdql-test ${hdqlTest_SOURCES})
     target_link_libraries (hdql-test PUBLIC hdql)

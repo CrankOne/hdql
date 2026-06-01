@@ -617,8 +617,7 @@ scopedDefs : vCompoundDef {
            }
            | T_COLON aQExpr {
                 $$.compoundPtr
-                        = hdql_virtual_compound_new(hdql_parser_top_compound(ws), ws->context);
-                hdql_context_add_virtual_compound(ws->context, $$.compoundPtr);
+                        = hdql_virtual_compound_create(hdql_parser_top_compound(ws), ws->context);
                 assert(hdql_compound_is_virtual($$.compoundPtr));
                 $$.filter = $2;
            }
@@ -1186,7 +1185,7 @@ _vcompound_append_with_query(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yy
     }
     /* Add new attribute to virtual compound */
     rc = hdql_compound_add_attr(vCompound, attrName, newAttrDef);
-    if(0 == rc) return vCompound;
+    if(HDQL_ERR_CODE_OK == rc) return vCompound;
     hdql_error(yyloc, ws, yyscanner
         , "failed to define attribute \"%s\" for virtual"
           " compound type based on `%s'; error %d: %s"
@@ -1206,8 +1205,7 @@ _vcompound_def_start(YYLTYPE * yyloc, struct Workspace * ws, yyscan_t yyscanner
         ) {
     /* _substitute_ compound with new virtual one */
     struct hdql_Compound * vCompound
-                = hdql_virtual_compound_new(hdql_parser_top_compound(ws), ws->context);
-    hdql_context_add_virtual_compound(ws->context, vCompound);
+                = hdql_virtual_compound_create(hdql_parser_top_compound(ws), ws->context);
     struct hdql_Compound * nvc = _vcompound_append_with_query(
             yyloc, ws, yyscanner, vCompound, attrName, firstQuery, isBinding);
     if(nvc) {

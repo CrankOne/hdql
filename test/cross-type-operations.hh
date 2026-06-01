@@ -27,8 +27,8 @@ struct RootItem {
 
 class TestCrossTypeOperations : public TestCompiledQuery {
 protected:
-    helpers::CompoundTypes _define_compounds(hdql_Context * context
-            , hdql_Compound *& rootCompound) override;
+    void _define_compounds(hdql_Context * context
+            , const hdql_Compound *&rootCompound) override;
 };
 
 }  // namespace ::hdql::test

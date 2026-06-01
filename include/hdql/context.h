@@ -82,28 +82,25 @@ HDQL_API int hdql_context_free(hdql_Context_t, hdql_Datum_t);
 
 
 /**\brief Returns pointer to value types table */
-HDQL_API struct hdql_ValueTypes * hdql_context_get_types(hdql_Context_t ctx);
+HDQL_API struct hdql_ValueTypes *hdql_context_get_types(hdql_Context_t ctx);
 
 /**\brief Returns pointer to operations table */
-HDQL_API struct hdql_Operations * hdql_context_get_operations(hdql_Context_t ctx);
+HDQL_API struct hdql_Operations *hdql_context_get_operations(hdql_Context_t ctx);
 
 /**\brief Returns functions definitions dictionary */
-HDQL_API struct hdql_Functions * hdql_context_get_functions(hdql_Context_t ctx);
+HDQL_API struct hdql_Functions *hdql_context_get_functions(hdql_Context_t ctx);
 
 /**\brief Returns table of atomic type conversions */
-HDQL_API struct hdql_Converters * hdql_context_get_conversions(hdql_Context_t ctx);
+HDQL_API struct hdql_Converters *hdql_context_get_conversions(hdql_Context_t ctx);
 
 /**\brief Returns constant values definitions table */
-HDQL_API struct hdql_Constants * hdql_context_get_constants(hdql_Context_t ctx);
+HDQL_API struct hdql_Constants *hdql_context_get_constants(hdql_Context_t ctx);
 
 /**\brief Returns context random generator instance*/
-HDQL_API struct hdql_RandGen * hdql_context_get_randgen(hdql_Context_t ctx);
+HDQL_API struct hdql_RandGen *hdql_context_get_randgen(hdql_Context_t ctx);
 
-/**\brief Used by parser routines to create virtual compound types
- *
- * \return HDQL_ERR_CODE_OK on success, HDQL_ERR_MEMORY on failure.
- * */
-HDQL_API int hdql_context_add_virtual_compound(hdql_Context_t, struct hdql_Compound * );
+/**\brief Returns compounds index associated with the context*/
+HDQL_API struct hdql_Compounds *hdql_context_get_compounds(hdql_Context_t ctx);
 
 /**\brief Used to keep error details in case of unwidning errors
  *

@@ -1,12 +1,14 @@
 #include "events-struct.hh"
+#include "hdql/attr-def.h"
+#include "hdql/context.h"
 #include "hdql/helpers/compounds.hh"
+#include <typeindex>
 
 namespace hdql {
 namespace test {
 
-helpers::CompoundTypes
+void
 define_test_event_compound(hdql_Context_t context) {
-    #if 1
     helpers::CompoundTypes types(context);
     types.new_compound<RawData>("RawData")
         .attr<&RawData::time>("time")
@@ -31,75 +33,6 @@ define_test_event_compound(hdql_Context_t context) {
         .attr<&Event::hits, SimpleRangeSelection>("hits")
         .attr<&Event::tracks, SimpleRangeSelection>("tracks")
     .end_compound();
-    return types;
-    #else
-    hdql::helpers::Compounds compounds;
-    struct hdql_Compound * rawDataCompound = hdql_compound_new("RawData", context);
-    compounds.emplace(typeid(RawData), rawDataCompound);
-    {  // RawData::time
-        struct hdql_AtomicTypeFeatures typeInfo = helpers::IFace<&RawData::time>::type_info(valTypes, compounds);
-        struct hdql_ScalarAttrInterface iface = helpers::IFace<&RawData::time>::iface();
-        struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_scalar(
-                  &typeInfo
-                , &iface
-                , 0x0  // key type code
-                , NULL  // key iface
-                , context
-                );
-        hdql_compound_add_attr( rawDataCompound
-                              , "time"
-                              , ad);
-    }
-    {  // RawData::samples[4]
-        struct hdql_AtomicTypeFeatures typeInfo = helpers::IFace<&RawData::samples>::type_info(valTypes, compounds);
-        struct hdql_CollectionAttrInterface iface = helpers::IFace<&RawData::samples>::iface();
-        hdql_ValueTypeCode_t keyTypeCode
-            = hdql_types_get_type_code(valTypes, "size_t");
-        struct hdql_AttrDef * ad = hdql_attr_def_create_atomic_collection(
-                  &typeInfo
-                , &iface
-                , keyTypeCode
-                , NULL  // key type iface 
-                , context );
-        hdql_compound_add_attr( rawDataCompound
-                              , "samples"
-                              , ad);
-    }
-
-    struct hdql_Compound * hitCompound = hdql_compound_new("Hit", context);
-    compounds.emplace(typeid(Hit), hitCompound);
-    {  // Hit::RawData
-        struct hdql_Compound * typeInfo = helpers::IFace<&Hit::rawData>::type_info(valTypes, compounds);
-        struct hdql_ScalarAttrInterface iface = helpers::IFace<&Hit::rawData>::iface();
-        struct hdql_AttrDef * ad = hdql_attr_def_create_compound_scalar(
-                  typeInfo
-                , &iface
-                , 0x0  // key type code
-                , NULL  // key iface
-                , context
-                );
-        hdql_compound_add_attr( hitCompound
-                              , "rawData"
-                              , ad);
-    }
-
-    struct hdql_Compound * trackCompound = hdql_compound_new("Track", context);
-    compounds.emplace(typeid(Track), trackCompound);
-    {  // Tracks::hits
-        struct hdql_Compound * typeInfo = helpers::IFace<&Track::hits>::type_info(valTypes, compounds);
-        struct hdql_CollectionAttrInterface iface = helpers::IFace<&Track::hits>::iface();
-        struct hdql_AttrDef * ad = hdql_attr_def_create_compound_collection(
-                  typeInfo
-                , &iface
-                , 0x0  // key type code
-                , NULL  // key iface
-                , context
-                );
-        hdql_compound_add_attr( trackCompound
-                              , "hits"
-                              , ad);
-    }
-    #endif
 }
 
 }  // namespace ::hdql::test
@@ -109,18 +42,12 @@ define_test_event_compound(hdql_Context_t context) {
 namespace hdql {
 namespace test {
 
-helpers::CompoundTypes
-TestingEventStruct::_define_compounds(struct hdql_Context * ctx, hdql_Compound *& eventCompound) {
-    helpers::CompoundTypes compounds = ::hdql::test::define_test_event_compound(_context);
-    if(compounds.empty()) throw std::runtime_error("failed to initialize type tables");
-    {
-        auto it = compounds.find(typeid(hdql::test::Event));
-        if(compounds.end() == it) {
-            throw std::runtime_error("No root compound");
-        }
-        eventCompound = it->second;
-    }
-    return compounds;
+void
+TestingEventStruct::_define_compounds(struct hdql_Context *context, const hdql_Compound *&rootCompound) {
+    ::hdql::test::define_test_event_compound(context);
+    std::type_index ti = typeid(hdql::test::Event);
+    rootCompound = hdql_compounds_get_by_type_id(hdql_context_get_compounds(context)
+            , &ti, sizeof(std::type_index));
 }
 
 SimpleRangeSelection

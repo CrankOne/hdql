@@ -160,19 +160,19 @@ struct IterState {
     std::vector<void *> values;
 };
 
-static uint64_t be_to_u64(const unsigned char *k) {
+static uint64_t be_to_u64(const void *k) {
     uint64_t x = 0;
 
     for (int i = 0; i < 8; ++i) {
         x <<= 8;
-        x |= static_cast<uint64_t>(k[i]);
+        x |= static_cast<uint64_t>(reinterpret_cast<const unsigned char *>(k)[i]);
     }
 
     return x;
 }
 
 static int collect_iter_cb(
-        const unsigned char *key,
+        const void *key,
         size_t keyLen,
         void **value,
         void *userdata)
@@ -214,7 +214,7 @@ struct StopState {
 };
 
 static int stop_after_three_cb(
-        const unsigned char *key,
+        const void *key,
         size_t keyLen,
         void **value,
         void *userdata)
@@ -253,7 +253,7 @@ struct ReplaceState {
 };
 
 static int replace_even_keys_cb(
-        const unsigned char *key,
+        const void *key,
         size_t keyLen,
         void **value,
         void *userdata)

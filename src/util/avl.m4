@@ -1,26 +1,4 @@
 define(_M4_pubfunc, `$1_$2')dnl
-dnl
-ifdef(`_M_isMap',dnl ---------------------- if map, define value-related macros
-`define(_M_value_attr, `void *value;')
-define(_M_value_arg_sig, `, void *value')dnl
-define(_M_value_parg_sig, `, void **value')dnl
-define(_M_value_arg_fwd, `, value')dnl
-define(_M_value_arg_pfwd, `, &n->value')dnl
-define(_M_value_copy, `$1 = $2;')dnl
-define(_M_cond_value_copy, `if($1) $2 = $3;')dnl
-dnl
-define(_M_oldval_arg_sig, `, void **oldValue')dnl
-define(_M_oldval_arg_fwd, `, oldValue')',dnl ---- if not a map, define empty value-related
-`define(_M_value_attr, `')dnl
-define(_M_value_arg_sig, `')dnl
-define(_M_value_parg_sig, `')dnl
-define(_M_value_arg_fwd, `')dnl
-define(_M_value_arg_pfwd, `')dnl
-define(_M_value_copy, `')dnl
-define(_M_cond_value_copy, `')dnl
-dnl
-define(_M_oldval_arg_sig, `')dnl
-define(_M_oldval_arg_fwd, `')')dnl
 dnl                                                                    _______
 dnl _________________________________________________________________/ Implem
 dnl
@@ -44,14 +22,14 @@ typedef struct _M_AVLNode _M_AVLNode;
 struct _M_AVLNode {
     _M_AVLNode *left, *right;
     int height;
-    _M_value_attr
-    unsigned char *key;
+    ifelse(_M_isMap, `true', `void *value;')
+    _M_keyType key;
 };
 
 struct _M_AVL {
     _M_AVLNode *root;
     const struct hdql_Allocator *alloc;
-    size_t keyLen;
+    ifelse(_M_isKeyFixed, `true', `size_t keyLen;')
     size_t nItems;
 };
 
@@ -61,7 +39,7 @@ static int max_i(int a, int b) { return a > b ? a : b; }
 static void fix_height(_M_AVLNode *n) { n->height = 1 + max_i(h(n->left), h(n->right)); }
 static int balance_factor(const _M_AVLNode *n) { return h(n->right) - h(n->left); }
 /* unsigned big-endian integer comparison */
-static int key_cmp(const unsigned char *a, const unsigned char *b, size_t n) { return memcmp(a, b, n); }
+static int key_cmp(const void *a, const void *b, size_t n) { return memcmp(a, b, n); }
 
 static _M_AVLNode *
 rot_left(_M_AVLNode *a) {
@@ -101,7 +79,10 @@ static _M_AVLNode *balance(_M_AVLNode *n) {
 }
 
 static _M_AVLNode *
-node_new(const void *key, size_t keyLen _M_value_arg_sig, const struct hdql_Allocator *alloc) {
+node_new(const _M_keyType key
+        ifelse(_M_isKeyFixed, `true', `, size_t keyLen')
+        ifelse(_M_isMap, `true', `, void *value')
+        , const struct hdql_Allocator *alloc) {
     _M_AVLNode *n = alloc->alloc(sizeof(*n), alloc->userdata);
     if (!n) return NULL;
     n->key = alloc->alloc(keyLen, alloc->userdata);
@@ -113,7 +94,7 @@ node_new(const void *key, size_t keyLen _M_value_arg_sig, const struct hdql_Allo
     n->left = NULL;
     n->right = NULL;
     n->height = 1;
-    _M_value_copy(n->value, value)
+    ifelse(_M_isMap, `true', `n->value = value;')
     return n;
 }
 
@@ -130,26 +111,26 @@ static void node_free_all(_M_AVLNode *n, const struct hdql_Allocator *alloc) {
 static int
 insert_recursive( _M_AVLNode **out
                 , _M_AVLNode *n
-                , const void *key
+                , const _M_keyType key
                 , size_t keyLen
-                _M_value_arg_sig
+                ifelse(_M_isMap, `true', `, void *value')
                 , const struct hdql_Allocator *alloc
                 ) {
     if (!n) {
-        *out = node_new(key, keyLen _M_value_arg_fwd, alloc);
+        *out = node_new(key, keyLen ifelse(_M_isMap, `true', `, value'), alloc);
         return *out ? HDQL_AVL_OK : HDQL_AVL_MEM_ERROR;
     }
     int c = key_cmp(key, n->key, keyLen);
     if (c == 0) {
-        _M_value_copy(n->value, value)
+        ifelse(_M_isMap, `true', `n->value = value;')
         *out = n;
         return HDQL_AVL_CHANGED;
     }
     int rc;
     if (c < 0)
-        rc = insert_recursive(&n->left, n->left, key, keyLen _M_value_arg_fwd, alloc);
+        rc = insert_recursive(&n->left, n->left, key, keyLen ifelse(_M_isMap, `true', `, value'), alloc);
     else
-        rc = insert_recursive(&n->right, n->right, key, keyLen _M_value_arg_fwd, alloc);
+        rc = insert_recursive(&n->right, n->right, key, keyLen ifelse(_M_isMap, `true', `, value'), alloc);
     if (rc < 0) {
         *out = n;
         return rc;
@@ -162,7 +143,10 @@ insert_recursive( _M_AVLNode **out
 #else  /* HDQL_AVL_RECURSIVE_IMPLEMS */
 
 static int
-insert_iterative(struct _M_AVL *m, const unsigned char *key _M_value_arg_sig) {
+insert_iterative( struct _M_AVL *m
+        , const _M_keyType key
+        ifelse(_M_isMap, `true', `, void *value')
+        ) {
     _M_AVLNode **path[HDQL_AVL_MAX_HEIGHT];
     _M_AVLNode **link;
     _M_AVLNode *n;
@@ -184,14 +168,14 @@ insert_iterative(struct _M_AVL *m, const unsigned char *key _M_value_arg_sig) {
         rc = key_cmp(key, n->key, m->keyLen);
 
         if (rc == 0) {
-            _M_value_copy(n->value, value)
+            ifelse(_M_isMap, `true', `n->value = value;')
             return HDQL_AVL_CHANGED; /* replaced */
         }
 
         link = rc < 0 ? &n->left : &n->right;
     }
 
-    *link = node_new(key, m->keyLen _M_value_arg_fwd, m->alloc);
+    *link = node_new(key, m->keyLen ifelse(_M_isMap, `true', `, value'), m->alloc);
     if (!*link)
         return HDQL_AVL_MEM_ERROR;
 
@@ -228,9 +212,9 @@ detach_min(_M_AVLNode *n, _M_AVLNode **min_node) {
 
 static _M_AVLNode *
 erase_recursive(_M_AVLNode *n
-        , const unsigned char *key
+        , const _M_keyType key
         , size_t keyLen
-        _M_oldval_arg_sig
+        ifelse(_M_isMap, `true', `, void **oldValue')
         , int *removed
         , const struct hdql_Allocator *alloc
         ) {
@@ -238,12 +222,12 @@ erase_recursive(_M_AVLNode *n
     if(!n) return NULL;
     rc = key_cmp(key, n->key, keyLen);
     if (rc < 0) {
-        n->left = erase_recursive(n->left, key, keyLen _M_oldval_arg_fwd, removed, alloc);
+        n->left = erase_recursive(n->left, key, keyLen ifelse(_M_isMap, `true', `, oldValue'), removed, alloc);
         return balance(n);
     }
 
     if (rc > 0) {
-        n->right = erase_recursive(n->right, key, keyLen _M_oldval_arg_fwd, removed, alloc);
+        n->right = erase_recursive(n->right, key, keyLen ifelse(_M_isMap, `true', `, oldValue'), removed, alloc);
         return balance(n);
     }
 
@@ -251,7 +235,7 @@ erase_recursive(_M_AVLNode *n
         _M_AVLNode *left = n->left;
         _M_AVLNode *right = n->right;
         *removed = HDQL_AVL_CHANGED;
-        _M_cond_value_copy(oldValue, *oldValue, n->value)
+        ifelse(_M_isMap, `true', `if(oldValue) *oldValue = n->value;')
         if (!right) {
             node_delete(n, alloc);
             return left;
@@ -271,7 +255,7 @@ erase_recursive(_M_AVLNode *n
 #else  /* HDQL_AVL_RECURSIVE_IMPLEMS */
 
 static int
-erase_iterative(struct _M_AVL *m, const unsigned char *key _M_oldval_arg_sig) {
+erase_iterative(struct _M_AVL *m, const _M_keyType key ifelse(_M_isMap, `true', `, void **oldValue')) {
     _M_AVLNode **path[HDQL_AVL_MAX_HEIGHT];
     _M_AVLNode **link;
     _M_AVLNode *n;
@@ -290,7 +274,7 @@ erase_iterative(struct _M_AVL *m, const unsigned char *key _M_oldval_arg_sig) {
     }
     if (!*link) return HDQL_AVL_OK;  /* not found */
     n = *link;
-    _M_cond_value_copy(oldValue, *oldValue, n->value)
+    ifelse(_M_isMap, `true', `if(oldValue) *oldValue = n->value;')
     if(!n->left) {
         *link = n->right;
         node_delete(n, m->alloc);
@@ -340,13 +324,13 @@ erase_iterative(struct _M_AVL *m, const unsigned char *key _M_oldval_arg_sig) {
 static int
 avl_iter_node(_M_AVLNode *n
         , size_t keyLen
-        , int (*callback)(const unsigned char * key, size_t keyLen _M_value_parg_sig , void *userdata)
+        , int (*callback)(const _M_keyType key, size_t keyLen ifelse(_M_isMap, `true', `, void **value'), void *userdata)
         , void *userdata) {
     int rc;
     if(!n) return 0;
     rc = avl_iter_node(n->left, keyLen, callback, userdata);
     if(rc) return rc;
-    rc = callback(n->key, keyLen _M_value_arg_pfwd, userdata);
+    rc = callback(n->key, keyLen ifelse(_M_isMap, `true', `, &n->value'), userdata);
     if (rc) return rc;
     return avl_iter_node(n->right, keyLen, callback, userdata);
 }
@@ -367,12 +351,15 @@ _M4_pubfunc(_M_AVL, create)(size_t keyLen, const struct hdql_Allocator *alloc) {
 }
 
 int
-_M4_pubfunc(_M_AVL, insert)(struct _M_AVL *m, const void *key _M_value_arg_sig) {
+_M4_pubfunc(_M_AVL, insert)(struct _M_AVL *m
+        , const _M_keyType key
+        ifelse(_M_isMap, `true', `, void *value')
+        ) {
     int rc =
     #if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
-        insert_recursive(&m->root, m->root, key, m->keyLen _M_value_arg_fwd , m->alloc);
+        insert_recursive(&m->root, m->root, key, m->keyLen ifelse(_M_isMap, `true', `, value'), m->alloc);
     #else
-        insert_iterative(m, key _M_value_arg_fwd);
+        insert_iterative(m, key ifelse(_M_isMap, `true', `, value'));
     #endif
     if(HDQL_AVL_OK == rc) ++(m->nItems);
     return rc;
@@ -380,7 +367,7 @@ _M4_pubfunc(_M_AVL, insert)(struct _M_AVL *m, const void *key _M_value_arg_sig) 
 
 ifdef(`_M_isMap',dnl
 `void *
-_M4_pubfunc(_M_AVL, get)(const struct _M_AVL *m, const void *key) {
+_M4_pubfunc(_M_AVL, get)(const struct _M_AVL *m, const _M_keyType key) {
     _M_AVLNode *n = m->root;
     while (n) {
         int c = key_cmp(key, n->key, m->keyLen);
@@ -390,7 +377,7 @@ _M4_pubfunc(_M_AVL, get)(const struct _M_AVL *m, const void *key) {
     return NULL;
 }',dnl
 `bool
-_M4_pubfunc(_M_AVL, has)(const struct _M_AVL *m, const void *key) {
+_M4_pubfunc(_M_AVL, has)(const struct _M_AVL *m, const _M_keyType key) {
     _M_AVLNode *n = m->root;
     while (n) {
         int c = key_cmp(key, n->key, m->keyLen);
@@ -401,13 +388,13 @@ _M4_pubfunc(_M_AVL, has)(const struct _M_AVL *m, const void *key) {
 }')dnl
 
 int
-_M4_pubfunc(_M_AVL, erase)(struct _M_AVL *m, const void *key _M_oldval_arg_sig) {
+_M4_pubfunc(_M_AVL, erase)(struct _M_AVL *m, const _M_keyType key ifelse(_M_isMap, `true', `, void **oldValue')) {
     int removed = 0;
     if(!m) return 0;
     #if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
-        m->root = erase_recursive(m->root, key, m->keyLen _M_oldval_arg_fwd, &removed, m->alloc);
+        m->root = erase_recursive(m->root, key, m->keyLen ifelse(_M_isMap, `true', `, oldValue'), &removed, m->alloc);
     #else
-        removed = erase_iterative(m, key _M_oldval_arg_fwd);
+        removed = erase_iterative(m, key ifelse(_M_isMap, `true', `, oldValue'));
     #endif
     if(HDQL_AVL_CHANGED == removed) --(m->nItems);
     return removed;
@@ -427,7 +414,7 @@ _M4_pubfunc(_M_AVL, destroy)(struct _M_AVL *m) {
 
 int
 _M4_pubfunc(_M_AVL, iter)(struct _M_AVL *m
-        , int (*callback)(const unsigned char * key, size_t keyLen _M_value_parg_sig, void *userdata)
+        , int (*callback)(const _M_keyType key, size_t keyLen ifelse(_M_isMap, `true', `, void **value'), void *userdata)
         , void *userdata) {
     if (!m || !callback) return HDQL_AVL_BAD_ARG_ERROR;
     return avl_iter_node(m->root, m->keyLen, callback, userdata);

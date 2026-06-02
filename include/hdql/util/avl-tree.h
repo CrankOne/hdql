@@ -95,11 +95,11 @@ HDQL_API void hdql_fmap_destroy(struct hdql_fmap *m);
 HDQL_API void hdql_fset_destroy(struct hdql_fset *m);
 
 HDQL_API int hdql_fmap_iter(struct hdql_fmap *m
-        , int (*callback)(const unsigned char * key, size_t keyLen, void **value, void *userdata)
+        , int (*callback)(const void *key, size_t keyLen, void **value, void *userdata)
         , void *userdata);
 
 HDQL_API int hdql_fset_iter(struct hdql_fset *m
-        , int (*callback)(const unsigned char * key, size_t keyLen, void *userdata)
+        , int (*callback)(const void *key, size_t keyLen, void *userdata)
         , void *userdata);
 
 #if 0

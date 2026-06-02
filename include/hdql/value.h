@@ -220,6 +220,12 @@ enum hdql_ExternValueType {
     hdql_kExternValFltType = 2,
 };
 
+/**\brief Defined new type 
+ *
+ * \returns
+ * - HDQL_ERR_CODE_OK on success
+ * - HDQL_ERR_BAD_ARGUMENT on empty name
+ * */
 HDQL_API int hdql_constants_define_float(struct hdql_Constants *, const char *, hdql_Flt_t);
 
 HDQL_API int hdql_constants_define_int(struct hdql_Constants *, const char *, hdql_Int_t);

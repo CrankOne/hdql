@@ -6,15 +6,15 @@
 class TestAVLTree : public ::testing::Test {
 protected:
     const hdql_Allocator * _allocator;
-    hdql_avl *_m;
+    hdql_fmap *_m;
 public:
     TestAVLTree() : _allocator(&hdql_gHeapAllocator), _m(nullptr) {}
     void SetUp() override {
-        _m = hdql_avl_new(8, _allocator);
+        _m = hdql_fmap_create(8, _allocator);
     }
 
     void TearDown() override {
-        if(_m) hdql_avl_destroy(_m);
+        if(_m) hdql_fmap_destroy(_m);
     }
 };
 
@@ -34,17 +34,17 @@ static std::vector<unsigned char> key_u64(uint64_t x) {
 TEST_F(TestAVLTree, emptyLookupReturnsNull) {
     auto k = key_u64(42);
 
-    EXPECT_EQ(nullptr, hdql_avl_get(_m, k.data()));
-    EXPECT_EQ(hdql_avl_size(_m), 0);
+    EXPECT_EQ(nullptr, hdql_fmap_get(_m, k.data()));
+    EXPECT_EQ(hdql_fmap_size(_m), 0);
 }
 
 TEST_F(TestAVLTree, insertAndLookupSingleValue) {
     int value = 123;
     auto k = key_u64(42);
 
-    EXPECT_EQ(HDQL_AVL_OK, hdql_avl_insert(_m, k.data(), &value));
-    EXPECT_EQ(&value, hdql_avl_get(_m, k.data()));
-    EXPECT_EQ(hdql_avl_size(_m), 1);
+    EXPECT_EQ(HDQL_AVL_OK, hdql_fmap_insert(_m, k.data(), &value));
+    EXPECT_EQ(&value, hdql_fmap_get(_m, k.data()));
+    EXPECT_EQ(hdql_fmap_size(_m), 1);
 }
 
 TEST_F(TestAVLTree, replaceExistingValue) {
@@ -52,10 +52,10 @@ TEST_F(TestAVLTree, replaceExistingValue) {
     int v2 = 22;
     auto k = key_u64(42);
 
-    EXPECT_EQ(HDQL_AVL_OK,      hdql_avl_insert(_m, k.data(), &v1));
-    EXPECT_EQ(HDQL_AVL_CHANGED, hdql_avl_insert(_m, k.data(), &v2));
-    EXPECT_EQ(&v2, hdql_avl_get(_m, k.data()));
-    EXPECT_EQ(hdql_avl_size(_m), 1);
+    EXPECT_EQ(HDQL_AVL_OK,      hdql_fmap_insert(_m, k.data(), &v1));
+    EXPECT_EQ(HDQL_AVL_CHANGED, hdql_fmap_insert(_m, k.data(), &v2));
+    EXPECT_EQ(&v2, hdql_fmap_get(_m, k.data()));
+    EXPECT_EQ(hdql_fmap_size(_m), 1);
 }
 
 TEST_F(TestAVLTree, insertManyAndLookupAll) {
@@ -68,17 +68,17 @@ TEST_F(TestAVLTree, insertManyAndLookupAll) {
     for (size_t i = 0; i < keys.size(); ++i) {
         values[i] = static_cast<int>(1000 + i);
         auto k = key_u64(keys[i]);
-        EXPECT_EQ(HDQL_AVL_OK, hdql_avl_insert(_m, k.data(), &values[i]));
-        EXPECT_EQ(hdql_avl_size(_m), i+1);
+        EXPECT_EQ(HDQL_AVL_OK, hdql_fmap_insert(_m, k.data(), &values[i]));
+        EXPECT_EQ(hdql_fmap_size(_m), i+1);
     }
 
     for (size_t i = 0; i < keys.size(); ++i) {
         auto k = key_u64(keys[i]);
-        EXPECT_EQ(&values[i], hdql_avl_get(_m, k.data()));
+        EXPECT_EQ(&values[i], hdql_fmap_get(_m, k.data()));
     }
 
     auto missing = key_u64(999);
-    EXPECT_EQ(nullptr, hdql_avl_get(_m, missing.data()));
+    EXPECT_EQ(nullptr, hdql_fmap_get(_m, missing.data()));
 }
 
 TEST_F(TestAVLTree, eraseLeafNode) {
@@ -90,19 +90,19 @@ TEST_F(TestAVLTree, eraseLeafNode) {
     auto k10 = key_u64(10);
     auto k30 = key_u64(30);
 
-    ASSERT_EQ(0, hdql_avl_insert(_m, k20.data(), &v20));
-    ASSERT_EQ(0, hdql_avl_insert(_m, k10.data(), &v10));
-    ASSERT_EQ(0, hdql_avl_insert(_m, k30.data(), &v30));
-    EXPECT_EQ(hdql_avl_size(_m), 3);
+    ASSERT_EQ(0, hdql_fmap_insert(_m, k20.data(), &v20));
+    ASSERT_EQ(0, hdql_fmap_insert(_m, k10.data(), &v10));
+    ASSERT_EQ(0, hdql_fmap_insert(_m, k30.data(), &v30));
+    EXPECT_EQ(hdql_fmap_size(_m), 3);
 
     void *old = nullptr;
-    EXPECT_EQ(HDQL_AVL_CHANGED, hdql_avl_erase(_m, k10.data(), &old));
+    EXPECT_EQ(HDQL_AVL_CHANGED, hdql_fmap_erase(_m, k10.data(), &old));
     EXPECT_EQ(&v10, old);
-    EXPECT_EQ(hdql_avl_size(_m), 2);
+    EXPECT_EQ(hdql_fmap_size(_m), 2);
 
-    EXPECT_EQ(nullptr, hdql_avl_get(_m, k10.data()));
-    EXPECT_EQ(&v20, hdql_avl_get(_m, k20.data()));
-    EXPECT_EQ(&v30, hdql_avl_get(_m, k30.data()));
+    EXPECT_EQ(nullptr, hdql_fmap_get(_m, k10.data()));
+    EXPECT_EQ(&v20, hdql_fmap_get(_m, k20.data()));
+    EXPECT_EQ(&v30, hdql_fmap_get(_m, k30.data()));
 }
 
 TEST_F(TestAVLTree, eraseNodeWithTwoChildren) {
@@ -115,22 +115,22 @@ TEST_F(TestAVLTree, eraseNodeWithTwoChildren) {
     for (size_t i = 0; i < keys.size(); ++i) {
         values[i] = static_cast<int>(keys[i]);
         auto k = key_u64(keys[i]);
-        ASSERT_EQ(0, hdql_avl_insert(_m, k.data(), &values[i]));
-        EXPECT_EQ(hdql_avl_size(_m), i + 1);
+        ASSERT_EQ(0, hdql_fmap_insert(_m, k.data(), &values[i]));
+        EXPECT_EQ(hdql_fmap_size(_m), i + 1);
     }
 
     auto k40 = key_u64(40);
 
     void *old = nullptr;
-    EXPECT_EQ(1, hdql_avl_erase(_m, k40.data(), &old));
+    EXPECT_EQ(1, hdql_fmap_erase(_m, k40.data(), &old));
     EXPECT_EQ(&values[0], old);
-    EXPECT_EQ(hdql_avl_size(_m), 6);
+    EXPECT_EQ(hdql_fmap_size(_m), 6);
 
-    EXPECT_EQ(nullptr, hdql_avl_get(_m, k40.data()));
+    EXPECT_EQ(nullptr, hdql_fmap_get(_m, k40.data()));
 
     for (size_t i = 1; i < keys.size(); ++i) {
         auto k = key_u64(keys[i]);
-        EXPECT_EQ(&values[i], hdql_avl_get(_m, k.data()));
+        EXPECT_EQ(&values[i], hdql_fmap_get(_m, k.data()));
     }
 }
 
@@ -139,16 +139,16 @@ TEST_F(TestAVLTree, eraseMissingKeyReturnsZero) {
     auto k1 = key_u64(1);
     auto k2 = key_u64(2);
 
-    ASSERT_EQ(0, hdql_avl_insert(_m, k1.data(), &value));
-    EXPECT_EQ(hdql_avl_size(_m), 1);
+    ASSERT_EQ(0, hdql_fmap_insert(_m, k1.data(), &value));
+    EXPECT_EQ(hdql_fmap_size(_m), 1);
 
     void *old = reinterpret_cast<void *>(0xdeadbeef);
-    EXPECT_EQ(0, hdql_avl_erase(_m, k2.data(), &old));
+    EXPECT_EQ(0, hdql_fmap_erase(_m, k2.data(), &old));
 
     /* old should remain untouched if key was absent */
     EXPECT_EQ(reinterpret_cast<void *>(0xdeadbeef), old);
-    EXPECT_EQ(&value, hdql_avl_get(_m, k1.data()));
-    EXPECT_EQ(hdql_avl_size(_m), 1);
+    EXPECT_EQ(&value, hdql_fmap_get(_m, k1.data()));
+    EXPECT_EQ(hdql_fmap_size(_m), 1);
 }
 
 /*
@@ -197,11 +197,11 @@ TEST_F(TestAVLTree, IteratesInSortedOrder) {
     for (size_t i = 0; i < keys.size(); ++i) {
         values[i] = static_cast<int>(keys[i]);
         auto k = key_u64(keys[i]);
-        ASSERT_EQ(0, hdql_avl_insert(_m, k.data(), &values[i]));
+        ASSERT_EQ(0, hdql_fmap_insert(_m, k.data(), &values[i]));
     }
 
     IterState st;
-    EXPECT_EQ(0, hdql_avl_iter(_m, collect_iter_cb, &st));
+    EXPECT_EQ(0, hdql_fmap_iter(_m, collect_iter_cb, &st));
 
     std::vector<uint64_t> expected = keys;
     std::sort(expected.begin(), expected.end());
@@ -239,12 +239,12 @@ TEST_F(TestAVLTree, iterationCanStopEarly) {
     for (uint64_t i = 0; i < 10; ++i) {
         values[i] = static_cast<int>(i);
         auto k = key_u64(i);
-        ASSERT_EQ(0, hdql_avl_insert(_m, k.data(), &values[i]));
+        ASSERT_EQ(0, hdql_fmap_insert(_m, k.data(), &values[i]));
     }
 
     StopState st;
 
-    EXPECT_EQ(1234, hdql_avl_iter(_m, stop_after_three_cb, &st));
+    EXPECT_EQ(1234, hdql_fmap_iter(_m, stop_after_three_cb, &st));
     EXPECT_EQ(3, st.count);
 }
 
@@ -276,20 +276,20 @@ TEST_F(TestAVLTree, iterationCallbackMayReplaceValues) {
     for (uint64_t i = 0; i < 6; ++i) {
         values[i] = static_cast<int>(i);
         auto k = key_u64(i);
-        ASSERT_EQ(0, hdql_avl_insert(_m, k.data(), &values[i]));
+        ASSERT_EQ(0, hdql_fmap_insert(_m, k.data(), &values[i]));
     }
 
     ReplaceState st;
 
-    EXPECT_EQ(0, hdql_avl_iter(_m, replace_even_keys_cb, &st));
+    EXPECT_EQ(0, hdql_fmap_iter(_m, replace_even_keys_cb, &st));
 
     for (uint64_t i = 0; i < 6; ++i) {
         auto k = key_u64(i);
 
         if ((i % 2) == 0)
-            EXPECT_EQ(&st.replacement, hdql_avl_get(_m, k.data()));
+            EXPECT_EQ(&st.replacement, hdql_fmap_get(_m, k.data()));
         else
-            EXPECT_EQ(&values[i], hdql_avl_get(_m, k.data()));
+            EXPECT_EQ(&values[i], hdql_fmap_get(_m, k.data()));
     }
 }
 

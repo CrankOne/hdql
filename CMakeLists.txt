@@ -20,10 +20,40 @@ option (COVERAGE "Enables special compiler flags for coverage tests" OFF)
 # option for their static libs, so we provide here option to suppress it
 option (FORCE_FPIC "Enables -fPIC for compiled code" ON)
 
+# M4 templated sources
+#
+
+find_program(M4_EXECUTABLE m4 REQUIRED)
+
+set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/m4.out.d")
+file(MAKE_DIRECTORY "${GENERATED_DIR}")
+
+function(m4_generate outVar input outputName deps)
+    set(output "${GENERATED_DIR}/${outputName}")
+
+    add_custom_command(
+        OUTPUT "${output}"
+        COMMAND "${M4_EXECUTABLE}" "${input}" > "${output}"
+        DEPENDS "${input}" ${deps}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        VERBATIM
+    )
+
+    set(${outVar} "${output}" PARENT_SCOPE)
+endfunction()
+
+m4_generate(FMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fmap.c.m4" avl-fmap.c src/util/avl.m4)
+m4_generate(FSET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fset.c.m4" avl-bset.c src/util/avl.m4)
+
+# Library
+#
+
 set (hdql_LIB hdql )
 set (hdql_SOURCES src/util/pcg32.c
                   src/util/ht.c
-                  src/util/avl-tree.c
+                  #src/util/avl-tree.c
+                  ${FMAP_AVL_C}
+                  ${FSET_AVL_C}
                   src/util/allocator.c
                   src/types.cc
                   src/context.c

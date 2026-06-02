@@ -6,6 +6,11 @@
 #include <string.h>
 #include <stdint.h>
 
+/* max depth of the AVL tree for non-recursive implementations */
+#ifndef AVL_MAX_HEIGHT
+#   define AVL_MAX_HEIGHT 128
+#endif
+
 typedef struct AVLNode AVLNode;
 
 struct AVLNode {
@@ -126,6 +131,55 @@ insert_recursive( AVLNode **out
     return rc;
 }
 
+static int
+insert_iterative(struct hdql_avl *m, const unsigned char *key, void *value) {
+    AVLNode **path[AVL_MAX_HEIGHT];
+    AVLNode **link;
+    AVLNode *n;
+    int depth = 0;
+
+    if (!m || !key)
+        return -1;
+
+    link = &m->root;
+
+    while (*link) {
+        int rc;
+
+        if (depth >= AVL_MAX_HEIGHT)
+            return -2; /* should not happen for a sane AVL tree */
+
+        path[depth++] = link;
+
+        n = *link;
+        rc = key_cmp(key, n->key, m->keyLen);
+
+        if (rc == 0) {
+            n->value = value;
+            return 1; /* replaced */
+        }
+
+        link = rc < 0 ? &n->left : &n->right;
+    }
+
+    *link = node_new(key, m->keyLen, value, m->alloc);
+    if (!*link)
+        return -1;
+
+    /*
+     * Also include the newly inserted leaf in the path? Not necessary:
+     * it already has correct height = 1.
+     *
+     * Rebalance ancestors from bottom to top.
+     */
+    while (depth > 0) {
+        AVLNode **plink = path[--depth];
+        *plink = balance(*plink);
+    }
+
+    return 0; /* inserted */
+}
+
 static AVLNode *
 detach_min(AVLNode *n, AVLNode **min_node) {
     if (!n->left) {
@@ -137,10 +191,10 @@ detach_min(AVLNode *n, AVLNode **min_node) {
 }
 
 static void
-node_delete(AVLNode *n) {
+node_delete(AVLNode *n, const struct hdql_Allocator *alloc) {
     if(!n) return;
-    free(n->key);
-    free(n);
+    alloc->free(n->key, alloc->userdata);
+    alloc->free(n, alloc->userdata);
 }
 
 static AVLNode *
@@ -148,17 +202,19 @@ erase_recursive(AVLNode *n
         , const unsigned char *key
         , size_t keyLen
         , void **oldVal
-        , int *removed) {
+        , int *removed
+        , const struct hdql_Allocator *alloc
+        ) {
     int rc;
     if(!n) return NULL;
     rc = key_cmp(key, n->key, keyLen);
     if (rc < 0) {
-        n->left = erase_recursive(n->left, key, keyLen, oldVal, removed);
+        n->left = erase_recursive(n->left, key, keyLen, oldVal, removed, alloc);
         return balance(n);
     }
 
     if (rc > 0) {
-        n->right = erase_recursive(n->right, key, keyLen, oldVal, removed);
+        n->right = erase_recursive(n->right, key, keyLen, oldVal, removed, alloc);
         return balance(n);
     }
 
@@ -168,7 +224,7 @@ erase_recursive(AVLNode *n
         *removed = HDQL_AVL_CHANGED;
         if (oldVal) *oldVal = n->value;
         if (!right) {
-            node_delete(n);
+            node_delete(n, alloc);
             return left;
         }
 
@@ -177,10 +233,98 @@ erase_recursive(AVLNode *n
             right = detach_min(right, &min);
             min->left = left;
             min->right = right;
-            node_delete(n);
+            node_delete(n, alloc);
             return balance(min);
         }
     }
+}
+
+int
+erase_iterative(struct hdql_avl *m, const unsigned char *key, void **old_value) {
+    AVLNode **path[AVL_MAX_HEIGHT];
+    AVLNode **link;
+    AVLNode *n;
+    int depth = 0;
+
+    if (!m || !key)
+        return 0;
+
+    link = &m->root;
+
+    while (*link) {
+        int rc;
+
+        if (depth >= AVL_MAX_HEIGHT)
+            return -2;
+
+        path[depth++] = link;
+
+        n = *link;
+        rc = key_cmp(key, n->key, m->keyLen);
+
+        if (rc == 0)
+            break;
+
+        link = rc < 0 ? &n->left : &n->right;
+    }
+
+    if (!*link)
+        return 0; /* not found */
+
+    n = *link;
+
+    if (old_value)
+        *old_value = n->value;
+
+    if (!n->left) {
+        *link = n->right;
+        node_delete(n, m->alloc);
+        --depth;
+    } else if (!n->right) {
+        *link = n->left;
+        node_delete(n, m->alloc);
+        --depth;
+    } else {
+        AVLNode **succ_link;
+        AVLNode *succ;
+
+        /* Find leftmost node in right subtree. It will replace n physically. */
+        succ_link = &n->right;
+
+        while ((*succ_link)->left) {
+            if (depth >= AVL_MAX_HEIGHT)
+                return -2;
+
+            path[depth++] = succ_link;
+            succ_link = &(*succ_link)->left;
+        }
+
+        succ = *succ_link;
+
+        /* Detach successor from its old place.  Successor has no left child. */
+        *succ_link = succ->right;
+
+        /* Replace erased node by successor. */
+        succ->left = n->left;
+
+        if (succ != n->right)
+            succ->right = n->right;
+
+        *link = succ;
+
+        node_delete(n, m->alloc);
+        /* link already points to the replacement subtree root.
+         * Keep it in the path so it is rebalanced too. */
+    }
+
+    while (depth > 0) {
+        AVLNode **plink = path[--depth];
+
+        if (*plink)
+            *plink = balance(*plink);
+    }
+
+    return 1;
 }
 
 static int
@@ -234,7 +378,7 @@ int
 hdql_avl_erase(struct hdql_avl *m, const void *key, void **oldVal) {
     int removed = 0;
     if(!m) return 0;
-    m->root = erase_recursive(m->root, key, m->keyLen, oldVal, &removed);
+    m->root = erase_recursive(m->root, key, m->keyLen, oldVal, &removed, m->alloc);
     if(HDQL_AVL_CHANGED == removed) --(m->nItems);
     return removed;
 }

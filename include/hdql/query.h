@@ -121,7 +121,7 @@ HDQL_API void hdql_query_destroy(struct hdql_Query *, hdql_Context_t ctx);
 HDQL_API void hdql_query_dump(FILE *, struct hdql_Query *, hdql_Context_t);
 
 /**\brief Reserves key for product of N query results */
-int
+HDQL_API int
 hdql_query_product_reserve_key(struct hdql_Query ** qs
         , struct hdql_Key *key
         , size_t n

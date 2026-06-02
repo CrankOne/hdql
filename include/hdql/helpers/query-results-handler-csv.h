@@ -24,14 +24,14 @@ struct hdql_DSVFormatting {
  *
  * ...
  */
-int
+HDQL_API int
 hdql_query_results_handler_csv_init( struct hdql_iQueryResultsHandler *
         , FILE * stream
         , const struct hdql_DSVFormatting * formatting
         , struct hdql_Context * ctx
         );
 
-void hdql_query_results_handler_csv_cleanup(struct hdql_iQueryResultsHandler *);
+HDQL_API void hdql_query_results_handler_csv_cleanup(struct hdql_iQueryResultsHandler *);
 
 #ifdef __cplusplus
 }  // extern "C"

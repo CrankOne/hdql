@@ -60,18 +60,18 @@ struct hdql_iQueryResultsHandler {
     int (*handle_record)(hdql_Datum_t, void *);
 };
 
-struct hdql_QueryResultsWorkspace *
+HDQL_API struct hdql_QueryResultsWorkspace *
 hdql_query_results_init(
           struct hdql_Query * q
         , struct hdql_iQueryResultsHandler * iqr
         , struct hdql_Context * ctx
         );
 
-int
+HDQL_API int
 hdql_query_results_process_records_from( struct hdql_Datum * d
         , struct hdql_QueryResultsWorkspace * ws );
 
-int hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * );
+HDQL_API int hdql_query_results_destroy( struct hdql_QueryResultsWorkspace * );
 
 #ifdef __cplusplus
 }  // extern "C"

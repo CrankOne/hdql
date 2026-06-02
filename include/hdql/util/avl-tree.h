@@ -4,8 +4,21 @@
 /**\file
  * \brief AVL tree implementation for fixed-length keys
  *
- * \todo Non-recursive implementations to support large trees?
- * \todo Variadic key length to support string indeces?
+ * The file declares few families of AVL tree implementation, depending on key
+ * type and whether or not the value is required.
+ *
+ * Regarding key type, the cases provided by AVL implementation:
+ *  - signed long integer key (l)
+ *  - unsigned long integer key (u)
+ *  - fixed-length byte keys (b)
+ *  - arbitrary length key implementation (v)
+ *
+ * Regarding the value we have `set` and `map`. Resulting function name is
+ * defined as follows:
+ *
+ *      hdql_<key><set|map>_<new|insert|get|erase|size|destroy|iter>(...)
+ *
+ * For instance: `hdql_smap_insert()`, `hdql_vset_erase_()`, etc.
  */
 
 #include "hdql/types.h"

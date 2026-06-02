@@ -7,9 +7,11 @@
 #include <stdint.h>
 
 /* max depth of the AVL tree for non-recursive implementations */
-#ifndef AVL_MAX_HEIGHT
-#   define AVL_MAX_HEIGHT 128
+#ifndef HDQL_AVL_MAX_HEIGHT
+#   define HDQL_AVL_MAX_HEIGHT 128
 #endif
+
+/*#define HDQL_AVL_RECURSIVE_IMPLEMS 1*/
 
 typedef struct AVLNode AVLNode;
 
@@ -99,6 +101,8 @@ static void node_free_all(AVLNode *n, const struct hdql_Allocator *alloc) {
     alloc->free(n, alloc->userdata);
 }
 
+#if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
+
 static int
 insert_recursive( AVLNode **out
                 , AVLNode *n
@@ -131,9 +135,11 @@ insert_recursive( AVLNode **out
     return rc;
 }
 
+#else  /* HDQL_AVL_RECURSIVE_IMPLEMS */
+
 static int
 insert_iterative(struct hdql_avl *m, const unsigned char *key, void *value) {
-    AVLNode **path[AVL_MAX_HEIGHT];
+    AVLNode **path[HDQL_AVL_MAX_HEIGHT];
     AVLNode **link;
     AVLNode *n;
     int depth = 0;
@@ -146,7 +152,7 @@ insert_iterative(struct hdql_avl *m, const unsigned char *key, void *value) {
     while (*link) {
         int rc;
 
-        if (depth >= AVL_MAX_HEIGHT)
+        if (depth >= HDQL_AVL_MAX_HEIGHT)
             return -2; /* should not happen for a sane AVL tree */
 
         path[depth++] = link;
@@ -179,6 +185,16 @@ insert_iterative(struct hdql_avl *m, const unsigned char *key, void *value) {
 
     return 0; /* inserted */
 }
+#endif  /* HDQL_AVL_RECURSIVE_IMPLEMS */
+
+static void
+node_delete(AVLNode *n, const struct hdql_Allocator *alloc) {
+    if(!n) return;
+    alloc->free(n->key, alloc->userdata);
+    alloc->free(n, alloc->userdata);
+}
+
+#if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
 
 static AVLNode *
 detach_min(AVLNode *n, AVLNode **min_node) {
@@ -188,13 +204,6 @@ detach_min(AVLNode *n, AVLNode **min_node) {
     }
     n->left = detach_min(n->left, min_node);
     return balance(n);
-}
-
-static void
-node_delete(AVLNode *n, const struct hdql_Allocator *alloc) {
-    if(!n) return;
-    alloc->free(n->key, alloc->userdata);
-    alloc->free(n, alloc->userdata);
 }
 
 static AVLNode *
@@ -239,43 +248,29 @@ erase_recursive(AVLNode *n
     }
 }
 
-int
+#else  /* HDQL_AVL_RECURSIVE_IMPLEMS */
+
+static int
 erase_iterative(struct hdql_avl *m, const unsigned char *key, void **old_value) {
-    AVLNode **path[AVL_MAX_HEIGHT];
+    AVLNode **path[HDQL_AVL_MAX_HEIGHT];
     AVLNode **link;
     AVLNode *n;
     int depth = 0;
-
-    if (!m || !key)
-        return 0;
-
+    if (!m || !key) return HDQL_AVL_BAD_ARG_ERROR;
     link = &m->root;
-
     while (*link) {
         int rc;
-
-        if (depth >= AVL_MAX_HEIGHT)
-            return -2;
-
+        if (depth >= HDQL_AVL_MAX_HEIGHT) return HDQL_AVL_MEM_ERROR;
         path[depth++] = link;
-
         n = *link;
         rc = key_cmp(key, n->key, m->keyLen);
-
         if (rc == 0)
             break;
-
         link = rc < 0 ? &n->left : &n->right;
     }
-
-    if (!*link)
-        return 0; /* not found */
-
+    if (!*link) return HDQL_AVL_OK;  /* not found */
     n = *link;
-
-    if (old_value)
-        *old_value = n->value;
-
+    if (old_value) *old_value = n->value;
     if (!n->left) {
         *link = n->right;
         node_delete(n, m->alloc);
@@ -285,47 +280,42 @@ erase_iterative(struct hdql_avl *m, const unsigned char *key, void **old_value) 
         node_delete(n, m->alloc);
         --depth;
     } else {
-        AVLNode **succ_link;
+        AVLNode **succLink;
         AVLNode *succ;
+        succLink = &n->right;
+        if (!(*succLink)->left) {
+            succ = *succLink;
+            succ->left = n->left;
+            *link = succ;
+            node_delete(n, m->alloc);
+        } else {
+            AVLNode *r = n->right;
+            succLink = &r->left;
+            while ((*succLink)->left) {
+                if (depth >= HDQL_AVL_MAX_HEIGHT)
+                    return -2;
 
-        /* Find leftmost node in right subtree. It will replace n physically. */
-        succ_link = &n->right;
-
-        while ((*succ_link)->left) {
-            if (depth >= AVL_MAX_HEIGHT)
-                return -2;
-
-            path[depth++] = succ_link;
-            succ_link = &(*succ_link)->left;
-        }
-
-        succ = *succ_link;
-
-        /* Detach successor from its old place.  Successor has no left child. */
-        *succ_link = succ->right;
-
-        /* Replace erased node by successor. */
-        succ->left = n->left;
-
-        if (succ != n->right)
+                path[depth++] = succLink;
+                succLink = &(*succLink)->left;
+            }
+            succ = *succLink;
+            *succLink = succ->right;
+            succ->left = n->left;
             succ->right = n->right;
-
-        *link = succ;
-
-        node_delete(n, m->alloc);
-        /* link already points to the replacement subtree root.
-         * Keep it in the path so it is rebalanced too. */
+            *link = succ;
+            node_delete(n, m->alloc);
+        }
     }
 
     while (depth > 0) {
         AVLNode **plink = path[--depth];
-
         if (*plink)
             *plink = balance(*plink);
     }
-
-    return 1;
+    return HDQL_AVL_CHANGED;
 }
+
+#endif  /* HDQL_AVL_RECURSIVE_IMPLEMS */
 
 static int
 avl_iter_node(AVLNode *n
@@ -358,7 +348,12 @@ hdql_avl_new(size_t keyLen, const struct hdql_Allocator *alloc) {
 
 int
 hdql_avl_insert(struct hdql_avl *m, const void *key, void *value) {
-    int rc = insert_recursive(&m->root, m->root, key, m->keyLen, value, m->alloc);
+    int rc =
+    #if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
+        insert_recursive(&m->root, m->root, key, m->keyLen, value, m->alloc);
+    #else
+        insert_iterative(m, key, value);
+    #endif
     if(HDQL_AVL_OK == rc) ++(m->nItems);
     return rc;
 }
@@ -378,7 +373,11 @@ int
 hdql_avl_erase(struct hdql_avl *m, const void *key, void **oldVal) {
     int removed = 0;
     if(!m) return 0;
-    m->root = erase_recursive(m->root, key, m->keyLen, oldVal, &removed, m->alloc);
+    #if defined(HDQL_AVL_RECURSIVE_IMPLEMS) && HDQL_AVL_RECURSIVE_IMPLEMS
+        m->root = erase_recursive(m->root, key, m->keyLen, oldVal, &removed, m->alloc);
+    #else
+        removed = erase_iterative(m, key, oldVal);
+    #endif
     if(HDQL_AVL_CHANGED == removed) --(m->nItems);
     return removed;
 }

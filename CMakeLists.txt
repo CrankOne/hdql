@@ -23,6 +23,7 @@ option (FORCE_FPIC "Enables -fPIC for compiled code" ON)
 set (hdql_LIB hdql )
 set (hdql_SOURCES src/util/pcg32.c
                   src/util/ht.c
+                  src/util/avl-tree.c
                   src/util/allocator.c
                   src/types.cc
                   src/context.c
@@ -132,6 +133,7 @@ if (BUILD_TESTS)
     set (hdqlTest_SOURCES
         # utils
         test/ht.test.cc
+        test/avl-tree.test.cc
         test/rnd.cc
         # Basic query state
         test/basic/basic-query.cc

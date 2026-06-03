@@ -12,9 +12,9 @@
  *
  *
  * Regarding key type, the cases provided by implementation:
- *  - signed long integer key (l)
+ *  - (TODO) signed long integer key (l)
  *  - unsigned long integer key (u)
- *  - double-precision floating point key (d)
+ *  - (TODO) double-precision floating point key (d)
  *  - fixed-length byte keys (f)
  *  - arbitrary length key implementation (v)
  *
@@ -62,11 +62,11 @@ HDQL_API void hdql_umap_destroy(struct hdql_umap *m);
 HDQL_API void hdql_uset_destroy(struct hdql_uset *m);
 
 HDQL_API int hdql_umap_iter(struct hdql_umap *m
-        , int (*callback)(unsigned long key, size_t keyLen, void **value, void *userdata)
+        , int (*callback)(const unsigned long key, void **value, void *userdata)
         , void *userdata);
 
 HDQL_API int hdql_uset_iter(struct hdql_uset *m
-        , int (*callback)(unsigned long key, size_t keyLen, void *userdata)
+        , int (*callback)(const unsigned long key, void *userdata)
         , void *userdata);
 
 /*
@@ -100,6 +100,44 @@ HDQL_API int hdql_fmap_iter(struct hdql_fmap *m
 
 HDQL_API int hdql_fset_iter(struct hdql_fset *m
         , int (*callback)(const void *key, size_t keyLen, void *userdata)
+        , void *userdata);
+
+/*
+ * variadic-size binary key
+ * */
+
+struct hdql_vmap;
+struct hdql_vset;
+
+HDQL_API struct hdql_vmap *hdql_vmap_create(int (*key_cmp)(const void *, const void *)
+        , size_t (*key_len)(const void *)
+        , const struct hdql_Allocator *alloc
+        );
+HDQL_API struct hdql_vset *hdql_vset_create(int (*key_cmp)(const void *, const void *)
+        , size_t (*key_len)(const void *)
+        , const struct hdql_Allocator *alloc);
+
+HDQL_API int hdql_vmap_insert(struct hdql_vmap *m, const void *key, void *);
+HDQL_API int hdql_vset_insert(struct hdql_vset *m, const void *key);
+
+HDQL_API void *hdql_vmap_get(const struct hdql_vmap *m, const void *key);
+HDQL_API bool  hdql_vset_has(const struct hdql_vset *m, const void *key);
+
+HDQL_API int hdql_vmap_erase(struct hdql_vmap *m, const void *key, void **oldVal);
+HDQL_API int hdql_vset_erase(struct hdql_vset *m, const void *key);
+
+HDQL_API size_t hdql_vmap_size(const struct hdql_vmap *m);
+HDQL_API size_t hdql_vset_size(const struct hdql_vset *m);
+
+HDQL_API void hdql_vmap_destroy(struct hdql_vmap *m);
+HDQL_API void hdql_vset_destroy(struct hdql_vset *m);
+
+HDQL_API int hdql_vmap_iter(struct hdql_vmap *m
+        , int (*callback)(const void *key, void **value, void *userdata)
+        , void *userdata);
+
+HDQL_API int hdql_vset_iter(struct hdql_vset *m
+        , int (*callback)(const void *key, void *userdata)
         , void *userdata);
 
 #if 0

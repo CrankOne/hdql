@@ -42,8 +42,13 @@ function(m4_generate outVar input outputName deps)
     set(${outVar} "${output}" PARENT_SCOPE)
 endfunction()
 
+m4_generate(UMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-umap.c.m4" avl-umap.c src/util/avl.m4)
+m4_generate(USET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-uset.c.m4" avl-uset.c src/util/avl.m4)
+
 m4_generate(FMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fmap.c.m4" avl-fmap.c src/util/avl.m4)
-m4_generate(FSET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fset.c.m4" avl-bset.c src/util/avl.m4)
+m4_generate(FSET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fset.c.m4" avl-fset.c src/util/avl.m4)
+
+m4_generate(VMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-vmap.c.m4" avl-vmap.c src/util/avl.m4)
 
 # Library
 #
@@ -54,6 +59,9 @@ set (hdql_SOURCES src/util/pcg32.c
                   #src/util/avl-tree.c
                   ${FMAP_AVL_C}
                   ${FSET_AVL_C}
+                  ${UMAP_AVL_C}
+                  ${USET_AVL_C}
+                  ${VMAP_AVL_C}
                   src/util/allocator.c
                   src/types.cc
                   src/context.c
@@ -163,7 +171,9 @@ if (BUILD_TESTS)
     set (hdqlTest_SOURCES
         # utils
         test/ht.test.cc
-        test/avl-tree.test.cc
+        test/avl-fmap.test.cc
+        test/avl-umap.test.cc
+        test/avl-vmap.test.cc
         test/rnd.cc
         # Basic query state
         test/basic/basic-query.cc

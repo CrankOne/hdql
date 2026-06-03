@@ -3,12 +3,12 @@
 #include "hdql/util/avl-tree.h"
 #include "hdql/util/allocator.h"
 
-class TestAVLTree : public ::testing::Test {
+class AVLFixedKeyMap : public ::testing::Test {
 protected:
     const hdql_Allocator * _allocator;
     hdql_fmap *_m;
 public:
-    TestAVLTree() : _allocator(&hdql_gHeapAllocator), _m(nullptr) {}
+    AVLFixedKeyMap() : _allocator(&hdql_gHeapAllocator), _m(nullptr) {}
     void SetUp() override {
         _m = hdql_fmap_create(8, _allocator);
     }
@@ -31,14 +31,14 @@ static std::vector<unsigned char> key_u64(uint64_t x) {
     return k;
 }
 
-TEST_F(TestAVLTree, emptyLookupReturnsNull) {
+TEST_F(AVLFixedKeyMap, emptyLookupReturnsNull) {
     auto k = key_u64(42);
 
     EXPECT_EQ(nullptr, hdql_fmap_get(_m, k.data()));
     EXPECT_EQ(hdql_fmap_size(_m), 0);
 }
 
-TEST_F(TestAVLTree, insertAndLookupSingleValue) {
+TEST_F(AVLFixedKeyMap, insertAndLookupSingleValue) {
     int value = 123;
     auto k = key_u64(42);
 
@@ -47,7 +47,7 @@ TEST_F(TestAVLTree, insertAndLookupSingleValue) {
     EXPECT_EQ(hdql_fmap_size(_m), 1);
 }
 
-TEST_F(TestAVLTree, replaceExistingValue) {
+TEST_F(AVLFixedKeyMap, replaceExistingValue) {
     int v1 = 11;
     int v2 = 22;
     auto k = key_u64(42);
@@ -58,7 +58,7 @@ TEST_F(TestAVLTree, replaceExistingValue) {
     EXPECT_EQ(hdql_fmap_size(_m), 1);
 }
 
-TEST_F(TestAVLTree, insertManyAndLookupAll) {
+TEST_F(AVLFixedKeyMap, insertManyAndLookupAll) {
     std::vector<uint64_t> keys = {
         50, 20, 70, 10, 30, 60, 80, 25, 35, 65
     };
@@ -81,7 +81,7 @@ TEST_F(TestAVLTree, insertManyAndLookupAll) {
     EXPECT_EQ(nullptr, hdql_fmap_get(_m, missing.data()));
 }
 
-TEST_F(TestAVLTree, eraseLeafNode) {
+TEST_F(AVLFixedKeyMap, eraseLeafNode) {
     int v10 = 10;
     int v20 = 20;
     int v30 = 30;
@@ -105,7 +105,7 @@ TEST_F(TestAVLTree, eraseLeafNode) {
     EXPECT_EQ(&v30, hdql_fmap_get(_m, k30.data()));
 }
 
-TEST_F(TestAVLTree, eraseNodeWithTwoChildren) {
+TEST_F(AVLFixedKeyMap, eraseNodeWithTwoChildren) {
     std::vector<uint64_t> keys = {
         40, 20, 60, 10, 30, 50, 70
     };
@@ -134,7 +134,7 @@ TEST_F(TestAVLTree, eraseNodeWithTwoChildren) {
     }
 }
 
-TEST_F(TestAVLTree, eraseMissingKeyReturnsZero) {
+TEST_F(AVLFixedKeyMap, eraseMissingKeyReturnsZero) {
     int value = 123;
     auto k1 = key_u64(1);
     auto k2 = key_u64(2);
@@ -187,7 +187,7 @@ static int collect_iter_cb(
     return 0;
 }
 
-TEST_F(TestAVLTree, IteratesInSortedOrder) {
+TEST_F(AVLFixedKeyMap, IteratesInSortedOrder) {
     std::vector<uint64_t> keys = {
         5, 1, 9, 3, 7, 2, 8
     };
@@ -233,7 +233,7 @@ static int stop_after_three_cb(
     return 0;
 }
 
-TEST_F(TestAVLTree, iterationCanStopEarly) {
+TEST_F(AVLFixedKeyMap, iterationCanStopEarly) {
     int values[10];
 
     for (uint64_t i = 0; i < 10; ++i) {
@@ -270,7 +270,7 @@ static int replace_even_keys_cb(
     return 0;
 }
 
-TEST_F(TestAVLTree, iterationCallbackMayReplaceValues) {
+TEST_F(AVLFixedKeyMap, iterationCallbackMayReplaceValues) {
     int values[6];
 
     for (uint64_t i = 0; i < 6; ++i) {

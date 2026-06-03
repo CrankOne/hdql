@@ -74,7 +74,7 @@ struct hdql_Context {
     struct hdql__Error *errors;
 
 #ifdef HDQL_TYPES_DEBUG
-    /* records of type `char *' */
+    /* records of type `char *' TODO: use umap/fmap? */
     struct hdql_ht *typesByPtr;
 #endif
 };

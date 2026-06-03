@@ -410,7 +410,7 @@ hdql_compounds_add(struct hdql_Compounds *compounds
     }
     if(!typeID) return HDQL_ERR_CODE_OK; /* skip type ID insertion */
     /* probe by type ID, possibly overwrite */
-    rc = hdql_ht_ins(compounds->byTypeID, typeID, typeIDSize, c);
+    rc = hdql_ht_ins(compounds->byTypeID, typeID, typeIDSize, c, NULL);
     switch(rc) {
         case HDQL_HT_RC_INSERTED:
             return HDQL_ERR_CODE_OK;

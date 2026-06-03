@@ -427,7 +427,7 @@ hdql_context_custom_data_add(
                 , HDQL_HT_DEFAULT_CONTEXT_LOCALDATA
                 , HDQL_MURMUR3_32_DEFAULT_SEED ))) return HDQL_ERR_MEMORY;
     }
-    int rc = hdql_ht_s_ins(context->localData->byName, name, ptr);
+    int rc = hdql_ht_s_ins(context->localData->byName, name, ptr, NULL);
     if(rc == HDQL_HT_RC_INSERTED)
         return HDQL_ERR_CODE_OK;
     else if(rc == HDQL_HT_ERR_MEM)
@@ -466,14 +466,15 @@ static int
 hdql__context_custom_data_erase( struct hdql_ContextLocalData *ld
                                , const char * name
                                , bool unwind
+                               , void **data
                                ) {
-    int rc = hdql_ht_s_rm(ld->byName, name);
+    int rc = hdql_ht_s_rm(ld->byName, name, data);
     if(HDQL_HT_RC_OK == rc) return HDQL_ERR_CODE_OK;
     if(HDQL_HT_RC_ERR_NOENT != rc) return HDQL_ERR_GENERIC;  /* unkown code */
     if(!unwind) return HDQL_ERR_UNKNOWN_ATTRIBUTE;
     /* not found -- look in parent */
     if(ld->parent)
-        return hdql__context_custom_data_erase(ld->parent, name, unwind);
+        return hdql__context_custom_data_erase(ld->parent, name, unwind, data);
     else
         return HDQL_ERR_UNKNOWN_ATTRIBUTE;
 }
@@ -487,9 +488,10 @@ int
 hdql_context_custom_data_erase( hdql_Context_t context
                               , const char * name
                               , bool unwind
+                              , void **data
                               ) {
     if(!context->localData) return HDQL_ERR_UNKNOWN_ATTRIBUTE;
-    return hdql__context_custom_data_erase(context->localData, name, unwind);
+    return hdql__context_custom_data_erase(context->localData, name, unwind, data);
 }
 
 

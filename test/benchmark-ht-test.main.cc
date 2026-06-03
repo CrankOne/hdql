@@ -1,7 +1,9 @@
-// Usage:
-//  $ make
-//  $ python ../hdql/drafts/run.py | tee ./results.dat
-//  $ gnuplot
+// This app tests HDQL implementations of hash table and AVL tree versus
+// general-purpose STL containers.
+//
+// Assumed usage:
+//      $ python ../hdql/drafts/run.py | tee ./results.dat
+//      $ gnuplot
 //  gnuplot>  set log xy
 //  gnuplot> plot 'results.dat' using 1:5 with linespoints title "Map", '' using 1:9 with linespoints title "UMap Lookup", '' using 1:13 w linespoints t 'HT'
 
@@ -19,9 +21,10 @@
 #include "hdql/util/allocator.h"
 #include "hdql/types.h"
 #include "hdql/context.h"
+#include "hdql/util/avl-tree.h"
 #include "hdql/util/ht.h"
 
-// --- Timing utilities
+// Timing utils
 using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double>;
 
@@ -29,8 +32,8 @@ double elapsed_seconds(std::chrono::time_point<Clock> start, std::chrono::time_p
     return std::chrono::duration_cast<Duration>(end - start).count();
 }
 
-// --- Key/value generators
-#if 1
+// Key/value generators
+
 // randomized, high entropy
 std::string random_string(size_t min_len = 1, size_t max_len = 128) {
     static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -46,149 +49,126 @@ std::string random_string(size_t min_len = 1, size_t max_len = 128) {
     }
     return result;
 }
-#else
-// Global prefix pool (simulates shared path structure)
-std::vector<std::string> prefix_pool = {
-    "a", "ab", "abc", "abd", "abe",
-    "b", "bc", "bcd", "bce", "bcf",
-    "c", "cd", "cde", "cdf", "cxyz"
-};
 
-std::string random_string(size_t min_len = 4, size_t max_len = 32) {
-    static const char charset[] =
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    static thread_local std::mt19937 gen(std::random_device{}());
-    std::uniform_int_distribution<> pick_prefix(0, prefix_pool.size() - 1);
-    std::uniform_int_distribution<> extra_len_dist(0, max_len - min_len);
-
-    std::string prefix = prefix_pool[pick_prefix(gen)];
-    size_t remaining = min_len > prefix.size() ? (min_len - prefix.size()) : 0;
-    remaining += extra_len_dist(gen);  // pad to total length
-
-    std::string suffix;
-    suffix.reserve(remaining);
-    for (size_t i = 0; i < remaining; ++i)
-        suffix += charset[gen() % (sizeof(charset) - 1)];
-
-    return prefix + suffix;
-}
-#endif
-
-#if 0
-// --- Radix Tree wrapper
-void benchmark_hdql_rt(const std::vector<std::string> &keys, const std::vector<int> &values) {
-    hdql_Context_t ctx = hdql_context_create(0x0);
-
-    struct hdql_rt *tree = hdql_rt_new(ctx);
-
-    auto start_insert = Clock::now();
-    for (size_t i = 0; i < keys.size(); ++i) {
-        int *val = (int *)hdql_context_alloc(ctx, sizeof(int));
-        *val = values[i];
-        hdql_rt_insert(tree, keys[i].c_str(), val);
-    }
-    auto end_insert = Clock::now();
-
-    size_t hits = 0;
-    auto start_lookup = Clock::now();
-    for (size_t i = 0; i < keys.size(); ++i) {
-        int *val = (int *)hdql_rt_lookup(tree, keys[i].c_str());
-        if (val && *val == values[i]) ++hits;
-    }
-    auto end_lookup = Clock::now();
-
-    std::cout << "hdql_rt insert time:   " << elapsed_seconds(start_insert, end_insert) << " sec\n";
-    std::cout << "hdql_rt lookup time:   " << elapsed_seconds(start_lookup, end_lookup) << " sec\n";
-    std::cout << "  (hits: " << hits << ")\n";
-
-    hdql_rt_destroy(tree);
-    hdql_context_destroy(ctx);
-}
-#endif
-
-// --- hash table benchmark
+// hash table benchmark
 void benchmark_hash_table(const std::vector<std::string> &keys, const std::vector<int> &values) {
+    // NOTE: somehow, strlen() in the ht_s... functions seem to
+    // significantly slowdown this benchmark. For more fair comparison,
+    // let's use the C++ size() as done in the RB tree.
+
     hdql_Allocator alloc = hdql_gHeapAllocator;
-    //hdql_alloc_arena_init(&alloc);
-    struct hdql_ht * ht = hdql_ht_create(&alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
+    struct hdql_ht * ht = hdql_ht_create(&alloc, 8, HDQL_MURMUR3_32_DEFAULT_SEED);
     std::vector<int *> vs;
 
-    auto start_insert = Clock::now();
+    auto startInsert = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i) {
-        //int *val = (int *) malloc(sizeof(int));
-        //int *val = (int *) alloc.alloc(sizeof(int), alloc.userdata);
-        //vs.push_back(val);
-        //*val = values[i];
-        //hdql_ht_s_ins(ht, keys[i].c_str(), val);
-        hdql_ht_s_ins(ht, keys[i].c_str(), reinterpret_cast<void*>(values[i]));
+        #if 0
+        hdql_ht_s_ins(ht, keys[i].c_str(), reinterpret_cast<void*>(values[i]), NULL);
+        #else
+        hdql_ht_ins(ht, (const unsigned char *) keys[i].c_str(), keys[i].size(), reinterpret_cast<void*>(values[i]), NULL);
+        #endif
     }
-    auto end_insert = Clock::now();
+    auto endInsert = Clock::now();
 
     size_t hits = 0;
-    auto start_lookup = Clock::now();
+    auto startLookup = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i) {
-        //int *val = (int *) hdql_ht_s_get(ht, keys[i].c_str());
-        //int *val = (int *) hdql_ht_get(ht, (const unsigned char *) keys[i].c_str(), keys[i].size());
-        //if (val && *val == values[i]) ++hits;
+        #if 0
+        long unsigned int val
+            = reinterpret_cast<long unsigned int>(hdql_ht_s_get(ht, keys[i].c_str()));
+        #else
         long unsigned int val
             = reinterpret_cast<long unsigned int>(hdql_ht_get(ht, (const unsigned char *) keys[i].c_str(), keys[i].size()));
+        #endif
         if (((int) val) == values[i]) ++hits;
     }
-    auto end_lookup = Clock::now();
+    auto endLookup = Clock::now();
 
-    std::cout << "hdql_ht insert time:   " << elapsed_seconds(start_insert, end_insert) << " sec\n";
-    std::cout << "hdql_ht lookup time:   " << elapsed_seconds(start_lookup, end_lookup) << " sec\n";
+    std::cout << "hdql_ht insert time:   " << elapsed_seconds(startInsert, endInsert) << " sec\n";
+    std::cout << "hdql_ht lookup time:   " << elapsed_seconds(startLookup, endLookup) << " sec\n";
     std::cout << "  (hits: " << hits << ")\n";
 
     hdql_ht_destroy(ht);
 
     for(auto ptr: vs) alloc.free(ptr, alloc.userdata);
-    //hdql_alloc_arena_destroy(&alloc);
 }
 
-// --- std::map benchmark
+// std::map benchmark
 void benchmark_std_map(const std::vector<std::string> &keys, const std::vector<int> &values) {
     std::map<std::string, int> m;
 
-    auto start_insert = Clock::now();
+    auto startInsert = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i)
         m[keys[i]] = values[i];
-    auto end_insert = Clock::now();
+    auto endInsert = Clock::now();
 
     size_t hits = 0;
-    auto start_lookup = Clock::now();
+    auto startLookup = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i)
         if (m[keys[i]] == values[i]) ++hits;
-    auto end_lookup = Clock::now();
+    auto endLookup = Clock::now();
 
-    std::cout << "std::map insert time:      " << elapsed_seconds(start_insert, end_insert) << " sec\n";
-    std::cout << "std::map lookup time:      " << elapsed_seconds(start_lookup, end_lookup) << " sec\n";
+    std::cout << "std::map insert time:      " << elapsed_seconds(startInsert, endInsert) << " sec\n";
+    std::cout << "std::map lookup time:      " << elapsed_seconds(startLookup, endLookup) << " sec\n";
     std::cout << "  (hits: " << hits << ")\n";
 }
 
-// --- std::unordered_map benchmark
+// std::unordered_map benchmark
 void benchmark_std_unordered_map(const std::vector<std::string> &keys, const std::vector<int> &values) {
     std::unordered_map<std::string, int> m;
 
-    auto start_insert = Clock::now();
+    auto startInsert = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i)
         m[keys[i]] = values[i];
-    auto end_insert = Clock::now();
+    auto endInsert = Clock::now();
 
     size_t hits = 0;
-    auto start_lookup = Clock::now();
+    auto startLookup = Clock::now();
     for (size_t i = 0; i < keys.size(); ++i)
         if (m[keys[i]] == values[i]) ++hits;
-    auto end_lookup = Clock::now();
+    auto endLookup = Clock::now();
 
-    std::cout << "std::unordered_map insert time: " << elapsed_seconds(start_insert, end_insert) << " sec\n";
-    std::cout << "std::unordered_map lookup time: " << elapsed_seconds(start_lookup, end_lookup) << " sec\n";
+    std::cout << "std::unordered_map insert time: " << elapsed_seconds(startInsert, endInsert) << " sec\n";
+    std::cout << "std::unordered_map lookup time: " << elapsed_seconds(startLookup, endLookup) << " sec\n";
     std::cout << "  (hits: " << hits << ")\n";
 }
 
-// --- Main entry point
+// HDQL variadic length key benchmark
+namespace {
+int cstr_key_cmp(const void *a, const void *b) {
+    return std::strcmp(
+            static_cast<const char *>(a),
+            static_cast<const char *>(b));
+}
+size_t cstr_key_len(const void *a) {
+    return std::strlen(static_cast<const char *>(a)) + 1;
+}
+}  // anon ns
+void benchmark_hdql_vmap(const std::vector<std::string> &keys, const std::vector<int> &values) {
+    hdql_vmap *m = hdql_vmap_create(cstr_key_cmp, cstr_key_len, &hdql_gHeapAllocator);
+
+    auto startInsert = Clock::now();
+    for (size_t i = 0; i < keys.size(); ++i)
+        hdql_vmap_insert(m, keys[i].data(), const_cast<int*>(values.data() + i));
+    auto endInsert = Clock::now();
+
+    size_t hits = 0;
+    auto startLookup = Clock::now();
+    for (size_t i = 0; i < keys.size(); ++i) {
+        int *r = reinterpret_cast<int*>(hdql_vmap_get(m, keys[i].data()));
+        if (*r == values[i]) ++hits;
+    }
+    auto endLookup = Clock::now();
+
+    std::cout << "hdql_vmap insert time: " << elapsed_seconds(startInsert, endInsert) << " sec\n";
+    std::cout << "hdql_vmap lookup time: " << elapsed_seconds(startLookup, endLookup) << " sec\n";
+    std::cout << "  (hits: " << hits << ")\n";
+}
+
+// Entry point
+//
+
 int main(int argc, char **argv) {
     size_t count = 4;
     if (argc > 1) count = std::stoul(argv[1]);
@@ -210,8 +190,8 @@ int main(int argc, char **argv) {
 
     benchmark_std_map(keys, values);
     benchmark_std_unordered_map(keys, values);
-    //benchmark_hdql_rt(keys, values);
     benchmark_hash_table(keys, values);
+    benchmark_hdql_vmap(keys, values);
 
     return 0;
 }

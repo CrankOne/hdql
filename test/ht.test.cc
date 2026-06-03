@@ -47,14 +47,16 @@ public:
     }
 };
 
-TEST_F(HDQLHashTable, BasicInsertAndLookup) {
+TEST_F(HDQLHashTable, basicInsertAndLookup) {
     hdql_ht * ht = hdql_ht_create(&_alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
 
     int v1 = 42;
     int v2 = 1337;
 
-    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "abc",  &v1));
-    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "abcd", &v2));
+    void *oldValue = NULL;
+    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "abc",  &v1, &oldValue));
+    EXPECT_FALSE(oldValue);
+    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "abcd", &v2, NULL));
 
     void* found1 = hdql_ht_s_get(ht, "abc");
     void* found2 = hdql_ht_s_get(ht, "abcd");
@@ -65,11 +67,11 @@ TEST_F(HDQLHashTable, BasicInsertAndLookup) {
     hdql_ht_destroy(ht);
 }
 
-TEST_F(HDQLHashTable, LookupNonExistentKey) {
+TEST_F(HDQLHashTable, lookupNonExistentKey) {
     hdql_ht * ht = hdql_ht_create(&_alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
 
     int v = 100;
-    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "hello", &v));
+    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "hello", &v, NULL));
 
     void * result = hdql_ht_s_get(ht, "world");
     EXPECT_EQ(result, nullptr);
@@ -77,14 +79,17 @@ TEST_F(HDQLHashTable, LookupNonExistentKey) {
     hdql_ht_destroy(ht);
 }
 
-TEST_F(HDQLHashTable, OverwriteExistingKey) {
+TEST_F(HDQLHashTable, overwriteExistingKey) {
     hdql_ht * ht = hdql_ht_create(&_alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
 
     int v1 = 1;
     int v2 = 2;
 
-    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "key", &v1));
-    EXPECT_EQ(HDQL_HT_RC_UPDATED,  hdql_ht_s_ins(ht, "key", &v2));  // overwrite
+    void *oldValue = NULL;
+    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "key", &v1, &oldValue));
+    EXPECT_FALSE(oldValue);
+    EXPECT_EQ(HDQL_HT_RC_UPDATED,  hdql_ht_s_ins(ht, "key", &v2, &oldValue));  // overwrite
+    EXPECT_EQ(oldValue, &v1);
 
     void* result = hdql_ht_s_get(ht, "key");
     ASSERT_EQ(*reinterpret_cast<int*>(result), 2);
@@ -92,27 +97,31 @@ TEST_F(HDQLHashTable, OverwriteExistingKey) {
     hdql_ht_destroy(ht);
 }
 
-TEST_F(HDQLHashTable, RemoveKey) {
+TEST_F(HDQLHashTable, removeKey) {
     hdql_ht * ht = hdql_ht_create(&_alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
 
     int value = 999;
-    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "tokill", &value));
+    EXPECT_EQ(HDQL_HT_RC_INSERTED, hdql_ht_s_ins(ht, "tokill", &value, NULL));
     EXPECT_EQ(hdql_ht_s_get(ht, "tokill"), &value);
 
-    EXPECT_EQ(HDQL_HT_RC_OK, hdql_ht_s_rm(ht, "tokill"));
-    EXPECT_EQ(HDQL_HT_RC_ERR_NOENT, hdql_ht_s_rm(ht, "tokill"));
+    void *popVal = NULL;
+    EXPECT_EQ(HDQL_HT_RC_OK, hdql_ht_s_rm(ht, "tokill", &popVal));
+    EXPECT_EQ(popVal, &value);
+    popVal = NULL;
+    EXPECT_EQ(HDQL_HT_RC_ERR_NOENT, hdql_ht_s_rm(ht, "tokill", &popVal));
     EXPECT_EQ(NULL, hdql_ht_s_get(ht, "tokill"));
+    EXPECT_FALSE(popVal);
 
     hdql_ht_destroy(ht);
 }
 
-TEST_F(HDQLHashTable, Iteration) {
+TEST_F(HDQLHashTable, iteration) {
     hdql_ht * ht = hdql_ht_create(&_alloc, 5, HDQL_MURMUR3_32_DEFAULT_SEED);
 
     int a = 1, b = 2, c = 3;
-    hdql_ht_s_ins(ht, "a", &a);
-    hdql_ht_s_ins(ht, "b", &b);
-    hdql_ht_s_ins(ht, "c", &c);
+    hdql_ht_s_ins(ht, "a", &a, NULL);
+    hdql_ht_s_ins(ht, "b", &b, NULL);
+    hdql_ht_s_ins(ht, "c", &c, NULL);
 
     struct VisitData {
         std::set<std::string> keysVisited;
@@ -150,7 +159,7 @@ protected:
     }
 };
 
-TEST_F(HDQLHashTableStressTest, InsertsLookupsDeletionsAndIteration) {
+TEST_F(HDQLHashTableStressTest, insertsLookupsDeletionsAndIteration) {
     constexpr size_t numKeys = 200;
     std::unordered_map<std::string, int> expectedMap;
     std::vector<std::string> insertedKeys;
@@ -167,24 +176,28 @@ TEST_F(HDQLHashTableStressTest, InsertsLookupsDeletionsAndIteration) {
             snprintf(keyBuffer, sizeof(keyBuffer), "%zu", i * 13);
 
         std::string key = keyBuffer;
-        int * val = (int*) malloc(sizeof(int));
+        int *val = (int*) malloc(sizeof(int));
         values.push_back(val);
         *val = static_cast<int>(i);
         insertedKeys.push_back(key);
         expectedMap[key] = *val;
 
-        int rc = hdql_ht_s_ins(ht, key.c_str(), val);
+        void *oldValue = NULL;
+        int rc = hdql_ht_s_ins(ht, key.c_str(), val, &oldValue);
         EXPECT_EQ(rc, HDQL_HT_RC_INSERTED)
             << "Unexpected insertion exit code: " << rc;
+        EXPECT_FALSE(oldValue);
     }
 
     // 2. Remove every 7th inserted key
     std::set<std::string> removedKeys;
     for (size_t i = 0; i < insertedKeys.size(); i += 7) {
+        void *oldValue = NULL;
         const std::string &key = insertedKeys[i];
-        int status = hdql_ht_s_rm(ht, key.c_str());
+        int status = hdql_ht_s_rm(ht, key.c_str(), &oldValue);
         EXPECT_EQ(status, HDQL_HT_RC_OK) << "Expected to remove key: "
             << key << ", got rc=" << status;
+        EXPECT_TRUE(oldValue);
         removedKeys.insert(key);
         expectedMap.erase(key);
     }
@@ -210,8 +223,10 @@ TEST_F(HDQLHashTableStressTest, InsertsLookupsDeletionsAndIteration) {
         int * val = (int*) malloc(sizeof(int));
         values.push_back(val);
         expectedMap[key] = *val;
-        int rc = hdql_ht_s_ins(ht, key.c_str(), val);
+        void *oldValue = NULL;
+        int rc = hdql_ht_s_ins(ht, key.c_str(), val, &oldValue);
         EXPECT_EQ(rc, HDQL_HT_RC_INSERTED);
+        EXPECT_FALSE(oldValue);
     }
 
     // 6. Check that iteration sees all and only remaining keys

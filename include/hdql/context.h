@@ -187,6 +187,7 @@ int
 hdql_context_custom_data_erase( hdql_Context_t context
                               , const char * name
                               , bool unwind
+                              , void **data
                               );
 
 #ifdef __cplusplus

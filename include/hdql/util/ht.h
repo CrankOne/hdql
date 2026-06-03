@@ -55,7 +55,9 @@ HDQL_API void hdql_ht_destroy(struct hdql_ht *ht);
  * */
 HDQL_API int hdql_ht_ins( struct hdql_ht * ht
             , const unsigned char * key, size_t keyLen
-            , void * value);
+            , void * value
+            , void **oldValue
+            );
 
 /**\brief Finds entry in hash table returning internals
  *
@@ -82,10 +84,10 @@ hdql_ht_ins_cached(
 /** Returns pointer to value or NULL if not found */
 HDQL_API void * hdql_ht_get(const struct hdql_ht *ht, const unsigned char * key, size_t keyLen);
 
-HDQL_API int hdql_ht_erase( struct hdql_ht *ht, struct hdql_htEntry * entry, size_t nb );
+HDQL_API int hdql_ht_erase(struct hdql_ht *ht, struct hdql_htEntry *entry, size_t nb, void **value);
 
 /** Removes key from hash table; returns 1 if removed, 0 if not found */
-HDQL_API int hdql_ht_remove(struct hdql_ht *ht, const unsigned char *key, size_t keyLen);
+HDQL_API int hdql_ht_remove(struct hdql_ht *ht, const unsigned char *key, size_t keyLen, void **value);
 
 /**\brief Iterates through all key-value pairs
  *
@@ -113,13 +115,13 @@ HDQL_API size_t hdql_ht_size(const struct hdql_ht *ht);
  *
  * Wrapper around `hdql_ht_ins()` for C strings, same semantics
  * */
-HDQL_API int hdql_ht_s_ins(struct hdql_ht * ht, const char * key, void * value);
+HDQL_API int hdql_ht_s_ins(struct hdql_ht *ht, const char *key, void *value, void **oldValue);
 
 /**\brief Wrapper for `hdql_ht_get()` for C-string key */
 HDQL_API void * hdql_ht_s_get(const struct hdql_ht * ht, const char * key);
 
 /**\brief Wrapper for `hdql_ht_remove()` for C-string key */
-HDQL_API int hdql_ht_s_rm(struct hdql_ht * ht, const char * key);
+HDQL_API int hdql_ht_s_rm(struct hdql_ht * ht, const char * key, void **value);
 
 #ifdef __cplusplus
 }

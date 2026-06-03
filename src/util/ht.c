@@ -146,9 +146,10 @@ hdql_ht_ins_cached(
 }
 
 int
-hdql_ht_ins( struct hdql_ht * ht
-           , const unsigned char * key, size_t keyLen
-           , void * value
+hdql_ht_ins( struct hdql_ht *ht
+           , const unsigned char *key, size_t keyLen
+           , void *value
+           , void **oldValue
            ) {
     int rc;
     if( ht->size > (1u << (ht->capacity-1))) {
@@ -162,6 +163,7 @@ hdql_ht_ins( struct hdql_ht * ht
     if(NULL != entry) {
         assert(entry->keySize == keyLen);
         assert(0 == memcmp(key, entry->key, keyLen));
+        if(oldValue) *oldValue = entry->value;
         entry->value = value;
         return HDQL_HT_RC_UPDATED;  /* updated */
     }
@@ -195,22 +197,23 @@ hdql_ht_get(const struct hdql_ht *ht, const unsigned char * key, size_t keyLen) 
 }
 
 int
-hdql_ht_remove(struct hdql_ht * ht, const unsigned char * key, size_t keyLen ) {
+hdql_ht_remove(struct hdql_ht * ht, const unsigned char * key, size_t keyLen, void **value) {
     size_t nb;
     hdql_ht_entry * entry = hdql_ht_lookup(ht, key, keyLen, &nb);
     if(NULL == entry) return HDQL_HT_RC_ERR_NOENT;
-    return hdql_ht_erase(ht, entry, nb);
+    return hdql_ht_erase(ht, entry, nb, value);
 }
 
 int
-hdql_ht_erase(struct hdql_ht * ht, hdql_ht_entry * entry, size_t nb ) {
+hdql_ht_erase(struct hdql_ht *ht, hdql_ht_entry *entry, size_t nb, void **oldValue) {
     assert(entry);
     assert(nb < (1u << ht->capacity));
-    hdql_ht_entry  * cur   = ht->buckets[nb]
-                , ** prevP = ht->buckets + nb;
+    hdql_ht_entry  *cur   = ht->buckets[nb]
+                , **prevP = ht->buckets + nb;
     while( cur ) {
         if( cur == entry ) {
             *prevP = cur->next;
+            if(oldValue) *oldValue = entry->value;
             ht->allocator.free(entry->key, ht->allocator.userdata);
             ht->allocator.free(entry,      ht->allocator.userdata);
             return HDQL_HT_RC_OK;
@@ -296,8 +299,10 @@ void hdql_ht_destroy(struct hdql_ht * ht) {
 int
 hdql_ht_s_ins(struct hdql_ht * ht
             , const char * key
-            , void * value ) {
-    return hdql_ht_ins(ht, (unsigned char *) key, strlen(key) + 1, value);
+            , void * value
+            , void **oldValue
+            ) {
+    return hdql_ht_ins(ht, (unsigned char *) key, strlen(key) + 1, value, oldValue);
 }
 
 void *
@@ -324,7 +329,7 @@ hdql_ht_s_get(const struct hdql_ht * ht, const char * key) {
 }
 
 int
-hdql_ht_s_rm(struct hdql_ht * ht, const char * key) {
-    return hdql_ht_remove(ht, (const unsigned char *) key, strlen(key) + 1 );
+hdql_ht_s_rm(struct hdql_ht * ht, const char * key, void **value) {
+    return hdql_ht_remove(ht, (const unsigned char *) key, strlen(key) + 1, value);
 }
 

@@ -240,6 +240,7 @@ erase_iterative(struct _M_AVL *m, const _M_keyType key ifelse(_M_isMap, `true', 
     return HDQL_AVL_CHANGED;
 }
 
+#if 0
 static _M_AVLNode *
 lower_bound_node(const struct _M_AVL *m, const _M_keyType key) {
     _M_AVLNode *n = m->root;
@@ -271,6 +272,7 @@ upper_bound_node(const struct _M_AVL *m, const _M_keyType key) {
     }
     return best;
 }
+#endif
 
 /*
  * Public API
@@ -418,6 +420,7 @@ _M4_pubfunc(_M_AVL, iter_r)(struct _M_AVL *m
     return 0;
 }
 
+#if 0
 bool
 _M4_pubfunc(_M_AVL, lower_bound)(const struct _M_AVL *m,
         const _M_keyType key,
@@ -443,3 +446,4 @@ _M4_pubfunc(_M_AVL, upper_bound)(const struct _M_AVL *m,
     ifelse(_M_isMap, `true', `if(foundValue) *foundValue = n->value;')
     return true;
 }
+#endif

@@ -8,4 +8,4 @@ dnl
 define(_M_keyType, `void *')dnl
 define(_M_key_cmp, `m->key_cmp($1, $2)')
 dnl
-include(src/util/avl.m4)
+include(avl.m4)

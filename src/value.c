@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 #ifndef HDQL_HT_DEFAULT_VALUES_NTYPES
 #   define HDQL_HT_DEFAULT_VALUES_NTYPES 4
@@ -323,4 +324,195 @@ hdql_types_numeric_promote(const struct hdql_ValueTypes * vt
         ((struct hdql_ValueTypes *) vt)->isPromotionsValid = true;
     }
     return hdql_arith_type_promote(vt->promotions, a, b);
+}
+
+/*                                                            ________________
+ * _________________________________________________________/ Constant values
+ */
+
+typedef struct {
+    enum hdql_ExternValueType type;
+    union {
+        hdql_Int_t asInt;
+        hdql_Flt_t asFlt;
+    } value;
+} ConstValItem;
+
+static void cvi_init_flt(ConstValItem *instance, hdql_Flt_t value) {
+    instance->type = hdql_kExternValFltType;
+    instance->value.asFlt = value;
+}
+
+static void cvi_init_int(ConstValItem *instance, hdql_Flt_t value) {
+    instance->type = hdql_kExternValIntType;
+    instance->value.asInt = value;
+}
+
+struct hdql_Constants {
+    struct hdql_Constants *parent;
+    struct hdql_ht *values;
+
+    //hdql_Constants(hdql_Constants * parent_) : parent(parent_) {}  // TODO
+};
+
+int
+hdql_constants_define_float( struct hdql_Constants * consts
+                           , const char * name
+                           , hdql_Flt_t value ) {
+    assert(consts);
+    if(!name || '\0' == *name) {  /* TODO: check name for general validity */
+        return HDQL_ERR_BAD_ARGUMENT;
+    }
+
+    size_t nb;
+    const size_t nameLen = strlen(name);
+    struct hdql_htEntry *entry = hdql_ht_lookup( consts->values
+            , (const unsigned char *) name, nameLen, &nb);
+    if(entry) return HDQL_ERR_NAME_COLLISION;
+
+    const struct hdql_Allocator *alloc = hdql_ht_get_alloc(consts->values);
+    ConstValItem *csvi = alloc->alloc(sizeof(ConstValItem), alloc->userdata);
+    if(!csvi) return HDQL_ERR_MEMORY;
+
+    cvi_init_flt(csvi, value);
+
+    int htRC = hdql_ht_ins_cached(consts->values, (const unsigned char *) name
+            , nameLen, csvi, entry, nb);
+
+    switch(htRC) {
+        case HDQL_HT_RC_INSERTED:
+            return HDQL_ERR_CODE_OK;
+
+        case HDQL_HT_ERR_MEM:
+            alloc->free(csvi, alloc->userdata);
+            return HDQL_ERR_MEMORY;
+        default:
+            return HDQL_ERR_GENERIC;  /* must not happen; leaves undefined state */
+    }
+}
+
+int
+hdql_constants_define_int( struct hdql_Constants * consts
+                           , const char * name
+                           , hdql_Int_t value ) {
+    assert(consts);
+    if(!name || '\0' == *name) {  /* TODO: check name for general validity */
+        return HDQL_ERR_BAD_ARGUMENT;
+    }
+
+    size_t nb;
+    const size_t nameLen = strlen(name);
+    struct hdql_htEntry *entry = hdql_ht_lookup( consts->values
+            , (const unsigned char *) name, nameLen, &nb);
+    if(entry) return HDQL_ERR_NAME_COLLISION;
+
+    const struct hdql_Allocator *alloc = hdql_ht_get_alloc(consts->values);
+    ConstValItem *csvi = alloc->alloc(sizeof(ConstValItem), alloc->userdata);
+    if(!csvi) return HDQL_ERR_MEMORY;
+
+    cvi_init_int(csvi, value);
+
+    int htRC = hdql_ht_ins_cached(consts->values, (const unsigned char *) name
+            , nameLen, csvi, entry, nb);
+
+    switch(htRC) {
+        case HDQL_HT_RC_INSERTED:
+            return HDQL_ERR_CODE_OK;
+
+        case HDQL_HT_ERR_MEM:
+            alloc->free(csvi, alloc->userdata);
+            return HDQL_ERR_MEMORY;
+        default:
+            return HDQL_ERR_GENERIC;  /* must not happen; leaves undefined state */
+    }
+}
+
+
+enum hdql_ExternValueType
+hdql_constants_get_value( struct hdql_Constants * consts
+                        , const char * name
+                        , hdql_Datum_t * destPtr
+                        ) {
+    assert(consts);
+    if(NULL == name || '\0' == *name) return hdql_kExternValUndefined;
+    assert(destPtr);
+
+    void *entry_ = hdql_ht_get(consts->values, (const unsigned char*) name, strlen(name));
+    if(NULL == entry_) {
+        return consts->parent ? hdql_constants_get_value(consts->parent
+                , name, destPtr) : hdql_kExternValUndefined;
+    }
+
+    ConstValItem *csvi = (ConstValItem *) entry_;
+
+    switch(csvi->type) {
+        case hdql_kExternValFltType:
+            *destPtr = (hdql_Datum_t) &csvi->value.asFlt;
+            return csvi->type;
+        case (hdql_kExternValIntType):
+            *destPtr = (hdql_Datum_t) &csvi->value.asInt;
+            return csvi->type;
+        default:
+            *destPtr = NULL;
+            return csvi->type;
+    }
+}
+
+/* ... TODO: LNG22. Unit tests for const values */
+
+/*                                       _____________________________________
+ * ____________________________________/ Context-private constants table mgmnt
+ */
+
+struct hdql_Constants *
+hdql__constants_create(struct hdql_Constants *parent, struct hdql_Context *context) {
+    const struct hdql_Allocator *alloc = hdql__context_get_allocator(context);
+    if(!alloc) return NULL;
+    hdql_Datum_t r_ = alloc->alloc(sizeof(struct hdql_Constants), alloc->userdata);
+    if(!r_) return NULL;
+    struct hdql_Constants *r = (struct hdql_Constants *) r_;
+    r->parent = parent;
+    r->values = hdql_ht_create(alloc, 4, HDQL_MURMUR3_32_DEFAULT_SEED);
+    return r;
+}
+
+static int
+destroy_static_const_definition(const unsigned char * key
+        , size_t keyLen
+        , void ** value
+        , void * userdata) {
+    ((void) key);
+    assert(value);
+    assert(userdata);
+    if(!*value) return 0;
+    const struct hdql_Allocator *alloc = (const struct hdql_Allocator *) userdata;
+    alloc->free(*value, alloc->userdata);
+    *value = NULL;
+    return 0;
+}
+
+void
+hdql__constants_destroy(struct hdql_Constants *consts, struct hdql_Context *context) {
+    if(NULL == consts || NULL == context) return;
+    const struct hdql_Allocator *alloc = hdql__context_get_allocator(context);
+    if(!alloc) return;
+    if(consts->values) {
+        hdql_ht_iter(consts->values, destroy_static_const_definition, (void*) alloc);
+        hdql_ht_destroy(consts->values);
+    }
+    alloc->free(consts, alloc->userdata);
+}
+
+int
+hdql_constants_define_standard_math(struct hdql_Constants * consts) {
+    assert(consts);
+    int rc;
+
+    rc = hdql_constants_define_float(consts, "pi", M_PI);
+    if(rc!= HDQL_ERR_CODE_OK) return rc;
+
+    rc = hdql_constants_define_float(consts, "e", M_E);
+    if(rc!= HDQL_ERR_CODE_OK) return rc;
+
+    return HDQL_ERR_CODE_OK;
 }

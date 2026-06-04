@@ -29,6 +29,8 @@ struct hdql_ht {
 
 size_t hdql_ht_size(const struct hdql_ht *ht) { return ht->size; }
 
+const struct hdql_Allocator * hdql_ht_get_alloc(struct hdql_ht * ht) { return &ht->allocator; }
+
 /*
  * Murmur32 hash func assets
  */

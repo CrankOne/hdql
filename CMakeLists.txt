@@ -30,25 +30,23 @@ file(MAKE_DIRECTORY "${GENERATED_DIR}")
 
 function(m4_generate outVar input outputName deps)
     set(output "${GENERATED_DIR}/${outputName}")
-
     add_custom_command(
         OUTPUT "${output}"
         COMMAND "${M4_EXECUTABLE}" "${input}" > "${output}"
         DEPENDS "${input}" ${deps}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        VERBATIM
-    )
-
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/m4
+        VERBATIM )
     set(${outVar} "${output}" PARENT_SCOPE)
 endfunction()
 
-m4_generate(UMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-umap.c.m4" avl-umap.c src/util/avl.m4)
-m4_generate(USET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-uset.c.m4" avl-uset.c src/util/avl.m4)
-
-m4_generate(FMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fmap.c.m4" avl-fmap.c src/util/avl.m4)
-m4_generate(FSET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-fset.c.m4" avl-fset.c src/util/avl.m4)
-
-m4_generate(VMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/src/util/avl-vmap.c.m4" avl-vmap.c src/util/avl.m4)
+# Map/set typed implementations
+m4_generate(UMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/avl/umap.c.m4" avl-umap.c m4/avl.m4)
+m4_generate(USET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/avl/uset.c.m4" avl-uset.c m4/avl.m4)
+m4_generate(FMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/avl/fmap.c.m4" avl-fmap.c m4/avl.m4)
+m4_generate(FSET_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/avl/fset.c.m4" avl-fset.c m4/avl.m4)
+m4_generate(VMAP_AVL_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/avl/vmap.c.m4" avl-vmap.c m4/avl.m4)
+# Standard types
+m4_generate(STD_TYPES_C "${CMAKE_CURRENT_SOURCE_DIR}/m4/std-types.c.m4" std-types.c m4/types/implem-std-type-mtds.m4 )
 
 # Library
 #
@@ -62,6 +60,7 @@ set (hdql_SOURCES src/util/pcg32.c
                   ${UMAP_AVL_C}
                   ${USET_AVL_C}
                   ${VMAP_AVL_C}
+                  ${STD_TYPES_C}
                   src/util/allocator.c
                   src/types.cc
                   src/context.c
@@ -72,7 +71,6 @@ set (hdql_SOURCES src/util/pcg32.c
 	              src/query-key.c
 	              src/operations.cc
                   src/value.c
-	              src/value.cc
                   src/function.cc
                   src/converters.c
                   src/type-promotion-table.c

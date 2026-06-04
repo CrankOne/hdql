@@ -109,7 +109,7 @@ hdql_context_create(uint32_t flags, const struct hdql_Allocator *allocator) {
     if(!(r->converters = _hdql_converters_create(NULL, r))) goto onFailure;
     if(!(r->operations = _hdql_operations_create(NULL, r))) goto onFailure;
     if(!(r->functions  = _hdql_functions_create(NULL, r))) goto onFailure;
-    if(!(r->constants  = _hdql_constants_create(NULL, r))) goto onFailure;
+    if(!(r->constants  = hdql__constants_create(NULL, r))) goto onFailure;
     if(!(r->randgen    = _hdql_randgen_create(NULL, r))) goto onFailure;
     if(!(r->compounds  = hdql__compounds_create(NULL, r))) goto onFailure;
 
@@ -145,7 +145,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
     if(!(r->converters = _hdql_converters_create(pCtx->converters, r))) goto onFailure;
     if(!(r->operations = _hdql_operations_create(pCtx->operations, r))) goto onFailure;
     if(!(r->functions  = _hdql_functions_create(pCtx->functions, r))) goto onFailure;
-    if(!(r->constants  = _hdql_constants_create(pCtx->constants, r))) goto onFailure;
+    if(!(r->constants  = hdql__constants_create(pCtx->constants, r))) goto onFailure;
     if(!(r->randgen    = _hdql_randgen_create( flags & HDQL_CTX_LOCAL_RANDGEN
                                           ? NULL : pCtx->randgen
                                           , r))) goto onFailure;
@@ -208,7 +208,7 @@ hdql_context_destroy(hdql_Context_t context) {
     if(context->valueTypes)
         hdql__value_types_table_destroy(context->valueTypes, context);
     if(context->constants)
-        _hdql_constants_destroy(context->constants, context);
+        hdql__constants_destroy(context->constants, context);
     if(context->randgen)
         _hdql_randgen_destroy(context->randgen, context);
     /* sic! compounds destroyed in this order: non-virtual compounds get destroyed

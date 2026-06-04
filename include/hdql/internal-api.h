@@ -18,9 +18,8 @@ struct hdql_AttrDef;
 /* from src/values.c */
 struct hdql_ValueTypes * hdql__value_types_table_create(struct hdql_ValueTypes *, struct hdql_Context *);
 void hdql__value_types_table_destroy(struct hdql_ValueTypes *, struct hdql_Context *);
-
-struct hdql_Constants * _hdql_constants_create(struct hdql_Constants *, struct hdql_Context *);
-void _hdql_constants_destroy(struct hdql_Constants *, struct hdql_Context *);
+struct hdql_Constants * hdql__constants_create(struct hdql_Constants *, struct hdql_Context *);
+void hdql__constants_destroy(struct hdql_Constants *, struct hdql_Context *);
 
 /* from src/operations.cc */
 struct hdql_Operations * _hdql_operations_create(struct hdql_Operations *, struct hdql_Context *);

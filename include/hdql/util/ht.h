@@ -33,13 +33,21 @@ struct hdql_htEntry;  /* fwd, opaque */
 
 /**\brief Creates a new hash table with starting capacity
  *
- * Initial capacity affects container performance and memory consumption.
- * Generally, set x2-x4 times greater to gain best
+ * Initial capacity `N = 2^dftCapacity` affects container performance and
+ * memory consumption. Generally, set x2-x4 times greater to gain best
  * performance/memory consumption ratio.
+ *
+ * \p alloc iface gets copied.
  *
  * \returns NULL on memory allocation error.
  * */
-HDQL_API struct hdql_ht * hdql_ht_create(const struct hdql_Allocator *, size_t dftCapacity, size_t hashSeed );
+HDQL_API struct hdql_ht * hdql_ht_create(const struct hdql_Allocator *alloc, size_t dftCapacity, size_t hashSeed );
+
+/**\brief Returns HT's allocator in use
+ *
+ * Useful method when values must be stored along with the hash table
+ * itself, to implement value copying. */
+HDQL_API const struct hdql_Allocator * hdql_ht_get_alloc(struct hdql_ht *);
 
 /**\brief Destroys the hash table
  *
@@ -71,7 +79,12 @@ hdql_ht_lookup( const struct hdql_ht * ht
         , size_t * nb
         );
 
-/**\brief Relies on lookup result for insertion */
+/**\brief Relies on lookup result for insertion
+ *
+ *\returns
+ * - HDQL_HT_ERR_MEM on memory depletion
+ * - HDQL_HT_RC_INSERTED when item was inserted actually.
+ * */
 int
 hdql_ht_ins_cached(
              struct hdql_ht *ht

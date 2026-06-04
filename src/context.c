@@ -12,14 +12,14 @@
 #include <stdarg.h>
 #include <stdio.h>  /* vsnprintf() */
 
-/* Init HT size of the context's local data */
+/* Init HT size of the context's local data (power of 2) */
 #ifndef HDQL_HT_DEFAULT_CONTEXT_LOCALDATA
-#   define HDQL_HT_DEFAULT_CONTEXT_LOCALDATA 128
+#   define HDQL_HT_DEFAULT_CONTEXT_LOCALDATA 4
 #endif
 
-/* Init HT size of the context's type names dictionary */
+/* Init HT size of the context's type names dictionary (power of 2) */
 #ifndef HDQL_HT_DEFAULT_CONTEXT_NTYPES
-#   define HDQL_HT_DEFAULT_CONTEXT_NTYPES 256
+#   define HDQL_HT_DEFAULT_CONTEXT_NTYPES 4
 #endif
 
 /* Max length of the error message kept in context's stack */
@@ -105,7 +105,7 @@ hdql_context_create(uint32_t flags, const struct hdql_Allocator *allocator) {
     r->localData->byName = NULL;
     r->localData->parent = NULL;
     bzero(r->localData, sizeof(struct hdql_ContextLocalData));
-    if(!(r->valueTypes = _hdql_value_types_table_create(NULL, r))) goto onFailure;
+    if(!(r->valueTypes = hdql__value_types_table_create(NULL, r))) goto onFailure;
     if(!(r->converters = _hdql_converters_create(NULL, r))) goto onFailure;
     if(!(r->operations = _hdql_operations_create(NULL, r))) goto onFailure;
     if(!(r->functions  = _hdql_functions_create(NULL, r))) goto onFailure;
@@ -141,7 +141,7 @@ hdql_context_create_descendant(hdql_Context_t pCtx, uint32_t flags) {
                     , r->allocator->userdata))) goto onFailure;
     r->localData->byName = NULL;
     r->localData->parent = pCtx->localData;
-    if(!(r->valueTypes = _hdql_value_types_table_create(pCtx->valueTypes, r))) goto onFailure;
+    if(!(r->valueTypes = hdql__value_types_table_create(pCtx->valueTypes, r))) goto onFailure;
     if(!(r->converters = _hdql_converters_create(pCtx->converters, r))) goto onFailure;
     if(!(r->operations = _hdql_operations_create(pCtx->operations, r))) goto onFailure;
     if(!(r->functions  = _hdql_functions_create(pCtx->functions, r))) goto onFailure;
@@ -206,7 +206,7 @@ hdql_context_destroy(hdql_Context_t context) {
     if(context->converters)
         _hdql_converters_destroy(context->converters, context);
     if(context->valueTypes)
-        _hdql_value_types_table_destroy(context->valueTypes, context);
+        hdql__value_types_table_destroy(context->valueTypes, context);
     if(context->constants)
         _hdql_constants_destroy(context->constants, context);
     if(context->randgen)

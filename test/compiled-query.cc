@@ -5,6 +5,7 @@
 #include "hdql/query-key.h"
 #include "hdql/query.h"
 #include "hdql/value.h"
+#include <gtest/gtest.h>
 
 namespace hdql {
 namespace test {
@@ -23,6 +24,9 @@ void
 TestCompiledQuery::SetUp() {
     TestingContext::SetUp();
     _compoundsContext = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+    // make sure we can retrieve std type aliases
+    const hdql_ValueInterface *vti = hdql_types_get_type_by_name(hdql_context_get_types(_compoundsContext), "bool");
+    ASSERT_TRUE(vti);
     // this is the compound types definitions
     _define_compounds(_compoundsContext, _rootCompound);
 }

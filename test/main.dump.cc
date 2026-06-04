@@ -32,7 +32,8 @@ test_query_on_data( int nSample, const char * expression ) {
     // reentrant table with type interfaces
     hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
     // add standard (int, float, etc) types
-    hdql_value_types_table_add_std_types(valTypes);
+    int rc = hdql_value_types_table_add_std_types(valTypes);
+    if(HDQL_ERR_CODE_OK != rc) return rc;
 
     // create and operations table
     hdql_Operations * operations = hdql_context_get_operations(ctx);
@@ -56,7 +57,7 @@ test_query_on_data( int nSample, const char * expression ) {
     hdql::test::fill_data_sample_1(ev);  // TODO: utilize #nSample to select sample
     
     // Interpret the query
-    int rc = 0;
+    rc = 0;
     hdql_Query * q; {
         char * expCpy = strdup(expression);
         char errBuf[256] = "";

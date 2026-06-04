@@ -13,6 +13,7 @@
 
 #include <cmath>
 
+#if 0
 #ifndef HDQL_TIER_BITSIZE
 /**\brief Defines number of bits used to store the type table's tier */
 #   define HDQL_TIER_BITSIZE 4
@@ -277,6 +278,7 @@ hdql_destroy_value(hdql_ValueTypeCode_t tc, hdql_Datum_t r, hdql_Context_t ctx) 
     hdql_context_free(ctx, r);
     return 0;
 }
+#endif
 
 //                              ______________________________________________
 // ___________________________/ Standard arithmetic types (arithmetic, string)
@@ -441,8 +443,8 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.set_as_float = &hdql::StdArithInterface<ctp>::set_as_float; \
         vti.get_as_string = &hdql::StdArithInterface<ctp>::get_as_string; \
         vti.set_from_string = &hdql::StdArithInterface<ctp>::set_from_string; \
-        int rc = hdql_types_define(vt, &vti); \
-        if(rc != HDQL_ERR_CODE_OK) { return - nItem; } \
+        int rc = hdql_types_define(vt, &vti, NULL); \
+        if(rc != HDQL_ERR_CODE_OK) { return rc; } \
     }
     _M_hdql_for_each_std_type(_M_add_std_type);
     #undef _M_add_std_type
@@ -453,7 +455,7 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         hdql_ValueTypeCode_t tc = hdql_types_get_type_code(vt, #stdType); \
         assert(0x0 != tc); \
         int rc = hdql_types_alias(vt, #alias, tc) >= 0 ? 0 : 1; \
-        if(rc < HDQL_ERR_CODE_OK) return -nItem; \
+        if(rc < HDQL_ERR_CODE_OK) return rc; \
     }
 
     _M_add_alias(uint8_t, unsigned char);
@@ -476,18 +478,11 @@ hdql_value_types_table_add_std_types(hdql_ValueTypes * vt) {
         vti.init = _str_init;
         vti.destroy = _str_destroy;
         vti.copy = _str_copy;
-        int rc = hdql_types_define(vt, &vti);
-        if(rc < HDQL_ERR_CODE_OK) { return -nItem; }
+        int rc = hdql_types_define(vt, &vti, NULL);
+        if(rc != HDQL_ERR_CODE_OK) { return rc; }
     }
 
     return HDQL_ERR_CODE_OK;
-}
-
-hdql_ValueTypeCode_t
-hdql_types_numeric_promote(const struct hdql_ValueTypes * vt
-        , hdql_ValueTypeCode_t a, hdql_ValueTypeCode_t b) {
-    return hdql_arith_type_promote(&vt->numeric_types_promotion_table()
-            , a, b);
 }
 
 /*                                                            ________________

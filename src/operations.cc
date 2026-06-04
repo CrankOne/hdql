@@ -1,5 +1,6 @@
 #include "hdql/operations.h"
 #include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/query-key.h"
 #include "hdql/types.h"
 #include "hdql/value.h"
@@ -569,13 +570,24 @@ extern "C" hdql_Datum_t
 hdql_scalar_arith_op_create( hdql_Query * a
                            , hdql_Query * b
                            , const struct hdql_OperationEvaluator * evaluator
-                           , hdql_Context_t ctx
+                           , hdql_Context_t context
                            ) {
-    struct ScalarOperation * scalarOp = hdql_alloc(ctx, struct ScalarOperation);
+    struct ScalarOperation * scalarOp = hdql_alloc(context, struct ScalarOperation);
     scalarOp->argQueries[0] = a;
     scalarOp->argQueries[1] = b;
     scalarOp->evaluator = *evaluator;
-    scalarOp->result = hdql_create_value(evaluator->returnType, ctx);
+    int rc;
+    scalarOp->result = hdql_create_value(evaluator->returnType, context, &rc);
+    if(!scalarOp->result) {
+        hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "error while creating result of arithmetic operation %p of type %#x: %d"
+                , evaluator->op
+                , evaluator->returnType
+                , rc
+                );
+        hdql_context_free(context, (hdql_Datum_t) scalarOp);
+        return NULL;
+    }
     return reinterpret_cast<hdql_Datum_t>(scalarOp);
 }
 
@@ -600,18 +612,27 @@ hdql_scalar_arith_op_dereference( hdql_Datum_t root
 }
 
 extern "C" void
-hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t ctx ) {
+hdql_scalar_arith_op_free( hdql_Datum_t scalarOp_, hdql_Context_t context) {
     struct ScalarOperation * scalarOp
-        = hdql_cast(ctx, struct ScalarOperation, scalarOp_);
+        = hdql_cast(context, struct ScalarOperation, scalarOp_);
     for(int i = 0; i < 2; ++i) {
         if(scalarOp->argQueries[i]) {
-            hdql_query_destroy(scalarOp->argQueries[i], ctx);
+            hdql_query_destroy(scalarOp->argQueries[i], context);
         }
     }
     if(scalarOp->result) {
-        hdql_destroy_value(scalarOp->evaluator.returnType, scalarOp->result, ctx);
+        int rc, rcc;
+        rcc = hdql_destroy_value(scalarOp->evaluator.returnType, scalarOp->result, context, &rc);
+        if(rcc) {
+            hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "error while deleting result of arithmetic operation %p of type %#x: %d"
+                , scalarOp->evaluator.op
+                , scalarOp->evaluator.returnType
+                , rc
+                );
+        }
     }
-    hdql_context_free(ctx, scalarOp_);
+    hdql_context_free(context, scalarOp_);
 }
 
 //                                 ____________________________________________

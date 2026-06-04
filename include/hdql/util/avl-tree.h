@@ -46,6 +46,9 @@ struct hdql_uset;
 HDQL_API struct hdql_umap *hdql_umap_create(const struct hdql_Allocator *alloc);
 HDQL_API struct hdql_uset *hdql_uset_create(const struct hdql_Allocator *alloc);
 
+HDQL_API const struct hdql_Allocator *hdql_umap_get_alloc(const struct hdql_umap *m);
+HDQL_API const struct hdql_Allocator *hdql_uset_get_alloc(const struct hdql_uset *m);
+
 HDQL_API int hdql_umap_insert(struct hdql_umap *m, unsigned long key, void *);
 HDQL_API int hdql_uset_insert(struct hdql_uset *m, unsigned long key);
 
@@ -64,6 +67,18 @@ HDQL_API void hdql_uset_destroy(struct hdql_uset *m);
 HDQL_API int hdql_umap_iter(struct hdql_umap *m
         , int (*callback)(const unsigned long key, void **value, void *userdata)
         , void *userdata);
+
+HDQL_API bool hdql_umap_lower_bound(const struct hdql_umap *m
+        , const unsigned long key
+        , unsigned long *foundKey
+        , void **foundValue
+        );
+
+HDQL_API bool hdql_umap_upper_bound(const struct hdql_umap *m
+        , const unsigned long key
+        , unsigned long *foundKey
+        , void **foundValue
+        );
 
 HDQL_API int hdql_uset_iter(struct hdql_uset *m
         , int (*callback)(const unsigned long key, void *userdata)

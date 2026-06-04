@@ -26,13 +26,20 @@ static hdql_Datum_t
 _arith_op_scalar_interface_instantiate(
           hdql_Datum_t ownerDatum
         , const struct hdql_Datum *defData_
-        , hdql_Context_t ctx
+        , hdql_Context_t context
         ) {
     assert(defData_);
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
-    struct ArithOpScalarState * state = hdql_alloc(ctx, struct ArithOpScalarState);
+    struct ArithOpScalarState * state = hdql_alloc(context, struct ArithOpScalarState);
     assert(state);
-    state->result = hdql_create_value(defData->evaluator->returnType, ctx);
+    int rc = 0;
+    state->result = hdql_create_value(defData->evaluator->returnType, context, &rc);
+    if(!state->result) {
+        hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "arith. op. scalar value result ctr of type %#x returned %d"
+                , defData->evaluator->returnType
+                , rc );
+    }
     return (hdql_Datum_t) state;
 }
 
@@ -72,16 +79,23 @@ static void
 _arith_op_scalar_interface_destroy(
           hdql_Datum_t state_
         , const struct hdql_Datum *defData_
-        , hdql_Context_t ctx
+        , hdql_Context_t context
         ) {
     if(NULL == state_) return;
     assert(state_);  /* dereference() without create() (and subsequent reset()) */
     struct ArithOpScalarState * state = (struct ArithOpScalarState *) state_;
     struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     if(NULL != state->result) {
-        hdql_destroy_value(defData->evaluator->returnType, state->result, ctx);
+        int rc = 0, rcc = hdql_destroy_value(defData->evaluator->returnType
+                , state->result, context, &rc);
+        if(rcc) {
+            hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "arith. op. scalar value result dtr of type %#x returned %d"
+                , defData->evaluator->returnType
+                , rc );
+        }
     }
-    hdql_context_free(ctx, state_);
+    hdql_context_free(context, state_);
 }
 
 /* TODO: reserve key callback exposed in public */

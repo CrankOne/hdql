@@ -63,15 +63,37 @@ struct hdql_ValueInterface {
 
 /**\brief Defines new data type
  *
- * Creates *copy* of given interface instance (including name).
+ * Interface struct gets copied.
+ *
+ * \returns
+ *  - HDQL_ERR_BAD_ARGUMENT if name is null or empty;
+ *  - HDQL_ERR_OPERATION_NOT_SUPPORTED in case of tier type cap is depleted;
+ *  - HDQL_ERR_NAME_COLLISION if eponymous type is defined already;
+ *  - HDQL_ERR_MEMORY when can't allocate index.
+ * Additionally may return:
+ *  - HDQL_ERR_GENERIC in case of internal inconsistency (generated code
+ *    is already registered or type ID exceeds max type cap), when hash table
+ *    insertion returned unexpected code.
  *
  * Returns positive non-zero number on success that is equal to registered type
  * code (so it can be safely casted to `hdql_ValueTypeCode_t`). Returns -1 if
  * `name` is not of permitted format, -2 if a type with such name has been
  * already defined, -3 if maximum number of permitted type definitions exceed. */
-HDQL_API int hdql_types_define(struct hdql_ValueTypes *, const struct hdql_ValueInterface *);
+HDQL_API int hdql_types_define(struct hdql_ValueTypes *, const struct hdql_ValueInterface *
+        , hdql_ValueTypeCode_t *);
 
-/**\brief Defines type alias */
+/**\brief Defines type alias
+ *
+ * \returns
+ * - HDQL_ERR_CODE_OK on success;
+ * - HDQL_ERR_MEMORY on memory allocation failure;
+ * - HDQL_ERR_GENERIC if tgt type code seem to refer to child table;
+ * - HDQL_ERR_UNKNOWN_ATTRIBUTE if tgt type is not found in current table and its parents;
+ * - HDQL_ERR_CODE_OVERRIDDEN if same type is aliased with same name again;
+ * - HDQL_ERR_NAME_COLLISION if different type already aliased with this name;
+ * In case of internal inconsistency can return HDQL_ERR_GENERIC.
+ * 
+ * */
 HDQL_API int hdql_types_alias(struct hdql_ValueTypes *, const char *, hdql_ValueTypeCode_t);
 
 /**\brief Retrieves data type definition by index
@@ -94,11 +116,32 @@ HDQL_API hdql_ValueTypeCode_t hdql_types_get_type_code(const struct hdql_ValueTy
 /**\brief Useful function to add standard C/C++ types to table
  *
  * By default HDQL does not add these types in the table, but user code
- * probably will want to have it. */
+ * probably will want to have it.
+ *
+ * \returns HDQL_ERR_CODE_OK or forwards error from `hdql_types_define()`
+ * */
 HDQL_API int hdql_value_types_table_add_std_types(struct hdql_ValueTypes * vt);
 
-HDQL_API hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t);
-HDQL_API int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t);
+/**\brief Allocates and initializes value of type
+ *
+ * \returns NULL if one of the following errors occured: 1) context has no types
+ * table, 2) type table does not provide type by given code, 3) failed to
+ * allocate memory for value, or 4) value type has
+ * special initialization procedure defined by the interface, which returned
+ * non-zero exit code. In the later case will set \p rc to this exit code,
+ * when it is not NULL. */
+HDQL_API hdql_Datum_t hdql_create_value(hdql_ValueTypeCode_t, hdql_Context_t, int *rc);
+
+/**\brief Destroys value of certain type
+ *
+ * Will try to free memory even if the destructor returns non-zero exit status.
+ *
+ * \returns HDQL_ERR_GENERIC if one of the following errors occured: context
+ * has no types table, type table does not provide type by given code or value
+ * type has special destruction procedure defined by the interface, which
+ * returned non-zero exit code. In the later case will set \p rc to this exit
+ * code, when it is not NULL. Otherwise returns HDQL_ERR_CODE_OK. */
+HDQL_API int hdql_destroy_value(hdql_ValueTypeCode_t, hdql_Datum_t, hdql_Context_t, int *rc);
 
 /*                                                      ______________________
  * ___________________________________________________/ Data type convertsion

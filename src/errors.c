@@ -11,6 +11,8 @@ hdql_err_str(hdql_Err_t code) {
             return "unspecified common error";
         case HDQL_ERR_MEMORY:
             return "memory allocation error";
+        case HDQL_ERR_BAD_ARGUMENT:
+            return "bad argument or argument combination";
 
         case HDQL_ERR_NAME_COLLISION:
             return "an entry with such name already exists";

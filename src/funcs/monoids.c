@@ -20,7 +20,7 @@ typedef struct {
     /* Applies operation; may interrupt convolution loop if returns non-zero */
     int (*operation)(hdql_Datum_t, hdql_Datum_t);
     /* Result allocation function */
-    hdql_Datum_t (*alloc_result)(hdql_ValueTypeCode_t, hdql_Context_t);
+    hdql_Datum_t (*alloc_result)(hdql_ValueTypeCode_t, hdql_Context_t, int *);
     /* Result retrieval function */
     hdql_Datum_t (*retrieve)(hdql_Datum_t d_, hdql_ValueTypeCode_t tc, hdql_Context_t context);
 } MonoidDefinition_t;
@@ -69,7 +69,7 @@ typedef struct {
     /* pointer to SMA definition */
     const MonoidDefinition_t * monoidDef;
     /* result instantiation callback (not setting the neutral element!); dets dynData->result */
-    hdql_Datum_t (*instantiate_result)(hdql_ValueTypeCode_t, hdql_Context_t);
+    hdql_Datum_t (*instantiate_result)(hdql_ValueTypeCode_t, hdql_Context_t, int *);
     /* result retrieval callback, must be non-destructive as can be called
      * repeatedly between reset() calls */
     hdql_Datum_t (*retrieve_result)(hdql_Datum_t, hdql_ValueTypeCode_t, hdql_Context_t);
@@ -112,11 +112,23 @@ _monoid__new_dyn_data
             continue;
         }
         /* conversion is needed -- allocate destination */
-        dynData->convertedValues[nq] = hdql_create_value(defData->rTypeCode, context);
+        int rc = 0;
+        dynData->convertedValues[nq] = hdql_create_value(defData->rTypeCode, context, &rc);
+        if(!dynData->convertedValues[nq]) {
+            hdql_context_err_push(context, HDQL_ERR_GENERIC
+                    , "failed to initialize monoid function return type of"
+                      " type %#x, constructor returned %d", defData->rTypeCode, rc);
+        }
         assert(dynData->convertedValues[nq]);  /* allocation error */
     }
     /* allocate result datum */
-    dynData->result = defData->instantiate_result(defData->rTypeCode, context);
+    int rc = 0;
+    dynData->result = defData->instantiate_result(defData->rTypeCode, context, &rc);
+    if(!dynData->result) {
+        hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "failed to initialize monoid function return type of"
+                  " type %#x, constructor returned %d", defData->rTypeCode, rc);
+    }
     assert(dynData->result);
     return (struct hdql_Datum *) dynData;
 }
@@ -745,7 +757,7 @@ typedef struct {                            \
 static hdql_Datum_t                         \
 _mean_ ## suffix ## _instantiate (          \
         hdql_ValueTypeCode_t tc,            \
-        hdql_Context_t context ) {          \
+        hdql_Context_t context, int *rc ) { \
     return hdql_context_alloc(              \
             context,                        \
             sizeof(mean_ ## suffix ## _t)   \
@@ -789,7 +801,7 @@ typedef struct {                            \
 static hdql_Datum_t                         \
 _arb_ ## suffix ## _instantiate(            \
         hdql_ValueTypeCode_t tc,            \
-        hdql_Context_t context ) {          \
+        hdql_Context_t context, int *rc ) { \
     arb_ ## suffix ## _t * r = (arb_ ## suffix ## _t *) \
         hdql_context_alloc(                 \
             context,                        \

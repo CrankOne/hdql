@@ -347,7 +347,7 @@ struct TypeInfoMixin<T, typename std::enable_if<std::is_arithmetic<T>::value>::t
     type_info(const hdql_ValueTypes * valTypes, const hdql_Compounds &) {
         auto r = hdql_AtomicTypeFeatures {
               .isReadOnly = 0x0
-            , .arithTypeCode = hdql_types_get_type_code(valTypes, detail::ArithTypeNames<T>::name )
+            , .arithTypeCode = hdql_types_get_type_code(valTypes, detail::ArithTypeNames<T>::name)
         };
         if(0x0 == r.arithTypeCode) {
             char bf[32], errbf[64];

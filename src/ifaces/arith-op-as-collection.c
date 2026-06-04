@@ -32,15 +32,23 @@ struct ArithOpCollectionState {
 static hdql_It_t
 _arith_op_new_iterator( hdql_Datum_t owner
                       , const struct hdql_Datum * defData_
-                      , hdql_Context_t ctx
+                      , hdql_Context_t context
                       ) {
     const struct hdql_ArithOpDefData * defData = (struct hdql_ArithOpDefData *) defData_;
     /* new state */
     struct ArithOpCollectionState * state
         = (struct ArithOpCollectionState *)
-            hdql_context_alloc(ctx, sizeof(struct ArithOpCollectionState));
+            hdql_context_alloc(context, sizeof(struct ArithOpCollectionState));
     /* allocate result value */
-    state->cResult = hdql_create_value(defData->evaluator->returnType, ctx);
+    int rc = 0;
+    state->cResult = hdql_create_value(defData->evaluator->returnType, context, &rc);
+    if(!state->cResult) {
+        hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "arith. op. collection value result ctr of type %#x returned %d"
+                , defData->evaluator->returnType
+                , rc );
+        hdql_context_free(context, (hdql_Datum_t) state);
+    }
 
     bool aIsFullyScalar = hdql_query_is_fully_scalar(defData->args[0]);
     assert( ((!aIsFullyScalar) && (!defData->args[1]))  /* either our single argument is collection */
@@ -117,7 +125,13 @@ _arith_op_collection_destroy_iterator( hdql_It_t it_
     struct ArithOpCollectionState * state = (struct ArithOpCollectionState *) it_;
 
     if(NULL != state->cResult) {
-        hdql_destroy_value(defData->evaluator->returnType, state->cResult, context);
+        int rc = 0, rcc = hdql_destroy_value(defData->evaluator->returnType, state->cResult, context, &rc);
+        if(rcc) {
+            hdql_context_err_push(context, HDQL_ERR_GENERIC
+                , "arith. op. collection value result dtr of type %#x returned %d"
+                , defData->evaluator->returnType
+                , rc );
+        }
     }
     hdql_context_free(context, (hdql_Datum_t) it_);
 }

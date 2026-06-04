@@ -1,5 +1,6 @@
 #include "events-struct.hh"
 #include "hdql/attr-def.h"
+#include "hdql/errors.h"
 #include "hdql/helpers/fancy-print-err.h"
 #include "hdql/helpers/print-tree.h"
 #include "hdql/query-key.h"
@@ -32,7 +33,8 @@ test_query_on_data( int nSample, const char * expression ) {
     // reentrant table with type interfaces
     hdql_ValueTypes * valTypes = hdql_context_get_types(ctx);
     // add standard (int, float, etc) types
-    hdql_value_types_table_add_std_types(valTypes);
+    int rc = hdql_value_types_table_add_std_types(valTypes);
+    if(HDQL_ERR_CODE_OK != rc) return rc;
 
     // create and operations table
     hdql_Operations * operations = hdql_context_get_operations(ctx);
@@ -54,7 +56,7 @@ test_query_on_data( int nSample, const char * expression ) {
     // add standard type conversions
     hdql_converters_add_std(hdql_context_get_conversions(ctx), hdql_context_get_types(ctx), ctx);
     
-    int rc = 0;
+    rc = 0;
     hdql_Query * q; {
         char * expCpy = strdup(expression);
         char errBuf[256] = "";

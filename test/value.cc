@@ -1,33 +1,195 @@
 #include "basic-context.hh"
+#include "hdql/context.h"
+#include "hdql/errors.h"
 #include "hdql/types.h"
+#include <gtest/gtest.h>
 
 #include "hdql/value.h"
 
 namespace hdql {
 namespace test {
 
-#warning "TODO: restore code"
+class Types : public TestingContext {
+protected:
+    hdql_ValueTypes *_vts;
+public:
+    void SetUp() override {
+        TestingContext::SetUp();
+        _vts = hdql_context_get_types(_context);
+        ASSERT_TRUE(_vts);
+    }
+};
+
+TEST_F(Types, canDefineAType) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    int rc = hdql_types_define(_vts, &iface, NULL);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+}
+
+TEST_F(Types, cantDefineATypeWithEmptyName) {
+    hdql_ValueInterface iface = {.name = NULL, .size = 42};
+    int rc = hdql_types_define(_vts, &iface, NULL);
+    ASSERT_EQ(rc, HDQL_ERR_BAD_ARGUMENT);
+
+    iface.name = "";
+    hdql_ValueTypeCode_t tc = 0x0;
+    rc = hdql_types_define(_vts, &iface, &tc);
+    ASSERT_EQ(rc, HDQL_ERR_BAD_ARGUMENT);
+    EXPECT_EQ(tc, 0x0);
+}
+
+TEST_F(Types, canRetrieveADefinedTypeByCode) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(_vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    EXPECT_NE(tc, 0x0);
+
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type(_vts, tc);
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(ifacePtr->size, iface.size);
+}
+
+TEST_F(Types, canRetrieveADefinedTypeByName) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    int rc = hdql_types_define(_vts, &iface, NULL);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type_by_name(_vts, "TypeOne");
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(ifacePtr->size, iface.size);
+}
+
+TEST_F(Types, canRetrieveADefinedTypeByAlias) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(_vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    ASSERT_NE(tc, 0x0);
+    
+    rc = hdql_types_alias(_vts, "TypeUno", tc);
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
+
+    const hdql_ValueInterface * ifacePtr = hdql_types_get_type_by_name(_vts, "TypeUno");
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(iface.size, ifacePtr->size);
+}
+
+
+TEST_F(Types, canRetrieveADefinedTypeByCodeFromParent) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(_vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    EXPECT_NE(tc, 0x0);
+
+    hdql_Context_t descContext
+        = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+    ASSERT_TRUE(descContext);
+
+    hdql_ValueTypes *vts = hdql_context_get_types(descContext);
+    ASSERT_TRUE(vts);
+
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type(vts, tc);
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(ifacePtr->size, iface.size);
+
+    hdql_context_destroy(descContext);
+}
+
+TEST_F(Types, canRetrieveADefinedTypeByNameFromParent) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(_vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    EXPECT_NE(tc, 0x0);
+
+    hdql_Context_t descContext
+        = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+    ASSERT_TRUE(descContext);
+
+    hdql_ValueTypes *vts = hdql_context_get_types(descContext);
+    ASSERT_TRUE(vts);
+
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type_by_name(vts, "TypeOne");
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(ifacePtr->size, iface.size);
+
+    hdql_context_destroy(descContext);
+}
+
+TEST_F(Types, canRetrieveADefinedTypeByNameFromParentByAliasInChild) {
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(_vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    EXPECT_NE(tc, 0x0);
+
+    hdql_Context_t descContext
+        = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+    ASSERT_TRUE(descContext);
+
+    hdql_ValueTypes *vts = hdql_context_get_types(descContext);
+    ASSERT_TRUE(vts);
+
+    rc = hdql_types_alias(vts, "TypeUno", tc);
+    ASSERT_EQ(rc, HDQL_ERR_CODE_OK);
+
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type_by_name(vts, "TypeUno");
+    ASSERT_TRUE(ifacePtr);
+    EXPECT_STREQ(ifacePtr->name, iface.name);
+    EXPECT_EQ(ifacePtr->size, iface.size);
+
+    hdql_context_destroy(descContext);
+}
+
+TEST_F(Types, cantRetrieveADefinedTypeByCodeFromChild) {
+    hdql_Context_t descContext
+        = hdql_context_create_descendant(_context, HDQL_CTX_PRINT_PUSH_ERROR);
+    ASSERT_TRUE(descContext);
+
+    hdql_ValueTypes *vts = hdql_context_get_types(descContext);
+    ASSERT_TRUE(vts);
+
+    hdql_ValueInterface iface = {.name = "TypeOne", .size = 42};
+    hdql_ValueTypeCode_t tc = 0x0;
+    int rc = hdql_types_define(vts, &iface, &tc);
+    EXPECT_EQ(rc, HDQL_ERR_CODE_OK) << hdql_err_str(rc);
+    EXPECT_NE(tc, 0x0);
+
+    const hdql_ValueInterface *ifacePtr = hdql_types_get_type(_vts, tc);
+    ASSERT_FALSE(ifacePtr);
+
+    hdql_context_destroy(descContext);
+}
+
 #if 0
-TEST(CommonTypes, BasicTypeDifinitionWorks) {
-    hdql_ValueTypes vts;
+TEST_F(TestingContext, BasicTypeDifinitionWorksCheckTwoTypes) {
+    hdql_ValueTypes *vts = hdql_context_get_types(_context);
     hdql_ValueInterface iface1 = {.name = "TypeOne"}
                       , iface2 = {.name = "TypeTwo"};
-    EXPECT_EQ(vts.define(iface1), 0);
-    EXPECT_EQ(vts.define(iface2), 0);
-    EXPECT_NE(vts.get_code_by_name("TypeOne"), 0x0);
-    EXPECT_NE(vts.get_code_by_name("TypeTwo"), 0x0);
-    EXPECT_EQ(vts.get_code_by_name("TypeThree"), 0x0);
-    EXPECT_STREQ(vts.get_by_name("TypeOne")->name, iface1.name);
-    EXPECT_STREQ(vts.get_by_name("TypeTwo")->name, iface2.name);
-    EXPECT_FALSE(vts.get_by_name("TypeThree"));
+    EXPECT_EQ(hdql_types_define(vts, &iface1), HDQL_ERR_CODE_OK);
+    EXPECT_EQ(hdql_types_define(vts, &iface2), HDQL_ERR_CODE_OK);
+    EXPECT_NE(hdql_types_get_type_code(vts, "TypeOne"), 0x0);
+    EXPECT_NE(hdql_types_get_type_code(vts, "TypeTwo"), 0x0);
+    EXPECT_EQ(hdql_types_get_type_code(vts, "TypeThree"), 0x0);
+    ASSERT_TRUE(hdql_types_get_type_by_name(vts, "TypeOne"));
+    EXPECT_STREQ(hdql_types_get_type_by_name(vts, "TypeOne")->name, iface1.name);
+    EXPECT_STREQ(hdql_types_get_type_by_name(vts, "TypeTwo")->name, iface2.name);
+    EXPECT_FALSE(hdql_types_get_type_by_name(vts, "TypeThree"));
 }  // TEST(CommonTypes, BasicTypeDifinitionWorks)
 
-TEST(CommonTypes, AliasedTypeDifinitionWorks) {
-    hdql_ValueTypes vts;
+TEST_F(TestingContext, AliasedTypeDifinitionWorks) {
+    hdql_ValueTypes *vts = hdql_context_get_types(_context);
     hdql_ValueInterface iface1 = {.name = "TypeOne"}
                       , iface2 = {.name = "TypeTwo"};
-    EXPECT_EQ(vts.define(iface1), 0);
-    EXPECT_EQ(vts.define(iface2), 0);
+    EXPECT_EQ(hdql_types_define(vts, &iface1), HDQL_ERR_CODE_OK);
+    EXPECT_EQ(hdql_types_define(vts, &iface2), HDQL_ERR_CODE_OK);
     EXPECT_NE(vts.get_code_by_name("TypeOne"), 0x0);
     EXPECT_NE(vts.get_code_by_name("TypeTwo"), 0x0);
 
@@ -45,8 +207,8 @@ TEST(CommonTypes, AliasedTypeDifinitionWorks) {
     EXPECT_STREQ(vts.get_by_name("AliasTwo")->name,  iface2.name);
 }  // TEST(CommonTypes, AliasedTypeDifinitionWorks)
 
-TEST(CommonTypes, AliasedTypeDifinitionWithParentWorks) {
-    hdql_ValueTypes vts;
+TEST_F(TestingContext, AliasedTypeDifinitionWithParentWorks) {
+    hdql_ValueTypes *vts = hdql_context_get_types(_context);
     hdql_ValueInterface iface1 = {.name = "TypeOne"}
                       , iface2 = {.name = "TypeTwo"};
     EXPECT_EQ(vts.define(iface1), 0);
@@ -73,7 +235,7 @@ TEST(CommonTypes, AliasedTypeDifinitionWithParentWorks) {
     EXPECT_NE(vtsDesc.get_code_by_name("TypeTwo"), vts.get_code_by_name("TypeTwo"));
 }  // TEST(CommonTypes, BasicTypeDifinitionWorks)
 
-TEST(CommonTypes, ShortIntegerParsingWorks) {
+TEST_F(TestingContext, ShortIntegerParsingWorks) {
     // tests that basic parsing works and detects value boundaries (leving
     // original value intact)
     int16_t v;
@@ -94,7 +256,7 @@ TEST(CommonTypes, ShortIntegerParsingWorks) {
     EXPECT_EQ(v, -32768);
 }
 
-TEST(CommonTypes, ShortIntegerConversionsWorks) {
+TEST_F(TestingContext, ShortIntegerConversionsWorks) {
     // tests that basic conversions works and detects value boundaries (leving
     // original value intact)
     int16_t v = std::numeric_limits<int16_t>::max();

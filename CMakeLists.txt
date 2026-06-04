@@ -71,6 +71,7 @@ set (hdql_SOURCES src/util/pcg32.c
                   src/query.c
 	              src/query-key.c
 	              src/operations.cc
+                  src/value.c
 	              src/value.cc
                   src/function.cc
                   src/converters.c

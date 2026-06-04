@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <stdexcept>
 #include <type_traits>
 #include <typeindex>
 #include <utility>
@@ -124,7 +125,17 @@ struct AutoFunction {
             assert(nArgs <= sizeof...(ArgsT));
             if(NULL == fInstArgs->converters[nArgs].func) continue;  // no conversion
             assert(0x0 != fInstArgs->converters[nArgs].retTypeCode);
-            state->argValuesPtrs[nArgs] = hdql_create_value(fInstArgs->converters[nArgs].retTypeCode, context);
+            int rc = 0;
+            if(!(state->argValuesPtrs[nArgs]
+                    = hdql_create_value(fInstArgs->converters[nArgs].retTypeCode
+                        , context, &rc))) {
+                char errbf[128];
+                snprintf(errbf, sizeof(errbf), "failed to initialize function"
+                        " result of type code %#x, constructor returned %d"
+                        , fInstArgs->converters[nArgs].retTypeCode
+                        , rc );
+                throw std::runtime_error(errbf);
+            }
             assert(state->argValuesPtrs[nArgs]);  // TODO: enomem otherwise
         }
         return reinterpret_cast<hdql_Datum_t>(state);
@@ -196,9 +207,18 @@ struct AutoFunction {
                          && state->argValuesPtrs[i]
                          && 0x0 != fInstArgs->converters[i].retTypeCode
                          ) {
-                            hdql_destroy_value(fInstArgs->converters[i].retTypeCode
+                            int rc = 0
+                              , rcc = hdql_destroy_value(fInstArgs->converters[i].retTypeCode
                                     , state->argValuesPtrs[i]
-                                    , ctx );
+                                    , ctx, &rc );
+                            if(rcc) {
+                                char errbf[128];
+                                snprintf(errbf, sizeof(errbf), "failed to initialize function"
+                                        " result of type code %#x, destructor returned %d"
+                                        , fInstArgs->converters[i].retTypeCode
+                                        , rc );
+                                throw std::runtime_error(errbf);
+                            }
                         }
                     }
                 }

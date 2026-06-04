@@ -14,14 +14,14 @@
 #include <limits.h>
 #include <stdlib.h>
 
-/* Init HT size for the attributes of the compound type */
+/* Init HT size for the attributes of the compound type (power of 2) */
 #ifndef HDQL_HT_COMPOUND_NATTRS
-#   define HDQL_HT_COMPOUND_NATTRS 64
+#   define HDQL_HT_COMPOUND_NATTRS 4
 #endif
 
-/* Init HT size of the compounds table */
+/* Init HT size of the compounds table (power of 2) */
 #ifndef HDQL_HT_COMPOUNDS_INDEX_NITEMS
-#   define HDQL_HT_COMPOUNDS_INDEX_NITEMS 128
+#   define HDQL_HT_COMPOUNDS_INDEX_NITEMS 4
 #endif
 
 struct hdql_Compound {

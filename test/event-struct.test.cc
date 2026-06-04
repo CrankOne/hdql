@@ -34,13 +34,7 @@
 namespace hdql {
 namespace test {
 
-class CppTemplatedInterfaces : public TestingContext {
-public:
-    void SetUp() override {
-        TestingContext::SetUp();
-        hdql_value_types_table_add_std_types(_valueTypes);
-    }
-};
+class CppTemplatedInterfaces : public TestingContext { };
 
 //                                          __________________________________
 // _______________________________________/ Tests for C++ templated interfaces

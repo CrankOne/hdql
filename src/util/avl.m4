@@ -240,6 +240,38 @@ erase_iterative(struct _M_AVL *m, const _M_keyType key ifelse(_M_isMap, `true', 
     return HDQL_AVL_CHANGED;
 }
 
+static _M_AVLNode *
+lower_bound_node(const struct _M_AVL *m, const _M_keyType key) {
+    _M_AVLNode *n = m->root;
+    _M_AVLNode *best = NULL;
+    while (n) {
+        int rc = _M_key_cmp(n->key, key ifelse(_M_keyDynAlloc, `const', `, m->keyLen'));
+        if (rc < 0) {
+            n = n->right;
+        } else {
+            best = n;
+            n = n->left;
+        }
+    }
+    return best;
+}
+
+static _M_AVLNode *
+upper_bound_node(const struct _M_AVL *m, const _M_keyType key) {
+    _M_AVLNode *n = m->root;
+    _M_AVLNode *best = NULL;
+    while (n) {
+        int rc = _M_key_cmp(n->key, key ifelse(_M_keyDynAlloc, `const', `, m->keyLen'));
+        if (rc <= 0) {
+            n = n->right;
+        } else {
+            best = n;
+            n = n->left;
+        }
+    }
+    return best;
+}
+
 /*
  * Public API
  */
@@ -259,6 +291,11 @@ _M4_pubfunc(_M_AVL, create)(
           )
     m->nItems = 0;
     return m;
+}
+
+const struct hdql_Allocator *
+_M4_pubfunc(_M_AVL, get_alloc)(const struct _M_AVL *m) {
+    return m->alloc;
 }
 
 int
@@ -379,4 +416,30 @@ _M4_pubfunc(_M_AVL, iter_r)(struct _M_AVL *m
         n = n->left;
     }
     return 0;
+}
+
+bool
+_M4_pubfunc(_M_AVL, lower_bound)(const struct _M_AVL *m,
+        const _M_keyType key,
+        _M_keyType *foundKey
+        ifelse(_M_isMap, `true', `, void **foundValue')
+        ) {
+    _M_AVLNode *n = lower_bound_node(m, key);
+    if(!n) return false;
+    if(foundKey) *foundKey = n->key;
+    ifelse(_M_isMap, `true', `if(foundValue) *foundValue = n->value;')
+    return true;
+}
+
+bool
+_M4_pubfunc(_M_AVL, upper_bound)(const struct _M_AVL *m,
+        const _M_keyType key,
+        _M_keyType *foundKey
+        ifelse(_M_isMap, `true', `, void **foundValue')
+        ) {
+    _M_AVLNode *n = upper_bound_node(m, key);
+    if(!n) return false;
+    if(foundKey) *foundKey = n->key;
+    ifelse(_M_isMap, `true', `if(foundValue) *foundValue = n->value;')
+    return true;
 }

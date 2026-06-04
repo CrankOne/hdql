@@ -1010,15 +1010,26 @@ _operation( struct hdql_Query * a
                 ;
         assert(valueA);
         assert((!b) || NULL != valueB);
-        hdql_Datum_t result = hdql_create_value(evaluator->returnType, ws->context);
-        
+        int rc = 0;
+        hdql_Datum_t result = hdql_create_value(evaluator->returnType, ws->context, &rc);
+        if(!result) {
+            hdql_error( yyloc, ws, NULL
+                      , "failed to create static result value of type %#x for"
+                        " arithmetic operation: ctr returned %d"
+                      , evaluator->returnType
+                      , rc
+                      );
+            return HDQL_ERR_ARITH_OPERATION;
+        }
+
         char errBf[128];
-        int rc = evaluator->op(valueA, valueB, result);
+        rc = evaluator->op(valueA, valueB, result);
         //int rc = hdql_op_eval( valueA, evaluator, valueB, result);
 
         if(0 != rc) {
             hdql_error( yyloc, ws, NULL, "%s %s", opDescription, errBf );
-            hdql_destroy_value(evaluator->returnType, result, ws->context);
+            /* ignore destructor error codes this time... */
+            hdql_destroy_value(evaluator->returnType, result, ws->context, NULL);
             return HDQL_ERR_ARITH_OPERATION;
         }
 
